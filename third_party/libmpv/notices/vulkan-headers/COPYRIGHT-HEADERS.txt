@@ -1,0 +1,1278 @@
+include/vk_video/vulkan_video_codec_av1std.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vk_video/vulkan_video_codec_av1std_decode.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vk_video/vulkan_video_codec_av1std_encode.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vk_video/vulkan_video_codec_h264std.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vk_video/vulkan_video_codec_h264std_decode.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vk_video/vulkan_video_codec_h264std_encode.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vk_video/vulkan_video_codec_h265std.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vk_video/vulkan_video_codec_h265std_decode.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vk_video/vulkan_video_codec_h265std_encode.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vk_video/vulkan_video_codec_vp9std.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vk_video/vulkan_video_codec_vp9std_decode.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vk_video/vulkan_video_codecs_common.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vulkan/vk_icd.h
+/*
+ * Copyright 2015-2023 The Khronos Group Inc.
+ * Copyright 2015-2023 Valve Corporation
+ * Copyright 2015-2023 LunarG, Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+include/vulkan/vk_layer.h
+/*
+ * Copyright 2015-2023 The Khronos Group Inc.
+ * Copyright 2015-2023 Valve Corporation
+ * Copyright 2015-2023 LunarG, Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+include/vulkan/vk_platform.h
+/*
+** Copyright 2014-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vulkan/vulkan.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vulkan/vulkan.hpp
+// Copyright 2015-2026 The Khronos Group Inc.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+//
+
+// This header is generated from the Khronos Vulkan XML API Registry.
+
+#ifndef VULKAN_HPP
+#define VULKAN_HPP
+
+#if !defined( VULKAN_HPP_CXX_MODULE )
+#  include <vulkan/vulkan.h>
+// clang-format off
+#  include <vulkan/vulkan_hpp_macros.hpp>
+// clang-format on
+#  include <algorithm>
+#  include <array>  // ArrayWrapperND
+#  include <cassert>
+#  include <string.h>  // strnlen
+#  include <string>    // std::string
+#  include <utility>   // std::exchange
+#  if 17 <= VULKAN_HPP_CPP_VERSION
+#    include <string_view>
+#  endif
+#  if !defined( VULKAN_HPP_DISABLE_ENHANCED_MODE )
+#    include <tuple>   // std::tie
+#    include <vector>  // std::vector
+#  endif
+#  if defined( VULKAN_HPP_HAS_SPACESHIP_OPERATOR )
+#    include <compare>
+#  endif
+#  if !defined( VULKAN_HPP_NO_EXCEPTIONS )
+#    include <system_error>  // std::is_error_code_enum
+#  endif
+#  if defined( VULKAN_HPP_SUPPORT_SPAN )
+#    include <span>
+#  endif
+#endif
+
+VULKAN_HPP_STATIC_ASSERT( VK_HEADER_VERSION == 345, "Wrong VK_HEADER_VERSION!" );
+
+VULKAN_HPP_EXPORT namespace VULKAN_HPP_NAMESPACE
+{
+  namespace detail
+  {
+    class DispatchLoaderDynamic;
+
+#if !defined( VULKAN_HPP_DEFAULT_DISPATCHER_HANDLED ) && VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1
+    extern VULKAN_HPP_STORAGE_API DispatchLoaderDynamic defaultDispatchLoaderDynamic;
+#endif
+  }  // namespace detail
+}  // namespace VULKAN_HPP_NAMESPACE
+
+// <tuple> includes <sys/sysmacros.h> through some other header
+// this results in major(x) being resolved to gnu_dev_major(x)
+// which is an expression in a constructor initializer list.
+#if defined( major )
+#  undef major
+#endif
+#if defined( minor )
+#  undef minor
+#endif
+
+// Windows defines MemoryBarrier which is deprecated and collides
+// with the VULKAN_HPP_NAMESPACE::MemoryBarrier struct.
+#if defined( MemoryBarrier )
+#  undef MemoryBarrier
+#endif
+
+// XLib.h defines True/False, which collides with our VULKAN_HPP_NAMESPACE::True/VULKAN_HPP_NAMESPACE::False
+
+include/vulkan/vulkan_android.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vulkan/vulkan_beta.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vulkan/vulkan_core.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vulkan/vulkan_directfb.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vulkan/vulkan_enums.hpp
+// Copyright 2015-2026 The Khronos Group Inc.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+//
+
+// This header is generated from the Khronos Vulkan XML API Registry.
+
+#ifndef VULKAN_ENUMS_HPP
+#define VULKAN_ENUMS_HPP
+
+// include-what-you-use: make sure, vulkan.hpp is used by code-completers
+// IWYU pragma: private, include "vulkan/vulkan.hpp"
+
+#if !defined( VULKAN_HPP_CXX_MODULE )
+#  include <type_traits>  // for std::underlying_type
+#endif
+
+VULKAN_HPP_EXPORT namespace VULKAN_HPP_NAMESPACE
+{
+  template <typename FlagBitsType>
+  struct FlagTraits
+  {
+    static VULKAN_HPP_CONST_OR_CONSTEXPR bool isBitmask = false;
+  };
+
+  template <typename BitType>
+  class Flags
+  {
+  public:
+    using BitsType = BitType;
+    using MaskType = typename std::underlying_type<BitType>::type;
+
+    // constructors
+    VULKAN_HPP_CONSTEXPR Flags() VULKAN_HPP_NOEXCEPT : m_mask( 0 ) {}
+
+    VULKAN_HPP_CONSTEXPR Flags( BitType bit ) VULKAN_HPP_NOEXCEPT : m_mask( static_cast<MaskType>( bit ) ) {}
+
+    VULKAN_HPP_CONSTEXPR Flags( Flags<BitType> const & rhs ) VULKAN_HPP_NOEXCEPT = default;
+
+    VULKAN_HPP_CONSTEXPR explicit Flags( MaskType flags ) VULKAN_HPP_NOEXCEPT : m_mask( flags ) {}
+
+    // relational operators
+#if defined( VULKAN_HPP_HAS_SPACESHIP_OPERATOR )
+    auto operator<=>( Flags<BitType> const & ) const = default;
+#else
+    VULKAN_HPP_CONSTEXPR bool operator<( Flags<BitType> const & rhs ) const VULKAN_HPP_NOEXCEPT
+    {
+      return m_mask < rhs.m_mask;
+    }
+
+    VULKAN_HPP_CONSTEXPR bool operator<=( Flags<BitType> const & rhs ) const VULKAN_HPP_NOEXCEPT
+    {
+      return m_mask <= rhs.m_mask;
+    }
+
+    VULKAN_HPP_CONSTEXPR bool operator>( Flags<BitType> const & rhs ) const VULKAN_HPP_NOEXCEPT
+    {
+      return m_mask > rhs.m_mask;
+    }
+
+    VULKAN_HPP_CONSTEXPR bool operator>=( Flags<BitType> const & rhs ) const VULKAN_HPP_NOEXCEPT
+    {
+      return m_mask >= rhs.m_mask;
+    }
+
+    VULKAN_HPP_CONSTEXPR bool operator==( Flags<BitType> const & rhs ) const VULKAN_HPP_NOEXCEPT
+    {
+      return m_mask == rhs.m_mask;
+    }
+
+
+include/vulkan/vulkan_extension_inspection.hpp
+// Copyright 2015-2026 The Khronos Group Inc.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+//
+
+// This header is generated from the Khronos Vulkan XML API Registry.
+
+#ifndef VULKAN_EXTENSION_INSPECTION_HPP
+#define VULKAN_EXTENSION_INSPECTION_HPP
+
+#if !defined( VULKAN_HPP_CXX_MODULE )
+#  include <map>
+#  include <set>
+#  include <string>
+#  include <vector>
+#  include <vulkan/vulkan.hpp>
+#endif
+
+#if defined( VULKAN_HPP_CXX_MODULE )
+#  define VULKAN_HPP_EXPORT export
+#else
+#  define VULKAN_HPP_EXPORT
+#endif
+
+VULKAN_HPP_EXPORT namespace VULKAN_HPP_NAMESPACE
+{
+  //======================================
+  //=== Extension inspection functions ===
+  //======================================
+
+  std::set<std::string> const &                                        getDeviceExtensions();
+  std::set<std::string> const &                                        getInstanceExtensions();
+  std::map<std::string, std::string> const &                           getDeprecatedExtensions();
+  std::map<std::string, std::vector<std::vector<std::string>>> const & getExtensionDepends( std::string const & extension );
+  std::pair<bool, std::vector<std::vector<std::string>> const &>       getExtensionDepends( std::string const & version, std::string const & extension );
+  std::map<std::string, std::string> const &                           getObsoletedExtensions();
+  std::map<std::string, std::string> const &                           getPromotedExtensions();
+  VULKAN_HPP_CONSTEXPR_20 std::string getExtensionDeprecatedBy( std::string const & extension );
+  VULKAN_HPP_CONSTEXPR_20 std::string getExtensionObsoletedBy( std::string const & extension );
+  VULKAN_HPP_CONSTEXPR_20 std::string getExtensionPromotedTo( std::string const & extension );
+  VULKAN_HPP_CONSTEXPR_20 bool        isDeprecatedExtension( std::string const & extension );
+  VULKAN_HPP_CONSTEXPR_20 bool        isDeviceExtension( std::string const & extension );
+  VULKAN_HPP_CONSTEXPR_20 bool        isInstanceExtension( std::string const & extension );
+  VULKAN_HPP_CONSTEXPR_20 bool        isObsoletedExtension( std::string const & extension );
+  VULKAN_HPP_CONSTEXPR_20 bool        isPromotedExtension( std::string const & extension );
+
+  //=====================================================
+  //=== Extension inspection function implementations ===
+  //=====================================================
+
+  VULKAN_HPP_INLINE std::map<std::string, std::string> const & getDeprecatedExtensions()
+  {
+    static std::map<std::string, std::string> const deprecatedExtensions = { { "VK_EXT_debug_report", "VK_EXT_debug_utils" },
+                                                                             { "VK_NV_glsl_shader", "" },
+                                                                             { "VK_NV_dedicated_allocation", "VK_KHR_dedicated_allocation" },
+                                                                             { "VK_AMD_gpu_shader_half_float", "VK_KHR_shader_float16_int8" },
+                                                                             { "VK_IMG_format_pvrtc", "" },
+                                                                             { "VK_NV_external_memory_capabilities", "VK_KHR_external_memory_capabilities" },
+                                                                             { "VK_NV_external_memory", "VK_KHR_external_memory" },
+#if defined( VK_USE_PLATFORM_WIN32_KHR )
+                                                                             { "VK_NV_external_memory_win32", "VK_KHR_external_memory_win32" },
+#endif /*VK_USE_PLATFORM_WIN32_KHR*/
+                                                                             { "VK_EXT_validation_flags", "VK_EXT_layer_settings" },
+                                                                             { "VK_EXT_shader_subgroup_ballot", "VK_VERSION_1_2" },
+                                                                             { "VK_EXT_shader_subgroup_vote", "VK_VERSION_1_1" },
+#if defined( VK_USE_PLATFORM_IOS_MVK )
+                                                                             { "VK_MVK_ios_surface", "VK_EXT_metal_surface" },
+#endif /*VK_USE_PLATFORM_IOS_MVK*/
+#if defined( VK_USE_PLATFORM_MACOS_MVK )
+                                                                             { "VK_MVK_macos_surface", "VK_EXT_metal_surface" },
+
+include/vulkan/vulkan_format_traits.hpp
+// Copyright 2015-2026 The Khronos Group Inc.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+//
+
+// This header is generated from the Khronos Vulkan XML API Registry.
+
+#ifndef VULKAN_FORMAT_TRAITS_HPP
+#define VULKAN_FORMAT_TRAITS_HPP
+
+#if defined( VULKAN_HPP_CXX_MODULE )
+#  define VULKAN_HPP_EXPORT export
+#else
+#  include <vulkan/vulkan.hpp>
+#endif
+
+namespace VULKAN_HPP_NAMESPACE
+{
+  //=====================
+  //=== Format Traits ===
+  //=====================
+
+  //=== Function Declarations ===
+
+  // The three-dimensional extent of a texel block.
+  VULKAN_HPP_EXPORT VULKAN_HPP_CONSTEXPR_14 std::array<uint8_t, 3> blockExtent( Format format );
+
+  // The texel block size in bytes.
+  VULKAN_HPP_EXPORT VULKAN_HPP_CONSTEXPR_14 uint8_t blockSize( Format format );
+
+  // The class of the format (can't be just named "class"!)
+  VULKAN_HPP_EXPORT VULKAN_HPP_CONSTEXPR_14 char const * compatibilityClass( Format format );
+
+  // The number of bits in this component, if not compressed, otherwise 0.
+  VULKAN_HPP_EXPORT VULKAN_HPP_CONSTEXPR_14 uint8_t componentBits( Format format, uint8_t component );
+
+  // The number of components of this format.
+  VULKAN_HPP_EXPORT VULKAN_HPP_CONSTEXPR_14 uint8_t componentCount( Format format );
+
+  // The name of the component
+  VULKAN_HPP_EXPORT VULKAN_HPP_CONSTEXPR_14 char const * componentName( Format format, uint8_t component );
+
+  // The numeric format of the component
+  VULKAN_HPP_EXPORT VULKAN_HPP_CONSTEXPR_14 char const * componentNumericFormat( Format format, uint8_t component );
+
+  // The plane this component lies in.
+  VULKAN_HPP_EXPORT VULKAN_HPP_CONSTEXPR_14 uint8_t componentPlaneIndex( Format format, uint8_t component );
+
+  // True, if the components of this format are compressed, otherwise false.
+  VULKAN_HPP_EXPORT VULKAN_HPP_CONSTEXPR_14 bool componentsAreCompressed( Format format );
+
+  // A textual description of the compression scheme, or an empty string if it is not compressed
+  VULKAN_HPP_EXPORT VULKAN_HPP_CONSTEXPR_14 char const * compressionScheme( Format format );
+
+  // Get all formats
+  VULKAN_HPP_EXPORT std::vector<Format> const & getAllFormats();
+
+  // Get all color with a color component
+  VULKAN_HPP_EXPORT std::vector<Format> const & getColorFormats();
+
+  // Get all formats with a depth component
+  VULKAN_HPP_EXPORT std::vector<Format> const & getDepthFormats();
+
+  // Get all formats with a depth and a stencil component
+  VULKAN_HPP_EXPORT std::vector<Format> const & getDepthStencilFormats();
+
+  // Get all formats with a stencil component
+  VULKAN_HPP_EXPORT std::vector<Format> const & getStencilFormats();
+
+  // True, if this format has an alpha component
+
+include/vulkan/vulkan_fuchsia.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vulkan/vulkan_funcs.hpp
+// Copyright 2015-2026 The Khronos Group Inc.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+//
+
+// This header is generated from the Khronos Vulkan XML API Registry.
+
+#ifndef VULKAN_FUNCS_HPP
+#define VULKAN_FUNCS_HPP
+
+// include-what-you-use: make sure, vulkan.hpp is used by code-completers
+// IWYU pragma: private, include "vulkan/vulkan.hpp"
+
+VULKAN_HPP_EXPORT namespace VULKAN_HPP_NAMESPACE
+{
+  //===========================
+  //=== COMMAND Definitions ===
+  //===========================
+
+  //=== VK_VERSION_1_0 ===
+
+  // wrapper function for command vkCreateInstance, see https://registry.khronos.org/vulkan/specs/latest/man/html/vkCreateInstance.html
+  template <typename Dispatch, typename std::enable_if<IS_DISPATCHED( vkCreateInstance ), bool>::type>
+  VULKAN_HPP_NODISCARD VULKAN_HPP_INLINE Result createInstance(
+    InstanceCreateInfo const * pCreateInfo, AllocationCallbacks const * pAllocator, Instance * pInstance, Dispatch const & d ) VULKAN_HPP_NOEXCEPT
+  {
+    VULKAN_HPP_ASSERT( d.getVkHeaderVersion() == VK_HEADER_VERSION );
+    return static_cast<Result>( d.vkCreateInstance( reinterpret_cast<VkInstanceCreateInfo const *>( pCreateInfo ),
+                                                    reinterpret_cast<VkAllocationCallbacks const *>( pAllocator ),
+                                                    reinterpret_cast<VkInstance *>( pInstance ) ) );
+  }
+
+#ifndef VULKAN_HPP_DISABLE_ENHANCED_MODE
+  // wrapper function for command vkCreateInstance, see https://registry.khronos.org/vulkan/specs/latest/man/html/vkCreateInstance.html
+  template <typename Dispatch, typename std::enable_if<IS_DISPATCHED( vkCreateInstance ), bool>::type>
+  VULKAN_HPP_NODISCARD VULKAN_HPP_INLINE typename ResultValueType<Instance>::type createInstance(
+    InstanceCreateInfo const & createInfo, Optional<AllocationCallbacks const> allocator, Dispatch const & d )
+  {
+    VULKAN_HPP_ASSERT( d.getVkHeaderVersion() == VK_HEADER_VERSION );
+#  if ( VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1 )
+    VULKAN_HPP_ASSERT( d.vkCreateInstance && "Function <vkCreateInstance> requires <VK_VERSION_1_0>" );
+#  endif
+
+    Instance instance;
+    Result   result = static_cast<Result>( d.vkCreateInstance( reinterpret_cast<VkInstanceCreateInfo const *>( &createInfo ),
+                                                             reinterpret_cast<VkAllocationCallbacks const *>( allocator.get() ),
+                                                             reinterpret_cast<VkInstance *>( &instance ) ) );
+    detail::resultCheck( result, VULKAN_HPP_NAMESPACE_STRING "::createInstance" );
+
+    return detail::createResultValueType( result, std::move( instance ) );
+  }
+
+#  ifndef VULKAN_HPP_NO_SMART_HANDLE
+  // wrapper function for command vkCreateInstance, see https://registry.khronos.org/vulkan/specs/latest/man/html/vkCreateInstance.html
+  template <typename Dispatch, typename std::enable_if<IS_DISPATCHED( vkCreateInstance ), bool>::type>
+  VULKAN_HPP_NODISCARD VULKAN_HPP_INLINE typename ResultValueType<UniqueHandle<Instance, Dispatch>>::type createInstanceUnique(
+    InstanceCreateInfo const & createInfo, Optional<AllocationCallbacks const> allocator, Dispatch const & d )
+  {
+    VULKAN_HPP_ASSERT( d.getVkHeaderVersion() == VK_HEADER_VERSION );
+#    if ( VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1 )
+    VULKAN_HPP_ASSERT( d.vkCreateInstance && "Function <vkCreateInstance> requires <VK_VERSION_1_0>" );
+#    endif
+
+    Instance instance;
+    Result   result = static_cast<Result>( d.vkCreateInstance( reinterpret_cast<VkInstanceCreateInfo const *>( &createInfo ),
+                                                             reinterpret_cast<VkAllocationCallbacks const *>( allocator.get() ),
+                                                             reinterpret_cast<VkInstance *>( &instance ) ) );
+    detail::resultCheck( result, VULKAN_HPP_NAMESPACE_STRING "::createInstanceUnique" );
+
+    return detail::createResultValueType( result,
+
+include/vulkan/vulkan_ggp.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vulkan/vulkan_handles.hpp
+// Copyright 2015-2026 The Khronos Group Inc.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+//
+
+// This header is generated from the Khronos Vulkan XML API Registry.
+
+#ifndef VULKAN_HANDLES_HPP
+#define VULKAN_HANDLES_HPP
+
+// include-what-you-use: make sure, vulkan.hpp is used by code-completers
+// IWYU pragma: private, include "vulkan/vulkan.hpp"
+
+VULKAN_HPP_EXPORT namespace VULKAN_HPP_NAMESPACE
+{
+  //===================================
+  //=== STRUCT forward declarations ===
+  //===================================
+
+  //=== VK_VERSION_1_0 ===
+  struct Extent2D;
+  struct Extent3D;
+  struct Offset2D;
+  struct Offset3D;
+  struct Rect2D;
+  struct BaseInStructure;
+  struct BaseOutStructure;
+  struct AllocationCallbacks;
+  struct ApplicationInfo;
+  struct FormatProperties;
+  struct ImageFormatProperties;
+  struct InstanceCreateInfo;
+  struct MemoryHeap;
+  struct MemoryType;
+  struct PhysicalDeviceFeatures;
+  struct PhysicalDeviceLimits;
+  struct PhysicalDeviceMemoryProperties;
+  struct PhysicalDeviceSparseProperties;
+  struct PhysicalDeviceProperties;
+  struct QueueFamilyProperties;
+  struct DeviceQueueCreateInfo;
+  struct DeviceCreateInfo;
+  struct ExtensionProperties;
+  struct LayerProperties;
+  struct SubmitInfo;
+  struct MappedMemoryRange;
+  struct MemoryAllocateInfo;
+  struct MemoryRequirements;
+  struct ImageSubresource;
+  struct SparseImageFormatProperties;
+  struct SparseImageMemoryBind;
+  struct SparseImageMemoryBindInfo;
+  struct SparseImageMemoryRequirements;
+  struct SparseMemoryBind;
+  struct SparseBufferMemoryBindInfo;
+  struct SparseImageOpaqueMemoryBindInfo;
+  struct BindSparseInfo;
+  struct FenceCreateInfo;
+  struct SemaphoreCreateInfo;
+  struct QueryPoolCreateInfo;
+  struct BufferCreateInfo;
+  struct ImageCreateInfo;
+  struct SubresourceLayout;
+  struct ComponentMapping;
+  struct ImageSubresourceRange;
+  struct ImageViewCreateInfo;
+  struct CommandPoolCreateInfo;
+  struct CommandBufferAllocateInfo;
+  struct CommandBufferInheritanceInfo;
+  struct CommandBufferBeginInfo;
+
+include/vulkan/vulkan_hash.hpp
+// Copyright 2015-2026 The Khronos Group Inc.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+//
+
+// This header is generated from the Khronos Vulkan XML API Registry.
+
+#ifndef VULKAN_HASH_HPP
+#define VULKAN_HASH_HPP
+
+#if !defined( VULKAN_HPP_CXX_MODULE )
+#  include <vulkan/vulkan.hpp>
+#endif
+
+VULKAN_HPP_EXPORT namespace std
+{
+  //=======================================
+  //=== HASH structures for Flags types ===
+  //=======================================
+
+  template <typename BitType>
+  struct hash<VULKAN_HPP_NAMESPACE::Flags<BitType>>
+  {
+    std::size_t operator()( VULKAN_HPP_NAMESPACE::Flags<BitType> const & flags ) const VULKAN_HPP_NOEXCEPT
+    {
+      return std::hash<typename std::underlying_type<BitType>::type>{}( static_cast<typename std::underlying_type<BitType>::type>( flags ) );
+    }
+  };
+
+  //===================================
+  //=== HASH structures for handles ===
+  //===================================
+
+  //=== VK_VERSION_1_0 ===
+
+  template <>
+  struct hash<VULKAN_HPP_NAMESPACE::Instance>
+  {
+    std::size_t operator()( VULKAN_HPP_NAMESPACE::Instance const & instance ) const VULKAN_HPP_NOEXCEPT
+    {
+      return std::hash<VkInstance>{}( static_cast<VkInstance>( instance ) );
+    }
+  };
+
+  template <>
+  struct hash<VULKAN_HPP_NAMESPACE::PhysicalDevice>
+  {
+    std::size_t operator()( VULKAN_HPP_NAMESPACE::PhysicalDevice const & physicalDevice ) const VULKAN_HPP_NOEXCEPT
+    {
+      return std::hash<VkPhysicalDevice>{}( static_cast<VkPhysicalDevice>( physicalDevice ) );
+    }
+  };
+
+  template <>
+  struct hash<VULKAN_HPP_NAMESPACE::Device>
+  {
+    std::size_t operator()( VULKAN_HPP_NAMESPACE::Device const & device ) const VULKAN_HPP_NOEXCEPT
+    {
+      return std::hash<VkDevice>{}( static_cast<VkDevice>( device ) );
+    }
+  };
+
+  template <>
+  struct hash<VULKAN_HPP_NAMESPACE::Queue>
+  {
+    std::size_t operator()( VULKAN_HPP_NAMESPACE::Queue const & queue ) const VULKAN_HPP_NOEXCEPT
+    {
+      return std::hash<VkQueue>{}( static_cast<VkQueue>( queue ) );
+    }
+  };
+
+include/vulkan/vulkan_hpp_macros.hpp
+// Copyright 2015-2026 The Khronos Group Inc.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+//
+
+// This header is generated from the Khronos Vulkan XML API Registry.
+
+#ifndef VULKAN_HPP_MACROS_HPP
+#define VULKAN_HPP_MACROS_HPP
+
+#if defined( _MSVC_LANG )
+#  define VULKAN_HPP_CPLUSPLUS _MSVC_LANG
+#else
+#  define VULKAN_HPP_CPLUSPLUS __cplusplus
+#endif
+
+#if 202002L < VULKAN_HPP_CPLUSPLUS
+#  define VULKAN_HPP_CPP_VERSION 23
+#elif 201703L < VULKAN_HPP_CPLUSPLUS
+#  define VULKAN_HPP_CPP_VERSION 20
+#elif 201402L < VULKAN_HPP_CPLUSPLUS
+#  define VULKAN_HPP_CPP_VERSION 17
+#elif 201103L < VULKAN_HPP_CPLUSPLUS
+#  define VULKAN_HPP_CPP_VERSION 14
+#elif 199711L < VULKAN_HPP_CPLUSPLUS
+#  define VULKAN_HPP_CPP_VERSION 11
+#else
+#  error "vulkan.hpp needs at least c++ standard version 11"
+#endif
+
+// include headers holding feature-test macros
+#if 20 <= VULKAN_HPP_CPP_VERSION
+#  include <version>
+#else
+#  include <ciso646>
+#endif
+
+#define VULKAN_HPP_STRINGIFY2( text ) #text
+#define VULKAN_HPP_STRINGIFY( text )  VULKAN_HPP_STRINGIFY2( text )
+#define VULKAN_HPP_NAMESPACE_STRING   VULKAN_HPP_STRINGIFY( VULKAN_HPP_NAMESPACE )
+
+#if defined( __clang__ ) || defined( __GNUC__ ) || defined( __GNUG__ )
+#  define VULKAN_HPP_COMPILE_WARNING( text ) _Pragma( VULKAN_HPP_STRINGIFY( GCC warning text ) )
+#elif defined( _MSC_VER )
+#  define VULKAN_HPP_COMPILE_WARNING( text ) _Pragma( VULKAN_HPP_STRINGIFY( message( __FILE__ "(" VULKAN_HPP_STRINGIFY( __LINE__ ) "): warning: " text ) ) )
+#else
+#  define VULKAN_HPP_COMPILE_WARNING( text )
+#endif
+
+#if defined( VULKAN_HPP_DISABLE_ENHANCED_MODE )
+#  if !defined( VULKAN_HPP_NO_SMART_HANDLE )
+#    define VULKAN_HPP_NO_SMART_HANDLE
+#  endif
+#endif
+
+#if defined( VULKAN_HPP_NO_CONSTRUCTORS )
+#  if !defined( VULKAN_HPP_NO_STRUCT_CONSTRUCTORS )
+#    define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
+#  endif
+#  if !defined( VULKAN_HPP_NO_UNION_CONSTRUCTORS )
+#    define VULKAN_HPP_NO_UNION_CONSTRUCTORS
+#  endif
+#endif
+
+#if defined( VULKAN_HPP_NO_SETTERS )
+#  if !defined( VULKAN_HPP_NO_STRUCT_SETTERS )
+#    define VULKAN_HPP_NO_STRUCT_SETTERS
+#  endif
+#  if !defined( VULKAN_HPP_NO_UNION_SETTERS )
+#    define VULKAN_HPP_NO_UNION_SETTERS
+
+include/vulkan/vulkan_ios.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vulkan/vulkan_macos.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vulkan/vulkan_metal.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vulkan/vulkan_ohos.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vulkan/vulkan_raii.hpp
+// Copyright 2015-2026 The Khronos Group Inc.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+//
+
+// This header is generated from the Khronos Vulkan XML API Registry.
+
+#ifndef VULKAN_RAII_HPP
+#define VULKAN_RAII_HPP
+
+#if !defined( VULKAN_HPP_CXX_MODULE )
+#  include <memory>   // std::unique_ptr
+#  include <utility>  // std::forward
+#  include <vulkan/vulkan.hpp>
+#endif
+
+#if !defined( VULKAN_HPP_DISABLE_ENHANCED_MODE )
+VULKAN_HPP_EXPORT namespace VULKAN_HPP_NAMESPACE
+{
+  namespace VULKAN_HPP_RAII_NAMESPACE
+  {
+    namespace detail
+    {
+      using PFN_dummy = void ( * )();
+
+      class ContextDispatcher : public ::VULKAN_HPP_NAMESPACE::detail::DispatchLoaderBase
+      {
+      public:
+        ContextDispatcher( PFN_vkGetInstanceProcAddr getProcAddr )
+          : vkGetInstanceProcAddr( getProcAddr )
+          //=== VK_VERSION_1_0 ===
+          , vkCreateInstance( PFN_vkCreateInstance( getProcAddr( NULL, "vkCreateInstance" ) ) )
+          , vkEnumerateInstanceExtensionProperties(
+              PFN_vkEnumerateInstanceExtensionProperties( getProcAddr( NULL, "vkEnumerateInstanceExtensionProperties" ) ) )
+          , vkEnumerateInstanceLayerProperties( PFN_vkEnumerateInstanceLayerProperties( getProcAddr( NULL, "vkEnumerateInstanceLayerProperties" ) ) )
+          //=== VK_VERSION_1_1 ===
+          , vkEnumerateInstanceVersion( PFN_vkEnumerateInstanceVersion( getProcAddr( NULL, "vkEnumerateInstanceVersion" ) ) )
+        {
+        }
+
+      public:
+        PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr = 0;
+
+        //=== VK_VERSION_1_0 ===
+        PFN_vkCreateInstance                       vkCreateInstance                       = 0;
+        PFN_vkEnumerateInstanceExtensionProperties vkEnumerateInstanceExtensionProperties = 0;
+        PFN_vkEnumerateInstanceLayerProperties     vkEnumerateInstanceLayerProperties     = 0;
+
+        //=== VK_VERSION_1_1 ===
+        PFN_vkEnumerateInstanceVersion vkEnumerateInstanceVersion = 0;
+      };
+
+      class InstanceDispatcher : public ::VULKAN_HPP_NAMESPACE::detail::DispatchLoaderBase
+      {
+      public:
+        InstanceDispatcher( PFN_vkGetInstanceProcAddr getProcAddr, VkInstance instance ) : vkGetInstanceProcAddr( getProcAddr )
+        {
+          //=== VK_VERSION_1_0 ===
+          vkDestroyInstance           = PFN_vkDestroyInstance( vkGetInstanceProcAddr( instance, "vkDestroyInstance" ) );
+          vkEnumeratePhysicalDevices  = PFN_vkEnumeratePhysicalDevices( vkGetInstanceProcAddr( instance, "vkEnumeratePhysicalDevices" ) );
+          vkGetPhysicalDeviceFeatures = PFN_vkGetPhysicalDeviceFeatures( vkGetInstanceProcAddr( instance, "vkGetPhysicalDeviceFeatures" ) );
+          vkGetPhysicalDeviceFormatProperties =
+            PFN_vkGetPhysicalDeviceFormatProperties( vkGetInstanceProcAddr( instance, "vkGetPhysicalDeviceFormatProperties" ) );
+          vkGetPhysicalDeviceImageFormatProperties =
+            PFN_vkGetPhysicalDeviceImageFormatProperties( vkGetInstanceProcAddr( instance, "vkGetPhysicalDeviceImageFormatProperties" ) );
+          vkGetPhysicalDeviceProperties = PFN_vkGetPhysicalDeviceProperties( vkGetInstanceProcAddr( instance, "vkGetPhysicalDeviceProperties" ) );
+          vkGetPhysicalDeviceQueueFamilyProperties =
+            PFN_vkGetPhysicalDeviceQueueFamilyProperties( vkGetInstanceProcAddr( instance, "vkGetPhysicalDeviceQueueFamilyProperties" ) );
+          vkGetPhysicalDeviceMemoryProperties =
+            PFN_vkGetPhysicalDeviceMemoryProperties( vkGetInstanceProcAddr( instance, "vkGetPhysicalDeviceMemoryProperties" ) );
+
+include/vulkan/vulkan_screen.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vulkan/vulkan_shared.hpp
+// Copyright 2015-2026 The Khronos Group Inc.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+//
+
+// This header is generated from the Khronos Vulkan XML API Registry.
+
+#ifndef VULKAN_SHARED_HPP
+#define VULKAN_SHARED_HPP
+
+#if !defined( VULKAN_HPP_CXX_MODULE )
+#  include <atomic>  // std::atomic_size_t
+#  include <vulkan/vulkan.hpp>
+#endif
+
+VULKAN_HPP_EXPORT namespace VULKAN_HPP_NAMESPACE
+{
+#if !defined( VULKAN_HPP_NO_SMART_HANDLE )
+  template <typename HandleType>
+  class SharedHandleTraits;
+
+  class NoDestructor
+  {
+  };
+
+  template <typename HandleType, typename = void>
+  struct HasDestructorType : std::false_type
+  {
+  };
+
+  template <typename HandleType>
+  struct HasDestructorType<HandleType, decltype( (void)typename SharedHandleTraits<HandleType>::DestructorType() )> : std::true_type
+  {
+  };
+
+  template <typename HandleType, typename Enable = void>
+  struct GetDestructorType
+  {
+    using type = NoDestructor;
+  };
+
+  template <typename HandleType>
+  struct GetDestructorType<HandleType, typename std::enable_if<HasDestructorType<HandleType>::value>::type>
+  {
+    using type = typename SharedHandleTraits<HandleType>::DestructorType;
+  };
+
+  template <class HandleType>
+  using DestructorTypeOf = typename GetDestructorType<HandleType>::type;
+
+  template <class HandleType>
+  struct HasDestructor : std::integral_constant<bool, !std::is_same<DestructorTypeOf<HandleType>, NoDestructor>::value>
+  {
+  };
+
+  template <typename HandleType, typename = void>
+  struct HasPoolType : std::false_type
+  {
+  };
+
+  template <typename HandleType>
+  struct HasPoolType<HandleType, decltype( (void)typename SharedHandleTraits<HandleType>::deleter::PoolTypeExport() )> : std::true_type
+  {
+  };
+
+  template <typename HandleType, typename Enable = void>
+  struct GetPoolType
+  {
+    using type = NoDestructor;
+  };
+
+include/vulkan/vulkan_static_assertions.hpp
+// Copyright 2015-2026 The Khronos Group Inc.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+//
+
+// This header is generated from the Khronos Vulkan XML API Registry.
+
+#ifndef VULKAN_STATIC_ASSERTIONS_HPP
+#define VULKAN_STATIC_ASSERTIONS_HPP
+
+#include <vulkan/vulkan.hpp>
+
+//=========================
+//=== static_assertions ===
+//=========================
+
+//=== VK_VERSION_1_0 ===
+
+VULKAN_HPP_STATIC_ASSERT( sizeof( VULKAN_HPP_NAMESPACE::Instance ) == sizeof( VkInstance ), "handle and wrapper have different size!" );
+VULKAN_HPP_STATIC_ASSERT( std::is_copy_constructible<VULKAN_HPP_NAMESPACE::Instance>::value, "Instance is not copy_constructible!" );
+VULKAN_HPP_STATIC_ASSERT( std::is_nothrow_move_constructible<VULKAN_HPP_NAMESPACE::Instance>::value, "Instance is not nothrow_move_constructible!" );
+
+VULKAN_HPP_STATIC_ASSERT( sizeof( VULKAN_HPP_NAMESPACE::PhysicalDevice ) == sizeof( VkPhysicalDevice ), "handle and wrapper have different size!" );
+VULKAN_HPP_STATIC_ASSERT( std::is_copy_constructible<VULKAN_HPP_NAMESPACE::PhysicalDevice>::value, "PhysicalDevice is not copy_constructible!" );
+VULKAN_HPP_STATIC_ASSERT( std::is_nothrow_move_constructible<VULKAN_HPP_NAMESPACE::PhysicalDevice>::value,
+                          "PhysicalDevice is not nothrow_move_constructible!" );
+
+VULKAN_HPP_STATIC_ASSERT( sizeof( VULKAN_HPP_NAMESPACE::Device ) == sizeof( VkDevice ), "handle and wrapper have different size!" );
+VULKAN_HPP_STATIC_ASSERT( std::is_copy_constructible<VULKAN_HPP_NAMESPACE::Device>::value, "Device is not copy_constructible!" );
+VULKAN_HPP_STATIC_ASSERT( std::is_nothrow_move_constructible<VULKAN_HPP_NAMESPACE::Device>::value, "Device is not nothrow_move_constructible!" );
+
+VULKAN_HPP_STATIC_ASSERT( sizeof( VULKAN_HPP_NAMESPACE::Queue ) == sizeof( VkQueue ), "handle and wrapper have different size!" );
+VULKAN_HPP_STATIC_ASSERT( std::is_copy_constructible<VULKAN_HPP_NAMESPACE::Queue>::value, "Queue is not copy_constructible!" );
+VULKAN_HPP_STATIC_ASSERT( std::is_nothrow_move_constructible<VULKAN_HPP_NAMESPACE::Queue>::value, "Queue is not nothrow_move_constructible!" );
+
+VULKAN_HPP_STATIC_ASSERT( sizeof( VULKAN_HPP_NAMESPACE::DeviceMemory ) == sizeof( VkDeviceMemory ), "handle and wrapper have different size!" );
+VULKAN_HPP_STATIC_ASSERT( std::is_copy_constructible<VULKAN_HPP_NAMESPACE::DeviceMemory>::value, "DeviceMemory is not copy_constructible!" );
+VULKAN_HPP_STATIC_ASSERT( std::is_nothrow_move_constructible<VULKAN_HPP_NAMESPACE::DeviceMemory>::value, "DeviceMemory is not nothrow_move_constructible!" );
+
+VULKAN_HPP_STATIC_ASSERT( sizeof( VULKAN_HPP_NAMESPACE::Fence ) == sizeof( VkFence ), "handle and wrapper have different size!" );
+VULKAN_HPP_STATIC_ASSERT( std::is_copy_constructible<VULKAN_HPP_NAMESPACE::Fence>::value, "Fence is not copy_constructible!" );
+VULKAN_HPP_STATIC_ASSERT( std::is_nothrow_move_constructible<VULKAN_HPP_NAMESPACE::Fence>::value, "Fence is not nothrow_move_constructible!" );
+
+VULKAN_HPP_STATIC_ASSERT( sizeof( VULKAN_HPP_NAMESPACE::Semaphore ) == sizeof( VkSemaphore ), "handle and wrapper have different size!" );
+VULKAN_HPP_STATIC_ASSERT( std::is_copy_constructible<VULKAN_HPP_NAMESPACE::Semaphore>::value, "Semaphore is not copy_constructible!" );
+VULKAN_HPP_STATIC_ASSERT( std::is_nothrow_move_constructible<VULKAN_HPP_NAMESPACE::Semaphore>::value, "Semaphore is not nothrow_move_constructible!" );
+
+VULKAN_HPP_STATIC_ASSERT( sizeof( VULKAN_HPP_NAMESPACE::QueryPool ) == sizeof( VkQueryPool ), "handle and wrapper have different size!" );
+VULKAN_HPP_STATIC_ASSERT( std::is_copy_constructible<VULKAN_HPP_NAMESPACE::QueryPool>::value, "QueryPool is not copy_constructible!" );
+VULKAN_HPP_STATIC_ASSERT( std::is_nothrow_move_constructible<VULKAN_HPP_NAMESPACE::QueryPool>::value, "QueryPool is not nothrow_move_constructible!" );
+
+VULKAN_HPP_STATIC_ASSERT( sizeof( VULKAN_HPP_NAMESPACE::Buffer ) == sizeof( VkBuffer ), "handle and wrapper have different size!" );
+VULKAN_HPP_STATIC_ASSERT( std::is_copy_constructible<VULKAN_HPP_NAMESPACE::Buffer>::value, "Buffer is not copy_constructible!" );
+VULKAN_HPP_STATIC_ASSERT( std::is_nothrow_move_constructible<VULKAN_HPP_NAMESPACE::Buffer>::value, "Buffer is not nothrow_move_constructible!" );
+
+VULKAN_HPP_STATIC_ASSERT( sizeof( VULKAN_HPP_NAMESPACE::Image ) == sizeof( VkImage ), "handle and wrapper have different size!" );
+VULKAN_HPP_STATIC_ASSERT( std::is_copy_constructible<VULKAN_HPP_NAMESPACE::Image>::value, "Image is not copy_constructible!" );
+VULKAN_HPP_STATIC_ASSERT( std::is_nothrow_move_constructible<VULKAN_HPP_NAMESPACE::Image>::value, "Image is not nothrow_move_constructible!" );
+
+VULKAN_HPP_STATIC_ASSERT( sizeof( VULKAN_HPP_NAMESPACE::ImageView ) == sizeof( VkImageView ), "handle and wrapper have different size!" );
+VULKAN_HPP_STATIC_ASSERT( std::is_copy_constructible<VULKAN_HPP_NAMESPACE::ImageView>::value, "ImageView is not copy_constructible!" );
+VULKAN_HPP_STATIC_ASSERT( std::is_nothrow_move_constructible<VULKAN_HPP_NAMESPACE::ImageView>::value, "ImageView is not nothrow_move_constructible!" );
+
+VULKAN_HPP_STATIC_ASSERT( sizeof( VULKAN_HPP_NAMESPACE::CommandPool ) == sizeof( VkCommandPool ), "handle and wrapper have different size!" );
+VULKAN_HPP_STATIC_ASSERT( std::is_copy_constructible<VULKAN_HPP_NAMESPACE::CommandPool>::value, "CommandPool is not copy_constructible!" );
+VULKAN_HPP_STATIC_ASSERT( std::is_nothrow_move_constructible<VULKAN_HPP_NAMESPACE::CommandPool>::value, "CommandPool is not nothrow_move_constructible!" );
+
+VULKAN_HPP_STATIC_ASSERT( sizeof( VULKAN_HPP_NAMESPACE::CommandBuffer ) == sizeof( VkCommandBuffer ), "handle and wrapper have different size!" );
+VULKAN_HPP_STATIC_ASSERT( std::is_copy_constructible<VULKAN_HPP_NAMESPACE::CommandBuffer>::value, "CommandBuffer is not copy_constructible!" );
+VULKAN_HPP_STATIC_ASSERT( std::is_nothrow_move_constructible<VULKAN_HPP_NAMESPACE::CommandBuffer>::value, "CommandBuffer is not nothrow_move_constructible!" );
+
+include/vulkan/vulkan_structs.hpp
+// Copyright 2015-2026 The Khronos Group Inc.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+//
+
+// This header is generated from the Khronos Vulkan XML API Registry.
+
+#ifndef VULKAN_STRUCTS_HPP
+#define VULKAN_STRUCTS_HPP
+
+// include-what-you-use: make sure, vulkan.hpp is used by code-completers
+// IWYU pragma: private, include "vulkan/vulkan.hpp"
+
+#if !defined( VULKAN_HPP_CXX_MODULE )
+#  include <cstring>  // strcmp
+#endif
+
+VULKAN_HPP_EXPORT namespace VULKAN_HPP_NAMESPACE
+{
+  //===============
+  //=== STRUCTS ===
+  //===============
+
+  // wrapper struct for struct VkAabbPositionsKHR, see https://registry.khronos.org/vulkan/specs/latest/man/html/VkAabbPositionsKHR.html
+  struct AabbPositionsKHR
+  {
+    using NativeType = VkAabbPositionsKHR;
+
+#if !defined( VULKAN_HPP_NO_CONSTRUCTORS ) && !defined( VULKAN_HPP_NO_STRUCT_CONSTRUCTORS )
+    VULKAN_HPP_CONSTEXPR
+      AabbPositionsKHR( float minX_ = {}, float minY_ = {}, float minZ_ = {}, float maxX_ = {}, float maxY_ = {}, float maxZ_ = {} ) VULKAN_HPP_NOEXCEPT
+      : minX{ minX_ }
+      , minY{ minY_ }
+      , minZ{ minZ_ }
+      , maxX{ maxX_ }
+      , maxY{ maxY_ }
+      , maxZ{ maxZ_ }
+    {
+    }
+
+    VULKAN_HPP_CONSTEXPR AabbPositionsKHR( AabbPositionsKHR const & rhs ) VULKAN_HPP_NOEXCEPT = default;
+
+    AabbPositionsKHR( VkAabbPositionsKHR const & rhs ) VULKAN_HPP_NOEXCEPT : AabbPositionsKHR( *reinterpret_cast<AabbPositionsKHR const *>( &rhs ) ) {}
+
+    AabbPositionsKHR & operator=( AabbPositionsKHR const & rhs ) VULKAN_HPP_NOEXCEPT = default;
+#endif /*VULKAN_HPP_NO_CONSTRUCTORS*/
+
+    AabbPositionsKHR & operator=( VkAabbPositionsKHR const & rhs ) VULKAN_HPP_NOEXCEPT
+    {
+      *this = *reinterpret_cast<AabbPositionsKHR const *>( &rhs );
+      return *this;
+    }
+
+#if !defined( VULKAN_HPP_NO_SETTERS ) && !defined( VULKAN_HPP_NO_STRUCT_SETTERS )
+    VULKAN_HPP_CONSTEXPR_14 AabbPositionsKHR & setMinX( float minX_ ) & VULKAN_HPP_NOEXCEPT
+    {
+      minX = minX_;
+      return *this;
+    }
+
+    VULKAN_HPP_CONSTEXPR_14 AabbPositionsKHR && setMinX( float minX_ ) && VULKAN_HPP_NOEXCEPT
+    {
+      minX = minX_;
+      return std::move( *this );
+    }
+
+    VULKAN_HPP_CONSTEXPR_14 AabbPositionsKHR & setMinY( float minY_ ) & VULKAN_HPP_NOEXCEPT
+    {
+      minY = minY_;
+      return *this;
+
+include/vulkan/vulkan_to_string.hpp
+// Copyright 2015-2026 The Khronos Group Inc.
+//
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+//
+
+// This header is generated from the Khronos Vulkan XML API Registry.
+
+#ifndef VULKAN_TO_STRING_HPP
+#define VULKAN_TO_STRING_HPP
+
+#if defined( VULKAN_HPP_CXX_MODULE )
+#  define VULKAN_HPP_EXPORT export
+#else
+#  include <vulkan/vulkan.hpp>
+#  define VULKAN_HPP_EXPORT
+#endif
+
+// ignore warnings on using deprecated enum values in this header
+#if defined( __clang__ ) || defined( __GNUC__ )
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#elif defined( _MSC_VER )
+#  pragma warning( push )
+#  pragma warning( disable : 4996 )
+#endif
+
+#if !defined( VULKAN_HPP_CXX_MODULE )
+#  if defined( __cpp_lib_format )
+#    include <format>  // std::format
+#  else
+#    include <sstream>  // std::stringstream
+#  endif
+#endif
+
+VULKAN_HPP_EXPORT namespace VULKAN_HPP_NAMESPACE
+{
+  //==========================
+  //=== BITMASKs to_string ===
+  //==========================
+
+  //=== VK_VERSION_1_0 ===
+
+  VULKAN_HPP_INLINE std::string to_string( FormatFeatureFlags value )
+  {
+    std::string result = "{";
+    if ( value & FormatFeatureFlagBits::eSampledImage )
+      result += " SampledImage |";
+    if ( value & FormatFeatureFlagBits::eStorageImage )
+      result += " StorageImage |";
+    if ( value & FormatFeatureFlagBits::eStorageImageAtomic )
+      result += " StorageImageAtomic |";
+    if ( value & FormatFeatureFlagBits::eUniformTexelBuffer )
+      result += " UniformTexelBuffer |";
+    if ( value & FormatFeatureFlagBits::eStorageTexelBuffer )
+      result += " StorageTexelBuffer |";
+    if ( value & FormatFeatureFlagBits::eStorageTexelBufferAtomic )
+      result += " StorageTexelBufferAtomic |";
+    if ( value & FormatFeatureFlagBits::eVertexBuffer )
+      result += " VertexBuffer |";
+    if ( value & FormatFeatureFlagBits::eColorAttachment )
+      result += " ColorAttachment |";
+    if ( value & FormatFeatureFlagBits::eColorAttachmentBlend )
+      result += " ColorAttachmentBlend |";
+    if ( value & FormatFeatureFlagBits::eDepthStencilAttachment )
+      result += " DepthStencilAttachment |";
+    if ( value & FormatFeatureFlagBits::eBlitSrc )
+      result += " BlitSrc |";
+    if ( value & FormatFeatureFlagBits::eBlitDst )
+      result += " BlitDst |";
+    if ( value & FormatFeatureFlagBits::eSampledImageFilterLinear )
+
+include/vulkan/vulkan_vi.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vulkan/vulkan_video.hpp
+// Copyright 2021-2026 The Khronos Group Inc.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+//
+
+// This header is generated from the Khronos Vulkan XML API Registry.
+
+#ifndef VULKAN_VIDEO_HPP
+#define VULKAN_VIDEO_HPP
+
+// here, we consider include files to be available when __has_include is not defined
+#if !defined( __has_include )
+#  define __has_include( x ) true
+#  define has_include_was_not_defined
+#endif
+
+#if !defined( VULKAN_HPP_CXX_MODULE )
+#  include <vulkan/vulkan.hpp>
+#  if __has_include( <vk_video/vulkan_video_codecs_common.h> )
+#    include <vk_video/vulkan_video_codecs_common.h>
+#  endif
+#  if __has_include( <vk_video/vulkan_video_codec_h264std.h> )
+#    include <vk_video/vulkan_video_codec_h264std.h>
+#  endif
+#  if __has_include( <vk_video/vulkan_video_codec_h264std_decode.h> )
+#    include <vk_video/vulkan_video_codec_h264std_decode.h>
+#  endif
+#  if __has_include( <vk_video/vulkan_video_codec_h264std_encode.h> )
+#    include <vk_video/vulkan_video_codec_h264std_encode.h>
+#  endif
+#  if __has_include( <vk_video/vulkan_video_codec_h265std.h> )
+#    include <vk_video/vulkan_video_codec_h265std.h>
+#  endif
+#  if __has_include( <vk_video/vulkan_video_codec_h265std_decode.h> )
+#    include <vk_video/vulkan_video_codec_h265std_decode.h>
+#  endif
+#  if __has_include( <vk_video/vulkan_video_codec_h265std_encode.h> )
+#    include <vk_video/vulkan_video_codec_h265std_encode.h>
+#  endif
+#  if __has_include( <vk_video/vulkan_video_codec_vp9std.h> )
+#    include <vk_video/vulkan_video_codec_vp9std.h>
+#  endif
+#  if __has_include( <vk_video/vulkan_video_codec_vp9std_decode.h> )
+#    include <vk_video/vulkan_video_codec_vp9std_decode.h>
+#  endif
+#  if __has_include( <vk_video/vulkan_video_codec_av1std.h> )
+#    include <vk_video/vulkan_video_codec_av1std.h>
+#  endif
+#  if __has_include( <vk_video/vulkan_video_codec_av1std_decode.h> )
+#    include <vk_video/vulkan_video_codec_av1std_decode.h>
+#  endif
+#  if __has_include( <vk_video/vulkan_video_codec_av1std_encode.h> )
+#    include <vk_video/vulkan_video_codec_av1std_encode.h>
+#  endif
+
+#endif
+
+#if !defined( VULKAN_HPP_VIDEO_NAMESPACE )
+#  define VULKAN_HPP_VIDEO_NAMESPACE video
+#endif
+
+VULKAN_HPP_EXPORT namespace VULKAN_HPP_NAMESPACE
+{
+  namespace VULKAN_HPP_VIDEO_NAMESPACE
+  {
+    //=================
+    //=== CONSTANTs ===
+    //=================
+
+#if defined( VULKAN_VIDEO_CODEC_H264STD_H_ )
+    //=== vulkan_video_codec_h264std ===
+
+include/vulkan/vulkan_wayland.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vulkan/vulkan_win32.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vulkan/vulkan_xcb.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vulkan/vulkan_xlib.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+include/vulkan/vulkan_xlib_xrandr.h
+/*
+** Copyright 2015-2026 The Khronos Group Inc.
+**
+** SPDX-License-Identifier: Apache-2.0
+*/
+
+tests/vk_hpp.cpp
+/*
+ * Copyright 2025 The Khronos Group Inc.
+ * Copyright 2025 Valve Corporation
+ * Copyright 2025 LunarG, Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+tests/vk_hpp_module.cpp
+/*
+ * Copyright 2025 The Khronos Group Inc.
+ * Copyright 2025 Valve Corporation
+ * Copyright 2025 LunarG, Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+tests/vk_icd.c
+/*
+ * Copyright 2022-2023 The Khronos Group Inc.
+ * Copyright 2022-2023 Valve Corporation
+ * Copyright 2022-2023 LunarG, Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+tests/vk_layer.c
+/*
+ * Copyright 2022-2023 The Khronos Group Inc.
+ * Copyright 2022-2023 Valve Corporation
+ * Copyright 2022-2023 LunarG, Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */

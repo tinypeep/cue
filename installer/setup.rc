@@ -1,0 +1,28 @@
+#include <windows.h>
+#include "../src/core/version.h"
+1 ICON "../res/cue.ico"
+CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "setup.manifest"
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION CUE_VERSION_MAJOR,CUE_VERSION_MINOR,CUE_VERSION_PATCH,0
+PRODUCTVERSION CUE_VERSION_MAJOR,CUE_VERSION_MINOR,CUE_VERSION_PATCH,0
+FILEFLAGSMASK 0x3fL
+FILEFLAGS 0x0L
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "041604B0"
+    BEGIN
+      VALUE "CompanyName", ".tinypeep"
+      VALUE "FileDescription", "Instalador do Cue"
+      VALUE "ProductName", "Cue"
+      VALUE "InternalName", "Cue-Setup"
+      VALUE "OriginalFilename", "Cue-Setup.exe"
+      VALUE "FileVersion", CUE_VERSION
+      VALUE "ProductVersion", CUE_VERSION
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x416, 1200
+  END
+END

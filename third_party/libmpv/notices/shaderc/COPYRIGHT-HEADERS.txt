@@ -1,0 +1,4027 @@
+android_test/test.cpp
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "shaderc/shaderc.hpp"
+#include <android_native_app_glue.h>
+
+void android_main(struct android_app* state) {
+  shaderc::Compiler compiler;
+  const char* test_program = "void main() {}";
+  compiler.CompileGlslToSpv(test_program, strlen(test_program),
+                            shaderc_glsl_vertex_shader, "shader");
+}
+
+examples/online-compile/main.cc
+// Copyright 2016 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// The program demonstrates basic shader compilation using the Shaderc C++ API.
+// For clarity, each method is deliberately self-contained.
+//
+// Techniques demonstrated:
+//  - Preprocessing GLSL source text
+//  - Compiling a shader to SPIR-V assembly text
+//  - Compliing a shader to a SPIR-V binary module
+//  - Performing optimization with compilation
+//  - Setting basic options: setting a preprocessor symbol.
+//  - Checking compilation status and extracting an error message.
+
+#include <cstring>
+#include <iostream>
+#include <string>
+#include <vector>
+
+#include <shaderc/shaderc.hpp>
+
+// Returns GLSL shader source text after preprocessing.
+std::string preprocess_shader(const std::string& source_name,
+                              shaderc_shader_kind kind,
+                              const std::string& source) {
+  shaderc::Compiler compiler;
+  shaderc::CompileOptions options;
+
+  // Like -DMY_DEFINE=1
+  options.AddMacroDefinition("MY_DEFINE", "1");
+
+  shaderc::PreprocessedSourceCompilationResult result =
+      compiler.PreprocessGlsl(source, kind, source_name.c_str(), options);
+
+  if (result.GetCompilationStatus() != shaderc_compilation_status_success) {
+    std::cerr << result.GetErrorMessage();
+    return "";
+  }
+
+  return {result.cbegin(), result.cend()};
+}
+
+// Compiles a shader to SPIR-V assembly. Returns the assembly text
+// as a string.
+std::string compile_file_to_assembly(const std::string& source_name,
+                                     shaderc_shader_kind kind,
+                                     const std::string& source,
+                                     bool optimize = false) {
+  shaderc::Compiler compiler;
+  shaderc::CompileOptions options;
+
+  // Like -DMY_DEFINE=1
+  options.AddMacroDefinition("MY_DEFINE", "1");
+  if (optimize) options.SetOptimizationLevel(shaderc_optimization_level_size);
+
+  shaderc::AssemblyCompilationResult result = compiler.CompileGlslToSpvAssembly(
+      source, kind, source_name.c_str(), options);
+
+  if (result.GetCompilationStatus() != shaderc_compilation_status_success) {
+
+glslc/src/dependency_info.cc
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "dependency_info.h"
+
+#include <fstream>
+#include <iostream>
+#include <sstream>
+
+#include "file.h"
+#include "libshaderc_util/io_shaderc.h"
+
+namespace glslc {
+
+DependencyInfoDumpingHandler::DependencyInfoDumpingHandler() : mode_(not_set) {}
+
+bool DependencyInfoDumpingHandler::DumpDependencyInfo(
+    std::string compilation_output_file_name, std::string source_file_name,
+    std::string* compilation_output_ptr,
+    const std::unordered_set<std::string>& dependent_files) {
+  std::string dep_target_label = GetTarget(compilation_output_file_name);
+  std::string dep_file_name =
+      GetDependencyFileName(compilation_output_file_name);
+
+  // Dump everything to a string stream first, then dump its content to either
+  // a file or compilation output string, depends on current dumping mode.
+  std::stringstream dep_string_stream;
+  // dump target label and the source_file_name.
+  dep_string_stream << dep_target_label << ": " << source_file_name;
+  // dump the dependent file names.
+  for (auto& dependent_file_name : dependent_files) {
+    dep_string_stream << " " << dependent_file_name;
+  }
+  dep_string_stream << std::endl;
+
+  if (mode_ == dump_as_compilation_output) {
+    compilation_output_ptr->assign(dep_string_stream.str());
+  } else if (mode_ == dump_as_extra_file) {
+    std::ofstream potential_file_stream_for_dep_info_dump;
+    std::ostream* dep_file_stream = shaderc_util::GetOutputStream(
+        dep_file_name, &potential_file_stream_for_dep_info_dump, &std::cerr);
+    if (!dep_file_stream) {
+      // An error message has already been emitted to the stderr stream.
+      return false;
+    }
+    *dep_file_stream << dep_string_stream.str();
+    if (dep_file_stream->fail()) {
+      std::cerr << "glslc: error: error writing dependent_files info to output "
+                   "file: '"
+                << dep_file_name << "'" << std::endl;
+      return false;
+    }
+  } else {
+    // mode_ should not be 'not_set', we should never be here.
+    return false;
+  }
+  return true;
+}
+
+
+glslc/src/dependency_info.h
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef GLSLC_DEPENDENCY_INFO_H
+#define GLSLC_DEPENDENCY_INFO_H
+
+#include <unordered_set>
+#include <string>
+#include <string>
+
+namespace glslc {
+
+// An object to handle everything about dumping dependency info. Internally it
+// has two valid dumping mode: 1) Dump to extra dependency info files, such as
+// *.d files. This mode is used when we want to generate dependency info and
+// also compile. 2) Overwrite the original compilation output and dump
+// dependency info as compilation output. This mode is used when we do not want
+// to compile the source code and want the dependency info only.
+class DependencyInfoDumpingHandler {
+ public:
+  DependencyInfoDumpingHandler();
+
+  // Sets the dependency target explicitly. It's the same as the argument to
+  // -MT.
+  void SetTarget(const std::string& target_label) {
+    user_specified_dep_target_label_ = target_label;
+  }
+
+  // Sets the name of the file where dependency info will be written.
+  void SetDependencyFileName(const std::string& dep_file_name) {
+    user_specified_dep_file_name_ = dep_file_name;
+  }
+
+  // Dump depdendency info to a) an extra dependency info file, b) an string
+  // which holds the compilation output. The choice depends on the dump
+  // mode of the handler. Returns true if dumping is succeeded, false otherwise.
+  //
+  // The dependency file name and target are deduced based on 1) user
+  // specified dependency file name and target name, 2) the output filename when
+  // the compiler is in 'does not need linking' and 'not preprocessing-only'
+  // mode. It is passed through compilation_output_file_name.
+  //
+  // When the handler is set to dump dependency info as extra dependency info
+  // files, this method will open a file with the dependency file name and write
+  // the dependency info to it. Error messages caused by writing to the file are
+  // emitted to stderr.
+  //
+  // When the handler is set to dump dependency info as compilation output, the
+  // compilation output string, which is passed through compilation_output_ptr,
+  // will be cleared and this method will write dependency info to it. Then the
+  // dependency info should be emitted as normal compilation output.
+  //
+  // If the dump mode is not set when this method is called, return false.
+  bool DumpDependencyInfo(std::string compilation_output_file_name,
+                          std::string source_file_name,
+                          std::string* compilation_output_ptr,
+                          const std::unordered_set<std::string>& dependent_files);
+
+  // Sets to always dump dependency info as an extra file, instead of the normal
+
+glslc/src/file.cc
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "file.h"
+
+namespace glslc {
+
+shaderc_util::string_piece GetFileExtension(
+    const shaderc_util::string_piece& filename) {
+  size_t dot_pos = filename.find_last_of(".");
+  if (dot_pos == shaderc_util::string_piece::npos) return "";
+  return filename.substr(dot_pos + 1);
+}
+
+}  // namespace glslc
+
+glslc/src/file.h
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef GLSLC_FILE_H_
+#define GLSLC_FILE_H_
+
+#include "libshaderc_util/string_piece.h"
+
+namespace glslc {
+
+// Given a file name, returns its extension. If no extension exists,
+// returns an empty string_piece.
+shaderc_util::string_piece GetFileExtension(
+    const shaderc_util::string_piece& filename);
+
+// Returns true if the given file name ends with a known shader file extension.
+inline bool IsStageFile(const shaderc_util::string_piece& filename) {
+  const shaderc_util::string_piece extension =
+      glslc::GetFileExtension(filename);
+  return extension == "vert" || extension == "frag" || extension == "tesc" ||
+         extension == "tese" || extension == "geom" || extension == "comp";
+}
+
+// Returns the file extension if is either "glsl" or "hlsl", or an empty
+// string otherwise.
+inline std::string GetGlslOrHlslExtension(
+    const shaderc_util::string_piece& filename) {
+  auto extension = glslc::GetFileExtension(filename);
+  if ((extension == "glsl") || (extension == "hlsl")) return extension.str();
+  return "";
+}
+
+}  // namespace glslc
+
+#endif  // GLSLC_FILE_H_
+
+glslc/src/file_compiler.cc
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "file_compiler.h"
+
+#include <cassert>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
+
+#if SHADERC_ENABLE_WGSL_OUTPUT == 1
+#include "tint/tint.h"
+#endif  // SHADERC_ENABLE_WGSL_OUTPUT==1
+
+#include "file.h"
+#include "file_includer.h"
+#include "shader_stage.h"
+
+#include "libshaderc_util/io_shaderc.h"
+#include "libshaderc_util/message.h"
+
+namespace {
+using shaderc_util::string_piece;
+
+// A helper function to emit SPIR-V binary code as a list of hex numbers in
+// text form. Returns true if a non-empty compilation result is emitted
+// successfully. Return false if nothing should be emitted, either because the
+// compilation result is empty, or the compilation output is not SPIR-V binary
+// code.
+template <typename CompilationResultType>
+bool EmitSpirvBinaryAsCommaSeparatedNumbers(const CompilationResultType& result,
+                                            std::ostream* out) {
+  // Return early if the compilation output is not in SPIR-V binary code form.
+  if (!std::is_same<CompilationResultType,
+                    shaderc::SpvCompilationResult>::value)
+    return false;
+  // Return early if the compilation result is empty.
+  if (result.cbegin() == result.cend()) return false;
+  std::ios::fmtflags output_stream_flag_cache(out->flags());
+  *out << std::hex << std::setfill('0');
+  auto RI = result.cbegin();
+  *out << "0x" << std::setw(8) << *RI++;
+  for (size_t counter = 1; RI != result.cend(); RI++, counter++) {
+    *out << ",";
+    // Break line for every four words.
+    if (counter % 4 == 0) {
+      *out << std::endl;
+    }
+    *out << "0x" << std::setw(8) << *RI;
+  }
+  out->flags(output_stream_flag_cache);
+  return true;
+}
+}  // anonymous namespace
+
+namespace glslc {
+bool FileCompiler::CompileShaderFile(const InputFileSpec& input_file) {
+  std::vector<char> input_data;
+
+glslc/src/file_compiler.h
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef GLSLC_FILE_COMPILER_H
+#define GLSLC_FILE_COMPILER_H
+
+#include <string>
+
+#include "libshaderc_util/file_finder.h"
+#include "libshaderc_util/string_piece.h"
+#include "shaderc/shaderc.hpp"
+
+#include "dependency_info.h"
+
+namespace glslc {
+
+// Describes an input file to be compiled.
+struct InputFileSpec {
+  std::string name;
+  shaderc_shader_kind stage;
+  shaderc_source_language language;
+  std::string entry_point_name;
+};
+
+// Context for managing compilation of source GLSL files into destination
+// SPIR-V files or preprocessed output.
+class FileCompiler {
+ public:
+  enum class SpirvBinaryEmissionFormat {
+    Unspecified,  // No binary output format specified, this is the only valid
+                  // option when the compilation output is not in SPIR-V binary
+                  // code form.
+    Binary,       // Emits SPIR-V binary code directly.
+    Numbers,      // Emits SPIR-V binary code as a list of hex numbers.
+    CInitList,    // Emits SPIR-V binary code as a C-style initializer list
+                  // of hex numbers.
+    WGSL,         // Emits SPIR-V module converted to WGSL source text.
+                  // Requires a build with Tint support.
+  };
+
+  FileCompiler()
+      : output_type_(OutputType::SpirvBinary),
+        binary_emission_format_(SpirvBinaryEmissionFormat::Unspecified),
+        needs_linking_(true),
+        total_warnings_(0),
+        total_errors_(0) {}
+
+  // Compiles a shader received as specified by input_file, returning true
+  // on success and false otherwise. If force_shader_stage is not
+  // shaderc_glsl_infer_source or any default shader stage then the given
+  // shader_stage will be used, otherwise it will be determined from the source
+  // or the file type.
+  //
+  // Places the compilation output into a new file whose name is derived from
+  // input_file according to the rules from glslc/README.asciidoc.
+  //
+  // If version/profile has been forced, the shader's version/profile is set to
+  // that value regardless of the #version directive in the source code.
+  //
+
+glslc/src/file_includer.cc
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "file_includer.h"
+
+#include <mutex>
+#include <utility>
+
+#include "libshaderc_util/io_shaderc.h"
+
+namespace glslc {
+
+shaderc_include_result* MakeErrorIncludeResult(const char* message) {
+  return new shaderc_include_result{"", 0, message, strlen(message)};
+}
+
+FileIncluder::~FileIncluder() = default;
+
+shaderc_include_result* FileIncluder::GetInclude(
+    const char* requested_source, shaderc_include_type include_type,
+    const char* requesting_source, size_t) {
+
+  const std::string full_path =
+      (include_type == shaderc_include_type_relative)
+          ? file_finder_.FindRelativeReadableFilepath(requesting_source,
+                                                      requested_source)
+          : file_finder_.FindReadableFilepath(requested_source);
+
+  if (full_path.empty())
+    return MakeErrorIncludeResult("Cannot find or open include file.");
+
+  // In principle, several threads could be resolving includes at the same
+  // time.  Protect the included_files.
+
+  // Read the file and save its full path and contents into stable addresses.
+  FileInfo* new_file_info = new FileInfo{full_path, {}};
+  if (!shaderc_util::ReadFile(full_path, &(new_file_info->contents))) {
+    return MakeErrorIncludeResult("Cannot read file");
+  }
+
+  included_files_.insert(full_path);
+
+  return new shaderc_include_result{
+      new_file_info->full_path.data(), new_file_info->full_path.length(),
+      new_file_info->contents.data(), new_file_info->contents.size(),
+      new_file_info};
+}
+
+void FileIncluder::ReleaseInclude(shaderc_include_result* include_result) {
+  FileInfo* info = static_cast<FileInfo*>(include_result->user_data);
+  delete info;
+  delete include_result;
+}
+
+}  // namespace glslc
+
+glslc/src/file_includer.h
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef GLSLC_FILE_INCLUDER_H_
+#define GLSLC_FILE_INCLUDER_H_
+
+#include <mutex>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
+#include <vector>
+#include <unordered_set>
+
+#include "libshaderc_util/file_finder.h"
+#include "shaderc/shaderc.hpp"
+
+namespace glslc {
+
+// An includer for files implementing shaderc's includer interface. It responds
+// to the file including query from the compiler with the full path and content
+// of the file to be included. In the case that the file is not found or cannot
+// be opened, the full path field of in the response will point to an empty
+// string, and error message will be passed to the content field.
+// This class provides the basic thread-safety guarantee.
+class FileIncluder : public shaderc::CompileOptions::IncluderInterface {
+ public:
+  explicit FileIncluder(const shaderc_util::FileFinder* file_finder)
+      : file_finder_(*file_finder) {}
+
+  ~FileIncluder() override;
+
+  // Resolves a requested source file of a given type from a requesting
+  // source into a shaderc_include_result whose contents will remain valid
+  // until it's released.
+  shaderc_include_result* GetInclude(const char* requested_source,
+                                     shaderc_include_type type,
+                                     const char* requesting_source,
+                                     size_t include_depth) override;
+  // Releases an include result.
+  void ReleaseInclude(shaderc_include_result* include_result) override;
+
+  // Returns a reference to the member storing the set of included files.
+  const std::unordered_set<std::string>& file_path_trace() const {
+    return included_files_;
+  }
+
+ private:
+  // Used by GetInclude() to get the full filepath.
+  const shaderc_util::FileFinder& file_finder_;
+  // The full path and content of a source file.
+  struct FileInfo {
+    const std::string full_path;
+    std::vector<char> contents;
+  };
+
+  // The set of full paths of included files.
+  std::unordered_set<std::string> included_files_;
+};
+
+glslc/src/file_test.cc
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "file.h"
+
+#include <gmock/gmock.h>
+
+namespace {
+
+using glslc::GetFileExtension;
+using glslc::IsStageFile;
+using glslc::GetGlslOrHlslExtension;
+using shaderc_util::string_piece;
+using testing::Eq;
+
+class FileExtensionTest : public testing::Test {
+ protected:
+  string_piece empty = "";
+  string_piece dot = ".";
+  string_piece no_ext = "shader";
+  string_piece trailing_dot = "shader.";
+  string_piece vert_ext = "shader.vert";
+  string_piece frag_ext = "shader.frag";
+  string_piece tesc_ext = "shader.tesc";
+  string_piece tese_ext = "shader.tese";
+  string_piece geom_ext = "shader.geom";
+  string_piece comp_ext = "shader.comp";
+  string_piece glsl_ext = "shader.glsl";
+  string_piece hlsl_ext = "shader.hlsl";
+  string_piece multi_dot = "shader.some..ext";
+  string_piece both_hg_ext = "shader.hlsl.glsl";
+  string_piece both_gh_ext = "shader.glsl.hlsl";
+};
+
+TEST_F(FileExtensionTest, GetFileExtension) {
+  EXPECT_EQ("", GetFileExtension(empty));
+  EXPECT_EQ("", GetFileExtension(dot));
+  EXPECT_EQ("", GetFileExtension(no_ext));
+  EXPECT_EQ("", GetFileExtension(trailing_dot));
+  EXPECT_EQ("vert", GetFileExtension(vert_ext));
+  EXPECT_EQ("frag", GetFileExtension(frag_ext));
+  EXPECT_EQ("tesc", GetFileExtension(tesc_ext));
+  EXPECT_EQ("tese", GetFileExtension(tese_ext));
+  EXPECT_EQ("geom", GetFileExtension(geom_ext));
+  EXPECT_EQ("comp", GetFileExtension(comp_ext));
+  EXPECT_EQ("glsl", GetFileExtension(glsl_ext));
+  EXPECT_EQ("ext", GetFileExtension(multi_dot));
+  EXPECT_EQ("glsl", GetFileExtension(both_hg_ext));
+  EXPECT_EQ("hlsl", GetFileExtension(both_gh_ext));
+}
+
+TEST_F(FileExtensionTest, GetGlslOrHlslExtension) {
+  EXPECT_THAT(GetGlslOrHlslExtension(empty), Eq(""));
+  EXPECT_THAT(GetGlslOrHlslExtension(dot), Eq(""));
+  EXPECT_THAT(GetGlslOrHlslExtension(no_ext), Eq(""));
+  EXPECT_THAT(GetGlslOrHlslExtension(trailing_dot), Eq(""));
+  EXPECT_THAT(GetGlslOrHlslExtension(vert_ext), Eq(""));
+  EXPECT_THAT(GetGlslOrHlslExtension(frag_ext), Eq(""));
+  EXPECT_THAT(GetGlslOrHlslExtension(tesc_ext), Eq(""));
+
+glslc/src/main.cc
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include <cassert>
+#include <cctype>
+#include <cstdint>
+#include <cstring>
+#include <iomanip>
+#include <iostream>
+#include <list>
+#include <sstream>
+#include <string>
+#include <tuple>
+#include <utility>
+
+#include "file.h"
+#include "file_compiler.h"
+#include "libshaderc_util/args.h"
+#include "libshaderc_util/compiler.h"
+#include "libshaderc_util/io_shaderc.h"
+#include "libshaderc_util/string_piece.h"
+#include "resource_parse.h"
+#include "shader_stage.h"
+#include "shaderc/env.h"
+#include "shaderc/shaderc.h"
+#include "spirv-tools/libspirv.h"
+
+using shaderc_util::string_piece;
+
+namespace {
+
+// Prints the help message.
+void PrintHelp(std::ostream* out) {
+  *out << R"(glslc - Compile shaders into SPIR-V
+
+Usage: glslc [options] file...
+
+An input file of - represents standard input.
+
+Options:
+  -c                Only run preprocess, compile, and assemble steps.
+  -Dmacro[=defn]    Add an implicit macro definition.
+  -E                Outputs only the results of the preprocessing step.
+                    Output defaults to standard output.
+  -fauto-bind-uniforms
+                    Automatically assign bindings to uniform variables that
+                    don't have an explicit 'binding' layout in the shader
+                    source.
+  -fauto-map-locations
+                    Automatically assign locations to uniform variables that
+                    don't have an explicit 'location' layout in the shader
+                    source.
+  -fauto-combined-image-sampler
+                    Removes sampler variables and converts existing textures
+                    to combined image-samplers.
+  -fentry-point=<name>
+                    Specify the entry point name for HLSL compilation, for
+                    all subsequent source files.  Default is "main".
+  -fhlsl-16bit-types
+
+glslc/src/resource_parse.cc
+// Copyright 2016 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "resource_parse.h"
+
+#include <algorithm>
+#include <cstring>
+#include <iterator>
+#include <sstream>
+#include <vector>
+
+namespace {
+
+// Converts a limit string to a limit enum.  Returns true on successful
+// conversion.
+bool StringToLimit(const std::string& str, shaderc_limit* limit) {
+  const char* cstr = str.c_str();
+#define RESOURCE(NAME, FIELD, ENUM)    \
+  if (0 == std::strcmp(#NAME, cstr)) { \
+    *limit = shaderc_limit_##ENUM;     \
+    return true;                       \
+  }
+#include "libshaderc_util/resources.inc"
+#undef RESOURCE
+  return false;
+}
+
+// Returns true if we should ignore the setting.
+bool IgnoreSetting(const std::string& str) {
+  const std::string ignore_list[] = {
+      "nonInductiveForLoops",
+      "whileLoops",
+      "doWhileLoops",
+      "generalUniformIndexing",
+      "generalAttributeMatrixVectorIndexing",
+      "generalVaryingIndexing",
+      "generalSamplerIndexing",
+      "generalVariableIndexing",
+      "generalConstantMatrixVectorIndexing",
+  };
+  return std::find(std::begin(ignore_list), std::end(ignore_list), str) !=
+         std::end(ignore_list);
+}
+
+}  //  anonymous namespace
+
+namespace glslc {
+
+bool ParseResourceSettings(const std::string& input,
+                           std::vector<ResourceSetting>* limits,
+                           std::string* err) {
+  auto failure = [err, limits](std::string msg) {
+    *err = msg;
+    limits->clear();
+    return false;
+  };
+  std::istringstream input_stream(input);
+  std::istream_iterator<std::string> pos((input_stream));
+  limits->clear();
+
+glslc/src/resource_parse.h
+// Copyright 2016 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef GLSLC_RESOURCE_PARSE_H
+#define GLSLC_RESOURCE_PARSE_H
+
+#include <string>
+#include <vector>
+
+#include "shaderc/shaderc.h"
+
+namespace glslc {
+
+// A resource limit setting.
+struct ResourceSetting {
+  shaderc_limit limit;
+  int value;
+};
+
+
+// Returns true when two resource setting structures are equal.
+inline bool operator==(const ResourceSetting& lhs, const ResourceSetting& rhs) {
+  return (lhs.limit == rhs.limit) && (lhs.value == rhs.value);
+}
+
+
+// Parses a resource limit setting string.  On success, returns true and populates
+// the limits parameter.  On failure returns failure and emits a message to err.
+// The setting string should be a seqeuence of pairs, where each pair
+// is a limit name followed by a decimal integer.  Tokens should be separated
+// by whitespace.  In particular, this function accepts Glslang's configuration
+// file syntax.  If a limit is mentioned multiple times, then the last setting
+// takes effect.  Ignore settings for:
+//   nonInductiveForLoops
+//   whileLoops
+//   doWhileLoops
+//   generalUniformIndexing
+//   generalAttributeMatrixVectorIndexing
+//   generalVaryingIndexing
+//   generalSamplerIndexing
+//   generalVariableIndexing
+//   generalConstantMatrixVectorIndexing
+bool ParseResourceSettings(const std::string& input,
+                           std::vector<ResourceSetting>* limits,
+                           std::string* err);
+}  // namespace glslc
+
+
+#endif  // GLSLC_FILE_H_
+
+glslc/src/resource_parse_test.cc
+// Copyright 2017 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "resource_parse.h"
+
+#include <gmock/gmock.h>
+
+namespace {
+
+using glslc::ParseResourceSettings;
+using glslc::ResourceSetting;
+using testing::Eq;
+
+struct ResourceSettingsCase {
+  std::string input;
+  bool success;
+  std::vector<ResourceSetting> settings;
+  std::string message;
+};
+
+using ParseResourceSettingsTest = ::testing::TestWithParam<ResourceSettingsCase>;
+
+TEST_P(ParseResourceSettingsTest, Sample) {
+  std::vector<ResourceSetting> settings;
+  std::string err;
+  const bool succeeded = ParseResourceSettings(GetParam().input, &settings, &err);
+  EXPECT_THAT(succeeded, Eq(GetParam().success));
+  EXPECT_THAT(settings, Eq(GetParam().settings));
+  EXPECT_THAT(err, Eq(GetParam().message));
+}
+
+INSTANTIATE_TEST_SUITE_P(ParseResources, ParseResourceSettingsTest,
+  ::testing::ValuesIn(std::vector<ResourceSettingsCase>{
+    {"", true, {}, ""},
+    {"   \t \t \n ", true, {}, ""},
+    {" blorp blam", false, {}, "invalid resource limit: blorp"},
+    {"MaxLightsxyz", false, {}, "invalid resource limit: MaxLightsxyz"},
+    {"MaxLights", false, {}, "missing value after limit: MaxLights"},
+    {"MaxLights x", false, {}, "invalid integer: x"},
+    {"MaxLights 99x", false, {}, "invalid integer: 99x"},
+    {"MaxLights 12 blam", false, {}, "invalid resource limit: blam"},
+    {"MaxLights 12", true, {{shaderc_limit_max_lights, 12}}, ""},
+    // Test negative number
+    {"MinProgramTexelOffset -9", true, {{shaderc_limit_min_program_texel_offset, -9}}, ""},
+    // Test leading, intervening, and trailing whitespace
+    {" \tMaxLights \n 12 \t ", true, {{shaderc_limit_max_lights, 12}}, ""},
+    // Test more than one limit setting.
+    {"MinProgramTexelOffset -10 MaxLights 4", true, {{shaderc_limit_min_program_texel_offset, -10}, {shaderc_limit_max_lights, 4}}, ""},
+    // Check ignore cases.
+    {"nonInductiveForLoops", false, {}, "missing value after limit: nonInductiveForLoops"},
+    {"nonInductiveForLoops 1", true, {}, ""},
+    {"whileLoops 1", true, {}, ""},
+    {"doWhileLoops 1", true, {}, ""},
+    {"generalUniformIndexing 1", true, {}, ""},
+    {"generalAttributeMatrixVectorIndexing 1", true, {}, ""},
+    {"generalVaryingIndexing 1", true, {}, ""},
+    {"generalSamplerIndexing 1", true, {}, ""},
+    {"generalVariableIndexing 1", true, {}, ""},
+    {"generalConstantMatrixVectorIndexing 1", true, {}, ""},
+
+glslc/src/shader_stage.cc
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "shader_stage.h"
+
+#include "file.h"
+
+using shaderc_util::string_piece;
+
+namespace {
+
+// Maps an identifier to a shader stage.
+struct StageMapping {
+  const char* id;
+  shaderc_shader_kind stage;
+};
+
+}  // anonymous namespace
+
+namespace glslc {
+
+shaderc_shader_kind MapStageNameToForcedKind(const string_piece& stage_name) {
+  const StageMapping string_to_kind[] = {
+      {"vertex", shaderc_glsl_vertex_shader},
+      {"vert", shaderc_glsl_vertex_shader},
+      {"fragment", shaderc_glsl_fragment_shader},
+      {"frag", shaderc_glsl_fragment_shader},
+      {"tesscontrol", shaderc_glsl_tess_control_shader},
+      {"tesc", shaderc_glsl_tess_control_shader},
+      {"tesseval", shaderc_glsl_tess_evaluation_shader},
+      {"tese", shaderc_glsl_tess_evaluation_shader},
+      {"geometry", shaderc_glsl_geometry_shader},
+      {"geom", shaderc_glsl_geometry_shader},
+      {"compute", shaderc_glsl_compute_shader},
+      {"comp", shaderc_glsl_compute_shader},
+      {"raygen", shaderc_glsl_raygen_shader},
+      {"rgen", shaderc_glsl_raygen_shader },
+      {"anyhit", shaderc_glsl_anyhit_shader},
+      {"rahit", shaderc_glsl_anyhit_shader },
+      {"closest", shaderc_glsl_closesthit_shader},
+      {"rchit", shaderc_glsl_closesthit_shader },
+      {"miss", shaderc_glsl_miss_shader},
+      {"rmiss", shaderc_glsl_miss_shader },
+      {"intersect", shaderc_glsl_intersection_shader},
+      {"rint", shaderc_glsl_intersection_shader },
+      {"callable", shaderc_glsl_callable_shader},
+      {"rcall", shaderc_glsl_callable_shader },
+      {"task", shaderc_glsl_task_shader },
+      {"mesh", shaderc_glsl_mesh_shader },
+  };
+  for (const auto& entry : string_to_kind) {
+    if (stage_name == entry.id) return entry.stage;
+  }
+  return shaderc_glsl_infer_from_source;
+}
+
+shaderc_shader_kind GetForcedShaderKindFromCmdLine(
+    const shaderc_util::string_piece& f_shader_stage_str) {
+  size_t equal_pos = f_shader_stage_str.find_first_of("=");
+
+glslc/src/shader_stage.h
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef GLSLC_SHADER_STAGE_H_
+#define GLSLC_SHADER_STAGE_H_
+
+#include <ostream>
+
+#include "libshaderc_util/string_piece.h"
+#include "shaderc/shaderc.h"
+
+namespace glslc {
+
+// Maps a shader stage name to a forced shader stage enum value.  Returns
+// 'shaderc_glsl_infer_from_source' if the stage name is unrecognized.
+shaderc_shader_kind MapStageNameToForcedKind(
+    const shaderc_util::string_piece& f_shader_stage_str);
+
+// Parse the string piece from command line to get the force shader stage.
+// If the 'f_shader_stage_str' cannot be parsed to a valid force shader stage,
+// returns 'shaderc_glsl_infer_from_source'.  Requires the string to begin with
+// '='.
+shaderc_shader_kind GetForcedShaderKindFromCmdLine(
+    const shaderc_util::string_piece& f_shader_stage_str);
+
+// Parse the file name extension to get the default shader kind.
+shaderc_shader_kind DeduceDefaultShaderKindFromFileName(
+    shaderc_util::string_piece file_name);
+}  // namespace glslc
+
+#endif  // GLSLC_SHADER_STAGE_H_
+
+glslc/src/stage_test.cc
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Some of the tests here check code paths that are not checked by
+// integration tests.
+// Generally, these would be conditions not generated by the Glslang
+// compiler.  It's easier to write these unit tests than to inject
+// a dependency on a fake compiler.
+
+#include <sstream>
+
+#include <gtest/gtest.h>
+#include "shaderc/shaderc.h"
+
+#include "shader_stage.h"
+
+using shaderc_util::string_piece;
+
+namespace {
+
+TEST(DeduceDefaultShaderKindFromFileName, ValidStage) {
+  std::stringstream error_stream;
+  EXPECT_EQ(shaderc_glsl_default_vertex_shader,
+            glslc::DeduceDefaultShaderKindFromFileName("a.vert"));
+
+  EXPECT_EQ(shaderc_glsl_default_fragment_shader,
+            glslc::DeduceDefaultShaderKindFromFileName("a.frag"));
+
+  EXPECT_EQ(shaderc_glsl_default_geometry_shader,
+            glslc::DeduceDefaultShaderKindFromFileName("a.geom"));
+
+  EXPECT_EQ(shaderc_glsl_default_tess_control_shader,
+            glslc::DeduceDefaultShaderKindFromFileName("a.tesc"));
+
+  EXPECT_EQ(shaderc_glsl_default_tess_evaluation_shader,
+            glslc::DeduceDefaultShaderKindFromFileName("a.tese"));
+
+  EXPECT_EQ(shaderc_glsl_default_compute_shader,
+            glslc::DeduceDefaultShaderKindFromFileName("a.comp"));
+
+  EXPECT_EQ(shaderc_glsl_default_raygen_shader,
+            glslc::DeduceDefaultShaderKindFromFileName("a.rgen"));
+
+  EXPECT_EQ(shaderc_glsl_default_anyhit_shader,
+            glslc::DeduceDefaultShaderKindFromFileName("a.rahit"));
+
+  EXPECT_EQ(shaderc_glsl_default_closesthit_shader,
+            glslc::DeduceDefaultShaderKindFromFileName("a.rchit"));
+
+  EXPECT_EQ(shaderc_glsl_default_miss_shader,
+            glslc::DeduceDefaultShaderKindFromFileName("a.rmiss"));
+
+  EXPECT_EQ(shaderc_glsl_default_intersection_shader,
+            glslc::DeduceDefaultShaderKindFromFileName("a.rint"));
+
+  EXPECT_EQ(shaderc_glsl_default_callable_shader,
+            glslc::DeduceDefaultShaderKindFromFileName("a.rcall"));
+
+  EXPECT_EQ(shaderc_glsl_default_task_shader,
+
+libshaderc/include/shaderc/env.h
+// Copyright 2018 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef SHADERC_ENV_H_
+#define SHADERC_ENV_H_
+
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef enum {
+  shaderc_target_env_vulkan,  // SPIR-V under Vulkan semantics
+  shaderc_target_env_opengl,  // SPIR-V under OpenGL semantics
+  // NOTE: SPIR-V code generation is not supported for shaders under OpenGL
+  // compatibility profile.
+  shaderc_target_env_opengl_compat,  // SPIR-V under OpenGL semantics,
+                                     // including compatibility profile
+                                     // functions
+  shaderc_target_env_webgpu,         // Deprecated, SPIR-V under WebGPU
+                                     // semantics
+  shaderc_target_env_default = shaderc_target_env_vulkan
+} shaderc_target_env;
+
+typedef enum {
+  // For Vulkan, use Vulkan's mapping of version numbers to integers.
+  // See vulkan.h
+  shaderc_env_version_vulkan_1_0 = ((1u << 22)),
+  shaderc_env_version_vulkan_1_1 = ((1u << 22) | (1 << 12)),
+  shaderc_env_version_vulkan_1_2 = ((1u << 22) | (2 << 12)),
+  shaderc_env_version_vulkan_1_3 = ((1u << 22) | (3 << 12)),
+  shaderc_env_version_vulkan_1_4 = ((1u << 22) | (4 << 12)),
+  // For OpenGL, use the number from #version in shaders.
+  // TODO(dneto): Currently no difference between OpenGL 4.5 and 4.6.
+  // See glslang/Standalone/Standalone.cpp
+  // TODO(dneto): Glslang doesn't accept a OpenGL client version of 460.
+  shaderc_env_version_opengl_4_5 = 450,
+  shaderc_env_version_webgpu,  // Deprecated, WebGPU env never defined versions
+} shaderc_env_version;
+
+// The known versions of SPIR-V.
+typedef enum {
+  // Use the values used for word 1 of a SPIR-V binary:
+  // - bits 24 to 31: zero
+  // - bits 16 to 23: major version number
+  // - bits 8 to 15: minor version number
+  // - bits 0 to 7: zero
+  shaderc_spirv_version_1_0 = 0x010000u,
+  shaderc_spirv_version_1_1 = 0x010100u,
+  shaderc_spirv_version_1_2 = 0x010200u,
+  shaderc_spirv_version_1_3 = 0x010300u,
+  shaderc_spirv_version_1_4 = 0x010400u,
+  shaderc_spirv_version_1_5 = 0x010500u,
+  shaderc_spirv_version_1_6 = 0x010600u
+} shaderc_spirv_version;
+
+#ifdef __cplusplus
+}
+
+libshaderc/include/shaderc/shaderc.h
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef SHADERC_SHADERC_H_
+#define SHADERC_SHADERC_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#include "shaderc/env.h"
+#include "shaderc/status.h"
+#include "shaderc/visibility.h"
+
+// Source language kind.
+typedef enum {
+  shaderc_source_language_glsl,
+  shaderc_source_language_hlsl,
+} shaderc_source_language;
+
+typedef enum {
+  // Forced shader kinds. These shader kinds force the compiler to compile the
+  // source code as the specified kind of shader.
+  shaderc_vertex_shader,
+  shaderc_fragment_shader,
+  shaderc_compute_shader,
+  shaderc_geometry_shader,
+  shaderc_tess_control_shader,
+  shaderc_tess_evaluation_shader,
+
+  shaderc_glsl_vertex_shader = shaderc_vertex_shader,
+  shaderc_glsl_fragment_shader = shaderc_fragment_shader,
+  shaderc_glsl_compute_shader = shaderc_compute_shader,
+  shaderc_glsl_geometry_shader = shaderc_geometry_shader,
+  shaderc_glsl_tess_control_shader = shaderc_tess_control_shader,
+  shaderc_glsl_tess_evaluation_shader = shaderc_tess_evaluation_shader,
+
+  // Deduce the shader kind from #pragma annotation in the source code. Compiler
+  // will emit error if #pragma annotation is not found.
+  shaderc_glsl_infer_from_source,
+  // Default shader kinds. Compiler will fall back to compile the source code as
+  // the specified kind of shader when #pragma annotation is not found in the
+  // source code.
+  shaderc_glsl_default_vertex_shader,
+  shaderc_glsl_default_fragment_shader,
+  shaderc_glsl_default_compute_shader,
+  shaderc_glsl_default_geometry_shader,
+  shaderc_glsl_default_tess_control_shader,
+  shaderc_glsl_default_tess_evaluation_shader,
+  shaderc_spirv_assembly,
+  shaderc_raygen_shader,
+  shaderc_anyhit_shader,
+  shaderc_closesthit_shader,
+  shaderc_miss_shader,
+  shaderc_intersection_shader,
+
+libshaderc/include/shaderc/shaderc.hpp
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef SHADERC_SHADERC_HPP_
+#define SHADERC_SHADERC_HPP_
+
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "shaderc.h"
+
+namespace shaderc {
+// A CompilationResult contains the compiler output, compilation status,
+// and messages.
+//
+// The compiler output is stored as an array of elements and accessed
+// via random access iterators provided by cbegin() and cend().  The iterators
+// are contiguous in the sense of "Contiguous Iterators: A Refinement of
+// Random Access Iterators", Nevin Liber, C++ Library Evolution Working
+// Group Working Paper N3884.
+// http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2014/n3884.pdf
+//
+// Methods begin() and end() are also provided to enable range-based for.
+// They are synonyms to cbegin() and cend(), respectively.
+template <typename OutputElementType>
+class CompilationResult {
+ public:
+  typedef OutputElementType element_type;
+  // The type used to describe the begin and end iterators on the
+  // compiler output.
+  typedef const OutputElementType* const_iterator;
+
+  // Upon creation, the CompilationResult takes ownership of the
+  // shaderc_compilation_result instance. During destruction of the
+  // CompilationResult, the shaderc_compilation_result will be released.
+  explicit CompilationResult(shaderc_compilation_result_t compilation_result)
+      : compilation_result_(compilation_result) {}
+  CompilationResult() : compilation_result_(nullptr) {}
+  ~CompilationResult() { shaderc_result_release(compilation_result_); }
+
+  CompilationResult(CompilationResult&& other) : compilation_result_(nullptr) {
+    *this = std::move(other);
+  }
+
+  CompilationResult& operator=(CompilationResult&& other) {
+    if (compilation_result_) {
+      shaderc_result_release(compilation_result_);
+    }
+    compilation_result_ = other.compilation_result_;
+    other.compilation_result_ = nullptr;
+    return *this;
+  }
+
+  // Returns any error message found during compilation.
+  std::string GetErrorMessage() const {
+    if (!compilation_result_) {
+      return "";
+    }
+
+libshaderc/include/shaderc/status.h
+// Copyright 2018 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef SHADERC_STATUS_H_
+#define SHADERC_STATUS_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Indicate the status of a compilation.
+typedef enum {
+  shaderc_compilation_status_success = 0,
+  shaderc_compilation_status_invalid_stage = 1,  // error stage deduction
+  shaderc_compilation_status_compilation_error = 2,
+  shaderc_compilation_status_internal_error = 3,  // unexpected failure
+  shaderc_compilation_status_null_result_object = 4,
+  shaderc_compilation_status_invalid_assembly = 5,
+  shaderc_compilation_status_validation_error = 6,
+  shaderc_compilation_status_transformation_error = 7,
+  shaderc_compilation_status_configuration_error = 8,
+} shaderc_compilation_status;
+
+#ifdef __cplusplus
+}
+#endif  // __cplusplus
+
+#endif  // SHADERC_STATUS_H_
+
+libshaderc/include/shaderc/visibility.h
+// Copyright 2018 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef SHADERC_VISIBILITY_H_
+#define SHADERC_VISIBILITY_H_
+
+// SHADERC_EXPORT tags symbol that will be exposed by the shared libraries.
+#if defined(SHADERC_SHAREDLIB)
+#if defined(_WIN32)
+#if defined(SHADERC_IMPLEMENTATION)
+#define SHADERC_EXPORT __declspec(dllexport)
+#else
+#define SHADERC_EXPORT __declspec(dllimport)
+#endif
+#else
+#if defined(SHADERC_IMPLEMENTATION)
+#define SHADERC_EXPORT __attribute__((visibility("default")))
+#else
+#define SHADERC_EXPORT
+#endif
+#endif
+#else
+#define SHADERC_EXPORT
+#endif
+
+#endif  // SHADERC_VISIBILITY_H_
+
+libshaderc/src/common_shaders_for_test.h
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef COMMON_SHADERS_FOR_TESTS_H_
+#define COMMON_SHADERS_FOR_TESTS_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// The minimal shader, without a version directive.
+const char kMinimalShaderWithoutVersion[] = "void main(){}";
+// The minimal shader, with a version directive.
+const char kMinimalShader[] =
+    "#version 140\n"
+    "void main(){}";
+const char kMinimalHlslShader[] =
+    "float4 EntryPoint(uint index : SV_VERTEXID) : SV_POSITION\n"
+    "{ return float4(1.0, 2.0, 3.0, 4.0); }";
+const char kMinimalShaderWithMacro[] =
+    "#version 140\n"
+    "#define E main\n"
+    "void E(){}\n";
+
+// The minimal shader that needs valueless predefinition of 'E' to compile.
+const char kValuelessPredefinitionShader[] =
+    "#version 140\n"
+    "#ifdef E\n"
+    "void main(){}\n"
+    "#else\n"
+    "#error\n"
+    "#endif";
+
+// By default the compiler will emit a warning on line 2 complaining
+// that 'float' is a deprecated attribute in version 130.  Use verison 140
+// because some versions of glslang will error out for a too-low version
+// when generating SPIR-V.
+const char kDeprecatedAttributeShader[] =
+    "#version 400\n"
+    "layout(location = 0) attribute float x;\n"
+    "void main() {}\n";
+
+// By default the compiler will emit a warning as version 550 is an unknown
+// version.
+const char kMinimalUnknownVersionShader[] =
+    "#version 550\n"
+    "void main() {}\n";
+
+// gl_ClipDistance doesn't exist in es profile (at least until 3.10).
+const char kCoreVertShaderWithoutVersion[] =
+    "void main() {\n"
+    "gl_ClipDistance[0] = 5.;\n"
+    "}\n";
+
+// Generated debug information should contain the name of the vector:
+// debug_info_sample.
+const char kMinimalDebugInfoShader[] =
+    "#version 140\n"
+    "void main(){\n"
+
+libshaderc/src/shaderc.cc
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "shaderc/shaderc.h"
+
+#include <algorithm>
+#include <cassert>
+#include <cstdint>
+#include <memory>
+#include <sstream>
+#include <vector>
+
+#include "libshaderc_util/compiler.h"
+#include "libshaderc_util/counting_includer.h"
+#include "libshaderc_util/resources.h"
+#include "libshaderc_util/spirv_tools_wrapper.h"
+#include "libshaderc_util/version_profile.h"
+#include "shaderc_private.h"
+#include "spirv/unified1/spirv.hpp"
+
+#if (defined(_MSC_VER) && !defined(_CPPUNWIND)) || !defined(__EXCEPTIONS)
+#define TRY_IF_EXCEPTIONS_ENABLED
+#define CATCH_IF_EXCEPTIONS_ENABLED(X) if (0)
+#else
+#define TRY_IF_EXCEPTIONS_ENABLED try
+#define CATCH_IF_EXCEPTIONS_ENABLED(X) catch (X)
+#endif
+
+namespace {
+
+// Returns shader stage (ie: vertex, fragment, etc.) in response to forced
+// shader kinds. If the shader kind is not a forced kind, returns EshLangCount
+// to let #pragma annotation or shader stage deducer determine the stage to
+// use.
+EShLanguage GetForcedStage(shaderc_shader_kind kind) {
+  switch (kind) {
+    case shaderc_glsl_vertex_shader:
+      return EShLangVertex;
+    case shaderc_glsl_fragment_shader:
+      return EShLangFragment;
+    case shaderc_glsl_compute_shader:
+      return EShLangCompute;
+    case shaderc_glsl_geometry_shader:
+      return EShLangGeometry;
+    case shaderc_glsl_tess_control_shader:
+      return EShLangTessControl;
+    case shaderc_glsl_tess_evaluation_shader:
+      return EShLangTessEvaluation;
+
+    case shaderc_glsl_raygen_shader:
+      return EShLangRayGenNV;
+    case shaderc_glsl_anyhit_shader:
+      return EShLangAnyHitNV;
+    case shaderc_glsl_closesthit_shader:
+      return EShLangClosestHitNV;
+    case shaderc_glsl_miss_shader:
+      return EShLangMissNV;
+    case shaderc_glsl_intersection_shader:
+      return EShLangIntersectNV;
+
+libshaderc/src/shaderc_c_smoke_test.c
+// Copyright 2016 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "shaderc/shaderc.h"
+#include <assert.h>
+#include <string.h>
+
+// Because we want to test this as a plain old C file, we cannot use
+// gtest, so just run a simple smoke test.
+
+int main() {
+  const char* test_program =
+      "#version 310 es\n"
+      "layout(location = 0) in highp vec4 vtxColor;\n"
+      "layout(location = 0) out highp vec4 outColor;\n"
+      "void main() {\n"
+      "  outColor = vtxColor;"
+      "}\n";
+  shaderc_compiler_t compiler;
+  shaderc_compilation_result_t result;
+  shaderc_compile_options_t options;
+
+  compiler = shaderc_compiler_initialize();
+  options = shaderc_compile_options_initialize();
+  shaderc_compile_options_add_macro_definition(options, "FOO", 3, "1", 1);
+  result = shaderc_compile_into_spv(
+      compiler, test_program, strlen(test_program),
+      shaderc_glsl_fragment_shader, "a.glsl", "main", options);
+
+  assert(result);
+
+  if (shaderc_result_get_compilation_status(result) !=
+      shaderc_compilation_status_success) {
+    // Early exit on failure.
+    return -1;
+  }
+  shaderc_result_release(result);
+  shaderc_compile_options_release(options);
+  shaderc_compiler_release(compiler);
+
+  return 0;
+}
+
+
+libshaderc/src/shaderc_cpp_test.cc
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+
+#include <memory>
+#include <thread>
+#include <unordered_map>
+
+#include "common_shaders_for_test.h"
+#include "shaderc/shaderc.hpp"
+#include "spirv-tools/libspirv.hpp"
+#include "spirv/unified1/spirv.hpp"
+
+namespace {
+
+using shaderc::AssemblyCompilationResult;
+using shaderc::CompileOptions;
+using shaderc::PreprocessedSourceCompilationResult;
+using shaderc::SpvCompilationResult;
+using testing::Each;
+using testing::Eq;
+using testing::HasSubstr;
+using testing::Not;
+
+// Helper function to check if the compilation result indicates a successful
+// compilation.
+template <typename T>
+bool CompilationResultIsSuccess(const shaderc::CompilationResult<T>& result) {
+  return result.GetCompilationStatus() == shaderc_compilation_status_success;
+}
+
+// Examines whether a compilation result has valid SPIR-V code, by checking the
+// magic number in the fixed postion of the byte array in the result object.
+// Returns true if the magic number is found at the correct postion, otherwise
+// returns false.
+bool IsValidSpv(const SpvCompilationResult& result) {
+  if (!CompilationResultIsSuccess(result)) return false;
+  size_t length_in_words = result.cend() - result.cbegin();
+  if (length_in_words < 5) return false;
+  const uint32_t* bytes = result.cbegin();
+  return bytes[0] == spv::MagicNumber;
+}
+
+// Compiles a shader and returns true if the result is valid SPIR-V. The
+// input_file_name is set to "shader".
+bool CompilesToValidSpv(const shaderc::Compiler& compiler,
+                        const std::string& shader, shaderc_shader_kind kind) {
+  return IsValidSpv(compiler.CompileGlslToSpv(shader, kind, "shader"));
+}
+
+// Compiles a shader with options and returns true if the result is valid
+// SPIR-V. The input_file_name is set to "shader".
+bool CompilesToValidSpv(const shaderc::Compiler& compiler,
+                        const std::string& shader, shaderc_shader_kind kind,
+                        const CompileOptions& options) {
+  return IsValidSpv(compiler.CompileGlslToSpv(shader, kind, "shader", options));
+}
+
+libshaderc/src/shaderc_private.h
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef LIBSHADERC_SRC_SHADERC_PRIVATE_H_
+#define LIBSHADERC_SRC_SHADERC_PRIVATE_H_
+
+#include <cassert>
+#include <cstdint>
+#include <string>
+#include <vector>
+#include <memory>
+
+#include "shaderc/shaderc.h"
+
+#include "libshaderc_util/compiler.h"
+#include "spirv-tools/libspirv.h"
+
+// Described in shaderc.h.
+struct shaderc_compilation_result {
+  virtual ~shaderc_compilation_result() {}
+
+  // Returns the data from this compilation as a sequence of bytes.
+  // It can return null in certain error cases.
+  virtual const char* GetBytes() const = 0;
+
+  // The size of the output data in term of bytes.
+  size_t output_data_size = 0;
+  // Compilation messages.
+  std::string messages;
+  // Number of errors.
+  size_t num_errors = 0;
+  // Number of warnings.
+  size_t num_warnings = 0;
+  // Compilation status.
+  shaderc_compilation_status compilation_status =
+      shaderc_compilation_status_null_result_object;
+};
+
+// Compilation result class using a vector for holding the compilation
+// output data.
+class shaderc_compilation_result_vector : public shaderc_compilation_result {
+ public:
+  ~shaderc_compilation_result_vector() = default;
+
+  void SetOutputData(std::vector<uint32_t>&& data) {
+    output_data_ = std::move(data);
+  }
+
+  const char* GetBytes() const override {
+    return reinterpret_cast<const char*>(output_data_.data());
+  }
+
+ private:
+  // Compilation output data. In normal compilation mode, it contains the
+  // compiled SPIR-V binary code. In disassembly and preprocessing-only mode, it
+  // contains a null-terminated string which is the text output. For text
+  // output, extra bytes with value 0x00 might be appended to complete the last
+  // uint32_t element.
+  std::vector<uint32_t> output_data_;
+
+libshaderc/src/shaderc_private_test.cc
+// Copyright 2017 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "shaderc_private.h"
+
+#include <gmock/gmock.h>
+
+namespace {
+
+TEST(ConvertSpecificStage, Exhaustive) {
+  EXPECT_EQ(shaderc_util::Compiler::Stage::Vertex,
+            shaderc_convert_specific_stage(shaderc_vertex_shader));
+  EXPECT_EQ(shaderc_util::Compiler::Stage::Fragment,
+            shaderc_convert_specific_stage(shaderc_fragment_shader));
+  EXPECT_EQ(shaderc_util::Compiler::Stage::TessControl,
+            shaderc_convert_specific_stage(shaderc_tess_control_shader));
+  EXPECT_EQ(shaderc_util::Compiler::Stage::TessEval,
+            shaderc_convert_specific_stage(shaderc_tess_evaluation_shader));
+  EXPECT_EQ(shaderc_util::Compiler::Stage::Geometry,
+            shaderc_convert_specific_stage(shaderc_geometry_shader));
+  EXPECT_EQ(shaderc_util::Compiler::Stage::Compute,
+            shaderc_convert_specific_stage(shaderc_compute_shader));
+  EXPECT_EQ(shaderc_util::Compiler::Stage::RayGenNV,
+            shaderc_convert_specific_stage(shaderc_raygen_shader));
+  EXPECT_EQ(shaderc_util::Compiler::Stage::AnyHitNV,
+            shaderc_convert_specific_stage(shaderc_anyhit_shader));
+  EXPECT_EQ(shaderc_util::Compiler::Stage::ClosestHitNV,
+            shaderc_convert_specific_stage(shaderc_closesthit_shader));
+  EXPECT_EQ(shaderc_util::Compiler::Stage::IntersectNV,
+            shaderc_convert_specific_stage(shaderc_intersection_shader));
+  EXPECT_EQ(shaderc_util::Compiler::Stage::MissNV,
+            shaderc_convert_specific_stage(shaderc_miss_shader));
+  EXPECT_EQ(shaderc_util::Compiler::Stage::CallableNV,
+            shaderc_convert_specific_stage(shaderc_callable_shader));
+  EXPECT_EQ(shaderc_util::Compiler::Stage::TaskNV,
+            shaderc_convert_specific_stage(shaderc_task_shader));
+  EXPECT_EQ(shaderc_util::Compiler::Stage::MeshNV,
+            shaderc_convert_specific_stage(shaderc_mesh_shader));
+}
+
+TEST(BinaryResult, GetBytesBeforeSetData) {
+  shaderc_compilation_result_spv_binary b;
+  EXPECT_EQ(nullptr, b.GetBytes());
+}
+
+TEST(BinaryResult, GetBytesYieldsRecentlySetData) {
+  uint32_t arr[10] = {0};
+  spv_binary_t spvb = { arr, 10 };
+  shaderc_compilation_result_spv_binary b;
+
+  b.SetOutputData(&spvb);
+  EXPECT_EQ(reinterpret_cast<const char*>(arr), b.GetBytes());
+
+  // Do null last because the destructor will call spvBinaryDestroy
+  // on it.
+  b.SetOutputData(nullptr);
+  EXPECT_EQ(nullptr, b.GetBytes());
+}
+
+
+libshaderc/src/shaderc_test.cc
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "shaderc/shaderc.h"
+
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+
+#include <memory>
+#include <thread>
+#include <unordered_map>
+
+#include "common_shaders_for_test.h"
+#include "spirv/unified1/spirv.hpp"
+
+namespace {
+
+using testing::Each;
+using testing::HasSubstr;
+using testing::Not;
+
+TEST(Init, MultipleCalls) {
+  shaderc_compiler_t compiler1, compiler2, compiler3;
+  EXPECT_NE(nullptr, compiler1 = shaderc_compiler_initialize());
+  EXPECT_NE(nullptr, compiler2 = shaderc_compiler_initialize());
+  EXPECT_NE(nullptr, compiler3 = shaderc_compiler_initialize());
+  shaderc_compiler_release(compiler1);
+  shaderc_compiler_release(compiler2);
+  shaderc_compiler_release(compiler3);
+}
+
+#ifndef SHADERC_DISABLE_THREADED_TESTS
+TEST(Init, MultipleThreadsCalling) {
+  shaderc_compiler_t compiler1, compiler2, compiler3;
+  std::thread t1([&compiler1]() { compiler1 = shaderc_compiler_initialize(); });
+  std::thread t2([&compiler2]() { compiler2 = shaderc_compiler_initialize(); });
+  std::thread t3([&compiler3]() { compiler3 = shaderc_compiler_initialize(); });
+  t1.join();
+  t2.join();
+  t3.join();
+  EXPECT_NE(nullptr, compiler1);
+  EXPECT_NE(nullptr, compiler2);
+  EXPECT_NE(nullptr, compiler3);
+  shaderc_compiler_release(compiler1);
+  shaderc_compiler_release(compiler2);
+  shaderc_compiler_release(compiler3);
+}
+#endif
+
+TEST(Init, SPVVersion) {
+  unsigned int version = 0;
+  unsigned int revision = 0;
+  shaderc_get_spv_version(&version, &revision);
+  EXPECT_EQ(spv::Version, version);
+  EXPECT_EQ(spv::Revision, revision);
+}
+
+// Determines the kind of output required from the compiler.
+enum class OutputType {
+
+libshaderc_util/include/libshaderc_util/args.h
+// Copyright 2019 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef LIBSHADERC_UTIL_INC_ARGS_H
+#define LIBSHADERC_UTIL_INC_ARGS_H
+
+#include <cstdint>
+#include <string>
+
+#include "libshaderc_util/string_piece.h"
+
+namespace shaderc_util {
+
+// Gets the option argument for the option at *index in argv in a way consistent
+// with clang/gcc. On success, returns true and writes the parsed argument into
+// *option_argument. Returns false if any errors occur. After calling this
+// function, *index will be the index of the last command line argument
+// consumed.
+bool GetOptionArgument(int argc, char** argv, int* index,
+                       const std::string& option,
+                       string_piece* option_argument);
+
+// Parses the given string as a number of the specified type.  Returns true
+// if parsing succeeded, and stores the parsed value via |value|.
+// (I've worked out the general case for this in
+// SPIRV-Tools source/util/parse_number.h. -- dneto)
+bool ParseUint32(const std::string& str, uint32_t* value);
+
+}  // namespace shaderc_util
+#endif  // LIBSHADERC_UTIL_INC_ARGS_H
+
+libshaderc_util/include/libshaderc_util/compiler.h
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef LIBSHADERC_UTIL_INC_COMPILER_H
+#define LIBSHADERC_UTIL_INC_COMPILER_H
+
+#include <array>
+#include <cassert>
+#include <functional>
+#include <mutex>
+#include <ostream>
+#include <string>
+#include <unordered_map>
+#include <utility>
+
+#include "counting_includer.h"
+#include "file_finder.h"
+#include "glslang/Public/ShaderLang.h"
+#include "mutex.h"
+#include "resources.h"
+#include "string_piece.h"
+
+// Fix a typo in glslang/Public/ShaderLang.h
+#define EShTargetClientVersion EshTargetClientVersion
+
+namespace shaderc_util {
+
+// To break recursive including. This header is already included in
+// spirv_tools_wrapper.h, so cannot include spirv_tools_wrapper.h here.
+enum class PassId;
+
+// Initializes glslang on creation, and destroys it on completion.
+// Used to tie gslang process operations to object lifetimes.
+// Additionally initialization/finalization of glslang is not thread safe, so
+// synchronizes these operations.
+class GlslangInitializer {
+ public:
+  GlslangInitializer();
+  ~GlslangInitializer();
+
+ private:
+  static unsigned int initialize_count_;
+};
+
+// Maps macro names to their definitions.  Stores string_pieces, so the
+// underlying strings must outlive it.
+using MacroDictionary = std::unordered_map<std::string, std::string>;
+
+// Holds all of the state required to compile source GLSL into SPIR-V.
+class Compiler {
+ public:
+  // Source language
+  enum class SourceLanguage {
+    GLSL,  // The default
+    HLSL,
+  };
+
+  // Target environment.
+  enum class TargetEnv {
+
+libshaderc_util/include/libshaderc_util/counting_includer.h
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef LIBSHADERC_UTIL_COUNTING_INCLUDER_H
+#define LIBSHADERC_UTIL_COUNTING_INCLUDER_H
+
+#include <atomic>
+
+#include "glslang/Public/ShaderLang.h"
+
+#include "libshaderc_util/mutex.h"
+
+namespace shaderc_util {
+
+// An Includer that counts how many #include directives it saw.
+// Inclusions are internally serialized, but releasing a previous result
+// can occur concurrently.
+class CountingIncluder : public glslang::TShader::Includer {
+ public:
+  // Done as .store(0) instead of in the initializer list for the following
+  // reasons:
+  // Clang > 3.6 will complain about it if it is written as ({0}).
+  // VS2013 fails if it is written as {0}.
+  // G++-4.8 does not correctly support std::atomic_init.
+  CountingIncluder() {
+    num_include_directives_.store(0);
+  }
+
+  enum class IncludeType {
+    System,  // Only do < > include search
+    Local,   // Only do " " include search
+  };
+
+  // Resolves an include request for a source by name, type, and name of the
+  // requesting source.  For the semantics of the result, see the base class.
+  // Also increments num_include_directives and returns the results of
+  // include_delegate(filename).  Subclasses should override include_delegate()
+  // instead of this method.  Inclusions are serialized.
+  glslang::TShader::Includer::IncludeResult* includeSystem(
+      const char* requested_source, const char* requesting_source,
+      size_t include_depth) final {
+    ++num_include_directives_;
+    include_mutex_.lock();
+    auto result = include_delegate(requested_source, requesting_source,
+                                   IncludeType::System, include_depth);
+    include_mutex_.unlock();
+    return result;
+  }
+
+  // Like includeSystem, but for "local" include search.
+  glslang::TShader::Includer::IncludeResult* includeLocal(
+      const char* requested_source, const char* requesting_source,
+      size_t include_depth) final {
+    ++num_include_directives_;
+    include_mutex_.lock();
+    auto result = include_delegate(requested_source, requesting_source,
+                                   IncludeType::Local, include_depth);
+    include_mutex_.unlock();
+    return result;
+
+libshaderc_util/include/libshaderc_util/exceptions.h
+// Copyright 2018 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef LIBSHADERC_UTIL_EXCEPTIONS_H_
+#define LIBSHADERC_UTIL_EXCEPTIONS_H_
+
+#if (defined(_MSC_VER) && !defined(_CPPUNWIND)) || !defined(__EXCEPTIONS)
+#define TRY_IF_EXCEPTIONS_ENABLED
+#define CATCH_IF_EXCEPTIONS_ENABLED(X) if (0)
+#else
+#define TRY_IF_EXCEPTIONS_ENABLED try
+#define CATCH_IF_EXCEPTIONS_ENABLED(X) catch (X)
+#endif
+
+#endif  // LIBSHADERC_UTIL_EXCEPTIONS_H_
+
+libshaderc_util/include/libshaderc_util/file_finder.h
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef LIBSHADERC_UTIL_SRC_FILE_FINDER_H_
+#define LIBSHADERC_UTIL_SRC_FILE_FINDER_H_
+
+#include <string>
+#include <vector>
+
+namespace shaderc_util {
+
+// Finds files within a search path.
+class FileFinder {
+ public:
+  // Searches for a read-openable file based on filename, which must be
+  // non-empty.  The search is attempted on filename prefixed by each element of
+  // search_path() in turn.  The first hit is returned, or an empty string if
+  // there are no hits.  Search attempts treat their argument the way
+  // std::fopen() treats its filename argument, ignoring whether the path is
+  // absolute or relative.
+  //
+  // If a search_path() element is non-empty and not ending in a slash, then a
+  // slash is inserted between it and filename before its search attempt. An
+  // empty string in search_path() means that the filename is tried as-is.
+  std::string FindReadableFilepath(const std::string& filename) const;
+
+  // Searches for a read-openable file based on filename, which must be
+  // non-empty. The search is first attempted as a path relative to
+  // the requesting_file parameter. If no file is found relative to the
+  // requesting_file then this acts as FindReadableFilepath does. If
+  // requesting_file does not contain a '/' or a '\' character then it is
+  // assumed to be a filename and the request will be relative to the
+  // current directory.
+  std::string FindRelativeReadableFilepath(const std::string& requesting_file,
+                                           const std::string& filename) const;
+
+  // Search path for Find().  Users may add/remove elements as desired.
+  std::vector<std::string>& search_path() { return search_path_; }
+
+ private:
+  std::vector<std::string> search_path_;
+};
+
+}  // namespace shaderc_util
+
+#endif  // LIBSHADERC_UTIL_SRC_FILE_FINDER_H_
+
+libshaderc_util/include/libshaderc_util/format.h
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef LIBSHADERC_UTIL_FORMAT_H_
+#define LIBSHADERC_UTIL_FORMAT_H_
+
+#include <sstream>
+
+namespace shaderc_util {
+
+// Returns a string containing <prefix><key><infix><value><postfix> for every
+// key-value entry in map.
+template <typename Map>
+std::string format(const Map& map, const std::string& prefix,
+                   const std::string& infix, const std::string& postfix) {
+  std::stringstream s;
+  for (const auto& pair : map) {
+    s << prefix << pair.first << infix << pair.second << postfix;
+  }
+  return s.str();
+}
+
+}  // namespace shaderc_util
+
+#endif  // LIBSHADERC_UTIL_FORMAT_H_
+
+libshaderc_util/include/libshaderc_util/io_shaderc.h
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef LIBSHADERC_UTIL_IO_H_
+#define LIBSHADERC_UTIL_IO_H_
+
+#include <fstream>
+#include <string>
+#include <vector>
+
+#include "string_piece.h"
+
+namespace shaderc_util {
+
+// Returns true if the given path is an absolute path.
+bool IsAbsolutePath(const std::string& path);
+
+// A helper function to return the base file name from either absolute path or
+// relative path representation of a file. It keeps the component from the last
+// '/' or '\' to the end of the given string. If the component is '..' or '.',
+// returns an empty string. If '/' or '\' is the last char of the given string,
+// also returns an empty string.
+// e.g.: dir_a/dir_b/file_c.vert => file_c.vert
+//       dir_a/dir_b/.. => <empty string>
+//       dir_a/dir_b/.  => <empty string>
+//       dir_a/dirb/c/  => <empty string>
+// Note that this method doesn't check whether the given path is a valid one or
+// not.
+std::string GetBaseFileName(const std::string& file_path);
+
+// Reads all of the characters in a given file into input_data.  Outputs an
+// error message to std::cerr if the file could not be read and returns false if
+// there was an error.  If the input_file is "-", then input is read from
+// std::cin.
+bool ReadFile(const std::string& input_file_name,
+              std::vector<char>* input_data);
+
+// Returns and initializes the file_stream parameter if the output_filename
+// refers to a file, or returns &std::cout if the output_filename is "-".
+// Returns nullptr and emits an error message to err if the file could
+// not be opened for writing.  If the output refers to a file, and the open
+// failed for writing, file_stream is left with its fail_bit set.
+std::ostream* GetOutputStream(const string_piece& output_filename,
+                              std::ofstream* file_stream, std::ostream* err);
+
+// Writes output_data to a file, overwriting if it exists.  If output_file_name
+// is "-", writes to std::cout.
+bool WriteFile(std::ostream* output_stream, const string_piece& output_data);
+
+// Flush the standard output stream and set it to binary mode.  Subsequent
+// output will not translate newlines to carriage-return newline pairs.
+void FlushAndSetBinaryModeOnStdout();
+// Flush the standard output stream and set it to text mode.  Subsequent
+// output will translate newlines to carriage-return newline pairs.
+void FlushAndSetTextModeOnStdout();
+
+}  // namespace shaderc_util
+
+#endif  // LIBSHADERC_UTIL_IO_H_
+
+libshaderc_util/include/libshaderc_util/message.h
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef LIBSHADERC_UTIL_SRC_MESSAGE_H_
+#define LIBSHADERC_UTIL_SRC_MESSAGE_H_
+
+#include "libshaderc_util/string_piece.h"
+
+namespace shaderc_util {
+
+// TODO(antiagainst): document the differences of the following message types.
+enum class MessageType {
+  Warning,
+  Error,
+  ErrorSummary,
+  WarningSummary,
+  GlobalWarning,
+  GlobalError,
+  Unknown,
+  Ignored
+};
+
+// Given a glslang warning/error message, processes it in the following way and
+// returns its message type.
+//
+// * Places the source name into the source_name parameter, if found.
+//   Otherwise, clears the source_name parameter.
+// * Places the line number into the line_number parameter, if found.
+//   Otherwise, clears the line_number parameter.
+// * Places the rest of the message (the text past warning/error prefix, source
+//   name, and line number) into the rest parameter.
+//
+// If warnings_as_errors is set to true, then all warnings will be treated as
+// errors.
+// If suppress_warnings is set to true, then no warnings will be emitted. This
+// takes precedence over warnings_as_errors.
+//
+// Examples:
+// "ERROR: 0:2: Message"
+//   source_name="0", line_number="2", rest="Message"
+// "Warning, Message"
+//   source_name="", line_number="", rest="Message"
+// "ERROR: 2 errors found."
+//   source_name="2", line_number="", rest="errors found".
+//
+// Note that filenames can contain colons:
+//   "ERROR: foo:bar.comp.hlsl:2: 'a' : unknown variable"
+MessageType ParseGlslangOutput(const shaderc_util::string_piece& message,
+                               bool warnings_as_errors, bool suppress_warnings,
+                               shaderc_util::string_piece* source_name,
+                               shaderc_util::string_piece* line_number,
+                               shaderc_util::string_piece* rest);
+
+// Filters error_messages received from glslang, and outputs, to error_stream,
+// any that are not ignored in a clang like format. If the warnings_as_errors
+// boolean is set, then all warnings will be treated as errors. If the
+// suppress_warnings boolean is set then any warning messages are ignored. This
+// takes precedence over warnings_as_errors. Increments total_warnings and
+// total_errors based on the message types.
+
+libshaderc_util/include/libshaderc_util/mutex.h
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef LIBSHADERC_UTIL_INC_MUTEX_H
+#define LIBSHADERC_UTIL_INC_MUTEX_H
+
+// shaderc_util::mutex will be defined and specialized
+// depending on the platform that is being compiled.
+// It is more or less conformant to the C++11 specification of std::mutex.
+// However it does not implement try_lock.
+
+#ifdef _WIN32
+// windows.h #defines min and max if we don't define this.
+// this means things like std::min and std::max break
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+
+#include <windows.h>
+namespace shaderc_util {
+
+// As the name suggests, this mutex class is for running on windows.
+// It conforms to the c++11 mutex implementation, and should be a
+// drop in replacement.
+class windows_mutex {
+ public:
+  using native_handle_type = HANDLE;
+
+  windows_mutex() { mutex_ = CreateMutex(nullptr, false, nullptr); }
+
+  ~windows_mutex() {
+    if (mutex_ != INVALID_HANDLE_VALUE) {
+      CloseHandle(mutex_);
+    }
+  }
+
+  windows_mutex(const windows_mutex&) = delete;
+  windows_mutex& operator=(const windows_mutex&) = delete;
+
+  // Locks this mutex, waiting until the mutex is unlocked if it is not already.
+  // It is not valid to lock a mutex that has already been locked.
+  void lock() { WaitForSingleObject(mutex_, INFINITE); }
+
+  // Unlocks this mutex. It is invalid to unlock a mutex that this thread
+  // has not already locked.
+  void unlock() { ReleaseMutex(mutex_); }
+
+  // Returns the native handle for this mutex. In this case a HANDLE object.
+  native_handle_type native_handle() { return mutex_; }
+
+ private:
+  HANDLE mutex_;
+};
+
+using mutex = windows_mutex;
+}
+
+#else
+#include <pthread.h>
+
+libshaderc_util/include/libshaderc_util/resources.h
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef LIBSHADERC_UTIL_RESOURCES_H_
+#define LIBSHADERC_UTIL_RESOURCES_H_
+
+// We want TBuiltInResource
+#include "glslang/Include/ResourceLimits.h"
+
+namespace shaderc_util {
+
+using TBuiltInResource = ::TBuiltInResource;
+
+// A set of suitable defaults.
+extern const TBuiltInResource kDefaultTBuiltInResource;
+
+}  // namespace shaderc_util
+
+#endif  // LIBSHADERC_UTIL_RESOURCES_H_
+
+libshaderc_util/include/libshaderc_util/shader_stage.h
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef LIBSHADERC_UTIL_SHADER_STAGE_H_
+#define LIBSHADERC_UTIL_SHADER_STAGE_H_
+
+#include <ostream>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "glslang/Public/ShaderLang.h"
+
+#include "libshaderc_util/string_piece.h"
+
+namespace shaderc_util {
+
+// Given a string representing a stage, returns the glslang EShLanguage for it.
+// If the stage string is not recognized, returns EShLangCount.
+EShLanguage MapStageNameToLanguage(
+    const shaderc_util::string_piece& stage_name);
+
+}  // namespace shaderc_util
+
+#endif  // LIBSHADERC_UTIL_SHADER_STAGE_H_
+
+libshaderc_util/include/libshaderc_util/spirv_tools_wrapper.h
+// Copyright 2016 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef LIBSHADERC_UTIL_INC_SPIRV_TOOLS_WRAPPER_H
+#define LIBSHADERC_UTIL_INC_SPIRV_TOOLS_WRAPPER_H
+
+#include <string>
+#include <vector>
+
+#include "spirv-tools/libspirv.hpp"
+
+#include "libshaderc_util/compiler.h"
+#include "libshaderc_util/string_piece.h"
+
+namespace shaderc_util {
+// Assembles the given assembly. On success, returns true, writes the assembled
+// binary to *binary, and clears *errors. Otherwise, writes the error message
+// into *errors.
+bool SpirvToolsAssemble(Compiler::TargetEnv env,
+                        Compiler::TargetEnvVersion version,
+                        const string_piece assembly, spv_binary* binary,
+                        std::string* errors);
+
+// Disassembles the given binary. Returns true and writes the disassembled text
+// to *text_or_error if successful. Otherwise, writes the error message to
+// *text_or_error.
+bool SpirvToolsDisassemble(Compiler::TargetEnv env,
+                           Compiler::TargetEnvVersion version,
+                           const std::vector<uint32_t>& binary,
+                           std::string* text_or_error);
+
+// The ids of a list of supported optimization passes.
+enum class PassId {
+  // SPIRV-Tools standard recipes
+  kLegalizationPasses,
+  kPerformancePasses,
+  kSizePasses,
+
+  // SPIRV-Tools specific passes
+  kNullPass,
+  kStripDebugInfo,
+  kCompactIds,
+};
+
+// Optimizes the given binary. Passes are registered in the exact order as shown
+// in enabled_passes, without de-duplication. Returns true and writes the
+// optimized binary back to *binary if successful. Otherwise, writes errors to
+// *errors and the content of binary may be in an invalid state.
+bool SpirvToolsOptimize(Compiler::TargetEnv env,
+                        Compiler::TargetEnvVersion version,
+                        const std::vector<PassId>& enabled_passes,
+                        spvtools::OptimizerOptions& optimizer_options,
+                        std::vector<uint32_t>* binary, std::string* errors);
+
+}  // namespace shaderc_util
+
+#endif  // LIBSHADERC_UTIL_INC_SPIRV_TOOLS_WRAPPER_H
+
+libshaderc_util/include/libshaderc_util/string_piece.h
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef LIBSHADERC_UTIL_STRING_PIECE_H_
+#define LIBSHADERC_UTIL_STRING_PIECE_H_
+
+#include <cassert>
+#include <cstring>
+#include <ostream>
+#include <vector>
+
+namespace shaderc_util {
+// Provides a read-only view into a string (cstring or std::string).
+// This must be created after the string in question, and cannot
+// outlive the memory of the string in question.
+// Any operations that may modify the location or size of the
+// original data render the associated string_piece invalid.
+
+class string_piece {
+ public:
+  typedef const char* iterator;
+  static const size_t npos = -1;
+
+  constexpr string_piece() {}
+
+  constexpr string_piece(const char* begin, const char* end)
+      : begin_(begin), end_(end) {
+    assert((begin == nullptr) == (end == nullptr) &&
+           "either both begin and end must be nullptr or neither must be");
+  }
+
+  string_piece(const char* string) : begin_(string), end_(string) {
+    if (string) {
+      end_ += strlen(string);
+    }
+  }
+
+  string_piece(const std::string& str) {
+    if (!str.empty()) {
+      begin_ = &(str.front());
+      end_ = &(str.back()) + 1;
+    }
+  }
+
+  string_piece(const string_piece& other) {
+    begin_ = other.begin_;
+    end_ = other.end_;
+  }
+
+  string_piece& operator=(const string_piece& other) = default;
+
+  // Clears the string_piece removing any reference to the original string.
+  void clear() {
+    begin_ = nullptr;
+    end_ = nullptr;
+  }
+
+  // Returns a pointer to the data contained in the underlying string.
+  // If there is no underlying string, returns a nullptr.
+
+libshaderc_util/include/libshaderc_util/universal_unistd.h
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef LIBSHADERC_UTIL_UNIVERSAL_UNISTD_H_
+#define LIBSHADERC_UTIL_UNIVERSAL_UNISTD_H_
+
+#ifndef _MSC_VER
+#include <unistd.h>
+#else
+// Minimal set of <unistd> needed to compile on windows.
+
+#include <io.h>
+#define access _access
+
+// https://msdn.microsoft.com/en-us/library/1w06ktdy.aspx
+// Defines these constants.
+#define R_OK 4
+#define W_OK 2
+#endif //_MSC_VER
+
+#endif // LIBSHADERC_UTIL_UNIVERSAL_UNISTD_H_
+
+libshaderc_util/include/libshaderc_util/version_profile.h
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef LIBSHADERC_UTIL_INC_VERSION_PROFILE_H_
+#define LIBSHADERC_UTIL_INC_VERSION_PROFILE_H_
+
+#include <string>
+
+#include "glslang/MachineIndependent/Versions.h"
+
+namespace shaderc_util {
+
+// Returns true if the given version is an accepted GLSL (ES) version.
+inline bool IsKnownVersion(int version) {
+  switch (version) {
+    case 100:
+    case 110:
+    case 120:
+    case 130:
+    case 140:
+    case 150:
+    case 300:
+    case 310:
+    case 320:
+    case 330:
+    case 400:
+    case 410:
+    case 420:
+    case 430:
+    case 440:
+    case 450:
+    case 460:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
+// Given a string version_profile containing both version and profile, decodes
+// it and puts the decoded version in version, decoded profile in profile.
+// Returns true if decoding is successful and version and profile are accepted.
+// This does not validate the version number against the profile.  For example,
+// "460es" doesn't make sense (yet), but is still accepted.
+bool ParseVersionProfile(const std::string& version_profile, int* version,
+                         EProfile* profile);
+
+}  // namespace shaderc_util
+
+#endif  // LIBSHADERC_UTIL_INC_VERSION_PROFILE_H_
+
+libshaderc_util/src/args.cc
+// Copyright 2019 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "libshaderc_util/args.h"
+
+#include <iomanip>
+#include <sstream>
+
+namespace shaderc_util {
+
+bool GetOptionArgument(int argc, char** argv, int* index,
+                       const std::string& option,
+                       string_piece* option_argument) {
+  const string_piece arg = argv[*index];
+  assert(arg.starts_with(option));
+  if (arg.size() != option.size()) {
+    *option_argument = arg.substr(option.size());
+    return true;
+  }
+
+  if (option.back() == '=') {
+    *option_argument = "";
+    return true;
+  }
+
+  if (++(*index) >= argc) return false;
+  *option_argument = argv[*index];
+  return true;
+}
+
+bool ParseUint32(const std::string& str, uint32_t* value) {
+  std::istringstream iss(str);
+
+  iss >> std::setbase(0);
+  iss >> *value;
+
+  // We should have read something.
+  bool ok = !str.empty() && !iss.bad();
+  // It should have been all the text.
+  ok = ok && iss.eof();
+  // It should have been in range.
+  ok = ok && !iss.fail();
+
+  // Work around a bugs in various C++ standard libraries.
+  // Count any negative number as an error, including "-0".
+  ok = ok && (str[0] != '-');
+
+  return ok;
+}
+
+}  // namespace shaderc_util
+
+libshaderc_util/src/compiler.cc
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "libshaderc_util/compiler.h"
+
+#include <climits>
+#include <cstdint>
+#include <iomanip>
+#include <sstream>
+#include <thread>
+#include <tuple>
+
+#include "SPIRV/GlslangToSpv.h"
+#include "libshaderc_util/format.h"
+#include "libshaderc_util/io_shaderc.h"
+#include "libshaderc_util/message.h"
+#include "libshaderc_util/resources.h"
+#include "libshaderc_util/shader_stage.h"
+#include "libshaderc_util/spirv_tools_wrapper.h"
+#include "libshaderc_util/string_piece.h"
+#include "libshaderc_util/version_profile.h"
+#include "spirv-tools/libspirv.hpp"
+
+namespace {
+using shaderc_util::string_piece;
+
+constexpr const char* kLineDirectivePrefixCstr = "#line ";
+constexpr string_piece kLineDirectivePrefix(kLineDirectivePrefixCstr,
+                                            kLineDirectivePrefixCstr + 6);
+
+// For use with glslang parsing calls.
+const bool kNotForwardCompatible = false;
+
+// Returns true if #line directive sets the line number for the next line in the
+// given version and profile.
+inline bool LineDirectiveIsForNextLine(int version, EProfile profile) {
+  return profile == EEsProfile || version >= 330;
+}
+
+// Returns a #line directive whose arguments are line and filename.
+inline std::string GetLineDirective(int line, const string_piece& filename) {
+  return kLineDirectivePrefix.str() + std::to_string(line) + " \"" +
+         filename.str() + "\"\n";
+}
+
+// Given a canonicalized #line directive (starting exactly with "#line", using
+// single spaces to separate different components, and having an optional
+// newline at the end), returns the line number and string name/number. If no
+// string name/number is provided, the second element in the returned pair is an
+// empty string_piece. Behavior is undefined if the directive parameter is not a
+// canonicalized #line directive.
+std::pair<int, string_piece> DecodeLineDirective(string_piece directive) {
+  assert(directive.starts_with(kLineDirectivePrefix));
+  directive = directive.substr(kLineDirectivePrefix.size());
+
+  const int line = std::atoi(directive.data());
+  const size_t space_loc = directive.find_first_of(' ');
+  if (space_loc == string_piece::npos) return std::make_pair(line, "");
+
+
+libshaderc_util/src/compiler_test.cc
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "libshaderc_util/compiler.h"
+
+#include <gmock/gmock.h>
+
+#include <sstream>
+
+#include "death_test.h"
+#include "libshaderc_util/counting_includer.h"
+#include "libshaderc_util/spirv_tools_wrapper.h"
+
+namespace {
+
+using shaderc_util::Compiler;
+using shaderc_util::GlslangClientInfo;
+using ::testing::Eq;
+using ::testing::HasSubstr;
+using ::testing::Not;
+
+// A trivial vertex shader
+const char kVertexShader[] =
+    "#version 140\n"
+    "void main() {}";
+
+// A shader that parses under OpenGL compatibility profile rules.
+// It does not compile because Glslang does not support SPIR-V
+// code generation for OpenGL compatibility profile.
+const char kOpenGLCompatibilityFragShader[] =
+    R"(#version 140
+       uniform highp sampler2D tex;
+       void main() {
+         gl_FragColor = texture2D(tex, vec2(0.0,0.0));
+       })";
+
+// A shader that compiles under OpenGL core profile rules.
+const char kOpenGLVertexShader[] =
+    R"(#version 330
+       void main() { int t = gl_VertexID; })";
+
+// A shader that compiles under OpenGL core profile rules, even when
+// deducing the stage.
+const char kOpenGLVertexShaderDeducibleStage[] =
+    R"(#version 330
+       #pragma shader_stage(vertex)
+       void main() { int t = gl_VertexID; })";
+
+// A shader that compiles under Vulkan rules.
+// See the GL_KHR_vuklan_glsl extension to GLSL.
+const char kVulkanVertexShader[] =
+    R"(#version 310 es
+       void main() { int t = gl_VertexIndex; })";
+
+// A shader that needs valueless macro predefinition E, to be compiled
+// successfully.
+const std::string kValuelessPredefinitionShader =
+    "#version 140\n"
+    "#ifdef E\n"
+
+libshaderc_util/src/counting_includer_test.cc
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "libshaderc_util/counting_includer.h"
+
+#include <thread>
+#include <vector>
+
+#include <gmock/gmock.h>
+
+namespace {
+
+// A trivial implementation of CountingIncluder's virtual methods, so tests can
+// instantiate.
+class ConcreteCountingIncluder : public shaderc_util::CountingIncluder {
+ public:
+  using IncludeResult = glslang::TShader::Includer::IncludeResult;
+  ~ConcreteCountingIncluder() {
+    // Avoid leaks.
+    for (auto result : results_) {
+      release_delegate(result);
+    }
+  }
+  virtual IncludeResult* include_delegate(
+      const char* requested, const char* requestor, IncludeType,
+      size_t) override {
+    const char kError[] = "Unexpected #include";
+    results_.push_back(new IncludeResult{"", kError, strlen(kError), nullptr});
+    return results_.back();
+  }
+  virtual void release_delegate(IncludeResult* include_result) override {
+    delete include_result;
+  }
+
+ private:
+  // All the results we've returned so far.
+  std::vector<IncludeResult*> results_;
+};
+
+TEST(CountingIncluderTest, InitialCount) {
+  EXPECT_EQ(0, ConcreteCountingIncluder().num_include_directives());
+}
+
+TEST(CountingIncluderTest, OneIncludeLocal) {
+  ConcreteCountingIncluder includer;
+  includer.includeLocal("random file name", "from me", 0);
+  EXPECT_EQ(1, includer.num_include_directives());
+}
+
+TEST(CountingIncluderTest, TwoIncludesAnyIncludeType) {
+  ConcreteCountingIncluder includer;
+  includer.includeSystem("name1", "from me", 0);
+  includer.includeLocal("name2", "me", 0);
+  EXPECT_EQ(2, includer.num_include_directives());
+}
+
+TEST(CountingIncluderTest, ManyIncludes) {
+  ConcreteCountingIncluder includer;
+  for (int i = 0; i < 100; ++i) {
+
+libshaderc_util/src/death_test.h
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef LIBSHADERC_UTIL_SRC_DEATH_TEST_H
+#define LIBSHADERC_UTIL_SRC_DEATH_TEST_H
+
+#ifdef NDEBUG
+#define EXPECT_DEBUG_DEATH_IF_SUPPORTED(statement, regexp)
+#else
+#define EXPECT_DEBUG_DEATH_IF_SUPPORTED(statement, regexp) \
+  EXPECT_DEATH_IF_SUPPORTED(statement, regexp)
+#endif
+
+#endif  // LIBSHADERC_UTIL_SRC_DEATH_TEST_H
+
+libshaderc_util/src/file_finder.cc
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "libshaderc_util/file_finder.h"
+#include "libshaderc_util/string_piece.h"
+
+#include <cassert>
+#include <fstream>
+#include <ios>
+
+namespace {
+
+// Returns "" if path is empty or ends in '/'.  Otherwise, returns "/".
+std::string MaybeSlash(const shaderc_util::string_piece& path) {
+  return (path.empty() || path.back() == '/') ? "" : "/";
+}
+
+}  // anonymous namespace
+
+namespace shaderc_util {
+
+std::string FileFinder::FindReadableFilepath(
+    const std::string& filename) const {
+  assert(!filename.empty());
+  static const auto for_reading = std::ios_base::in;
+  std::filebuf opener;
+  for (const auto& prefix : search_path_) {
+    const std::string prefixed_filename =
+        prefix + MaybeSlash(prefix) + filename;
+    if (opener.open(prefixed_filename, for_reading)) return prefixed_filename;
+  }
+  return "";
+}
+
+std::string FileFinder::FindRelativeReadableFilepath(
+    const std::string& requesting_file, const std::string& filename) const {
+  assert(!filename.empty());
+
+  string_piece dir_name(requesting_file);
+
+  size_t last_slash = requesting_file.find_last_of("/\\");
+  if (last_slash != std::string::npos) {
+    dir_name = string_piece(requesting_file.c_str(),
+                            requesting_file.c_str() + last_slash);
+  }
+
+  if (dir_name.size() == requesting_file.size()) {
+    dir_name.clear();
+  }
+
+  static const auto for_reading = std::ios_base::in;
+  std::filebuf opener;
+  const std::string relative_filename =
+      dir_name.str() + MaybeSlash(dir_name) + filename;
+  if (opener.open(relative_filename, for_reading)) return relative_filename;
+
+  return FindReadableFilepath(filename);
+}
+
+
+libshaderc_util/src/file_finder_test.cc
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "libshaderc_util/file_finder.h"
+
+#include <gtest/gtest.h>
+
+// We need getcwd
+#if WIN32
+#include <direct.h>
+#else
+#include <unistd.h>
+#endif
+
+#include "death_test.h"
+
+
+namespace {
+
+using shaderc_util::FileFinder;
+
+// Returns the absolute path of the current working directory.
+std::string GetCurrentDir() {
+  // Provide generous space to write the path.
+  char buf[1000];
+#if WIN32
+  return _getcwd(buf, sizeof(buf));
+#else
+  return getcwd(buf, sizeof(buf));
+#endif
+}
+
+class FileFinderTest : public testing::Test {
+ protected:
+  FileFinder finder;
+  // Absolute path of the current working directory.
+  const std::string current_dir = GetCurrentDir();
+};
+
+TEST_F(FileFinderTest, PathStartsEmpty) {
+  EXPECT_TRUE(FileFinder().search_path().empty());
+}
+
+TEST_F(FileFinderTest, EmptyPath) {
+  finder.search_path().clear();
+  EXPECT_EQ("", finder.FindReadableFilepath("include_file.1"));
+}
+
+TEST_F(FileFinderTest, EmptyStringInPath) {
+  finder.search_path() = {""};
+  EXPECT_EQ("include_file.1", finder.FindReadableFilepath("include_file.1"));
+  EXPECT_EQ("dir/subdir/include_file.2",
+            finder.FindReadableFilepath("dir/subdir/include_file.2"));
+}
+
+TEST_F(FileFinderTest, SimplePath) {
+  finder.search_path() = {"dir"};
+  EXPECT_EQ("dir/subdir/include_file.2",
+            finder.FindReadableFilepath("subdir/include_file.2"));
+
+libshaderc_util/src/format_test.cc
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "libshaderc_util/format.h"
+
+#include <gmock/gmock.h>
+#include <map>
+#include <string>
+#include <unordered_map>
+
+namespace {
+
+using testing::AllOf;
+using testing::HasSubstr;
+using testing::IsEmpty;
+
+class FormatMap : public testing::Test {
+ public:
+  FormatMap()
+      : map1({{"one", 1}}),
+        umap1({map1.begin(), map1.end()}),
+        map8({{1, "one"},
+              {2, "two"},
+              {3, "three"},
+              {4, "four"},
+              {5, "five"},
+              {6, "six"},
+              {7, "seven"},
+              {8, "eight"}}),
+        umap8({map8.begin(), map8.end()}),
+        mmap({{1, 100}, {1, 200}, {2, 100}, {2, 200}}),
+        ummap({mmap.begin(), mmap.end()}) {}
+
+ protected:
+  std::map<int, int> empty_map;
+  std::unordered_map<int, int> empty_umap;
+  std::map<std::string, int> map1;
+  std::unordered_map<std::string, int> umap1;
+  std::map<int, std::string> map8;
+  std::unordered_map<int, std::string> umap8;
+  std::multimap<int, int> mmap;
+  std::unordered_multimap<int, int> ummap;
+};
+
+TEST_F(FormatMap, EmptyMap) {
+  EXPECT_THAT(shaderc_util::format(empty_map, "pre", "in", "post"), IsEmpty());
+  EXPECT_THAT(shaderc_util::format(empty_umap, "pre", "in", "post"), IsEmpty());
+}
+
+TEST_F(FormatMap, SingleEntry) {
+  EXPECT_EQ("PREoneIN1POST", shaderc_util::format(map1, "PRE", "IN", "POST"));
+  EXPECT_EQ("PREoneIN1POST", shaderc_util::format(umap1, "PRE", "IN", "POST"));
+}
+
+TEST_F(FormatMap, EmptyPrefix) {
+  EXPECT_EQ("oneIN1POST", shaderc_util::format(map1, "", "IN", "POST"));
+  EXPECT_EQ("oneIN1POST", shaderc_util::format(umap1, "", "IN", "POST"));
+}
+
+
+libshaderc_util/src/io_shaderc.cc
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "libshaderc_util/io_shaderc.h"
+
+#include "libshaderc_util/universal_unistd.h"
+
+#if _WIN32
+// Need _fileno from stdio.h
+// Need _O_BINARY and _O_TEXT from fcntl.h
+#include <fcntl.h>
+#include <stdio.h>
+#endif
+
+#include <errno.h>
+
+#include <cstdio>
+#include <cstring>
+#include <fstream>
+#include <iostream>
+
+namespace {
+
+// Outputs a descriptive message for errno_value to cerr.
+// This may be truncated to 1023 bytes on certain platforms.
+void OutputFileErrorMessage(int errno_value) {
+#ifdef _MSC_VER
+  // If the error message is more than 1023 bytes it will be truncated.
+  char buffer[1024];
+  strerror_s(buffer, errno_value);
+  std::cerr << ": " << buffer << std::endl;
+#else
+  std::cerr << ": " << strerror(errno_value) << std::endl;
+#endif
+}
+
+}  // anonymous namespace
+
+namespace shaderc_util {
+
+bool IsAbsolutePath(const std::string& path) {
+  if (path.empty()) return false;
+  // Unix-like OS: /path/to/file
+  if (path.front() == '/') return true;
+  // Windows: \\server\user\file
+  if (path.size() > 1 && path[0] == '\\' && path[1] == '\\') {
+    return true;
+  }
+  // Windows: X:\path\to\file
+  if (path.size() > 2 && ::isalpha(path[0]) && path[1] == ':' &&
+      path[2] == '\\') {
+    return true;
+  }
+  return false;
+}
+
+std::string GetBaseFileName(const std::string& file_path) {
+  size_t loc_slash = file_path.find_last_of("/\\");
+  std::string base_name =
+
+libshaderc_util/src/io_shaderc_test.cc
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "libshaderc_util/io_shaderc.h"
+
+#include <gmock/gmock.h>
+
+#include <fstream>
+
+namespace {
+
+using shaderc_util::GetBaseFileName;
+using shaderc_util::GetOutputStream;
+using shaderc_util::IsAbsolutePath;
+using shaderc_util::ReadFile;
+using shaderc_util::WriteFile;
+using testing::Eq;
+using testing::HasSubstr;
+
+std::string ToString(const std::vector<char>& v) {
+  return std::string(v.data(), v.size());
+}
+
+class ReadFileTest : public testing::Test {
+ protected:
+  // A vector to pass to ReadFile.
+  std::vector<char> read_data;
+};
+
+TEST(IsAbsolutePathTest, Linux) {
+  EXPECT_FALSE(IsAbsolutePath(""));
+  EXPECT_TRUE(IsAbsolutePath("/"));
+  EXPECT_FALSE(IsAbsolutePath("."));
+  EXPECT_FALSE(IsAbsolutePath(".."));
+  EXPECT_TRUE(IsAbsolutePath("/bin/echo"));
+  EXPECT_TRUE(IsAbsolutePath("//etc/shadow"));
+  EXPECT_TRUE(IsAbsolutePath("/../../../lib"));
+  EXPECT_FALSE(IsAbsolutePath("./something"));
+  EXPECT_FALSE(IsAbsolutePath("input"));
+  EXPECT_FALSE(IsAbsolutePath("../test"));
+  EXPECT_FALSE(IsAbsolutePath(" /abc"));
+  EXPECT_TRUE(IsAbsolutePath("/abc def/ttt"));
+}
+
+TEST(IsAbsolutePathTest, Windows) {
+  EXPECT_TRUE(IsAbsolutePath(R"(\\Server1000\superuser\file)"));
+  EXPECT_TRUE(IsAbsolutePath(R"(\\zzzz 1000\user with space\file with space)"));
+  EXPECT_TRUE(
+      IsAbsolutePath(R"(C:\Program Files (x86)\Windows Folder\shader.glsl)"));
+  EXPECT_FALSE(IsAbsolutePath(R"(third_party\gmock)"));
+  EXPECT_FALSE(IsAbsolutePath(R"(C:..\File.txt)"));
+}
+
+TEST(GetBaseFileName, Linux) {
+  EXPECT_EQ("", GetBaseFileName(""));
+  EXPECT_EQ("", GetBaseFileName("/"));
+  EXPECT_EQ("", GetBaseFileName("."));
+  EXPECT_EQ("", GetBaseFileName(".."));
+  EXPECT_EQ("echo", GetBaseFileName("/bin/echo"));
+
+libshaderc_util/src/message.cc
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "libshaderc_util/message.h"
+
+#include <algorithm>
+#include <cstring>
+#include <iostream>
+#include <iterator>
+
+namespace shaderc_util {
+
+namespace {
+
+// Given a message, deduces and returns its type. If the message type is
+// recognized, advances *message past the prefix indicating the type. Otherwise,
+// leaves *message unchanged and returns MessageType::Unknown.
+MessageType DeduceMessageType(string_piece* message) {
+  static const char kErrorMessage[] = "ERROR: ";
+  static const char kWarningMessage[] = "WARNING: ";
+  static const char kGlobalWarningMessage[] = "Warning, ";
+
+  if (message->starts_with(kErrorMessage)) {
+    *message = message->substr(::strlen(kErrorMessage));
+    return MessageType::Error;
+  } else if (message->starts_with(kWarningMessage)) {
+    *message = message->substr(::strlen(kWarningMessage));
+    return MessageType::Warning;
+  } else if (message->starts_with(kGlobalWarningMessage)) {
+    *message = message->substr(::strlen(kGlobalWarningMessage));
+    return MessageType::GlobalWarning;
+  }
+  return MessageType::Unknown;
+}
+
+// Deduces a location specification from the given message. A location
+// specification is of the form "<source-name>:<line-number>:" and a trailing
+// space.  If the deduction is successful, returns true and updates source_name
+// and line_number to the deduced source name and line numer respectively. The
+// prefix standing for the location specification in message is skipped.
+// Otherwise, returns false and keeps all parameters untouched.
+bool DeduceLocationSpec(string_piece* message, string_piece* source_name,
+                        string_piece* line_number) {
+  if (!message || message->empty()) {
+    return false;
+  }
+
+  // When we find a pattern like this:
+  //     colon
+  //     digits
+  //     colon
+  //     space
+  // Then deduce that the source_name is the text before the first colon,
+  // the line number is the digits, and the message is the text after the
+  // second colon.
+
+  const size_t size = message->size();
+  if (size <= 4) {
+    // A valid message must have a colon, a digit, a colon, and a space.
+
+libshaderc_util/src/message_test.cc
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Some of the tests here check code paths that are not checked by
+// integration tests.
+// Generally, these would be conditions not generated by the Glslang
+// compiler.  It's easier to write these unit tests than to inject
+// a dependency on a fake compiler.
+#include "libshaderc_util/message.h"
+
+#include <gmock/gmock.h>
+
+#include <ostream>
+#include <vector>
+
+using shaderc_util::MessageType;
+using shaderc_util::ParseGlslangOutput;
+using shaderc_util::string_piece;
+
+namespace {
+
+TEST(ParseGlslangOutputTest, EmptyMessageBody) {
+  string_piece segment_number;
+  string_piece line_number;
+  string_piece rest;
+  EXPECT_EQ(MessageType::Unknown,
+            ParseGlslangOutput("WARNING: ", false, false, &segment_number,
+                               &line_number, &rest));
+  EXPECT_EQ(MessageType::Unknown,
+            ParseGlslangOutput("ERROR: ", false, false, &segment_number,
+                               &line_number, &rest));
+}
+
+TEST(ParseGlslangOutputTest, GlobalError) {
+  string_piece segment_number;
+  string_piece line_number;
+  string_piece rest;
+  EXPECT_EQ(
+      MessageType::GlobalError,
+      ParseGlslangOutput("ERROR: too many functions: got 1666473 of them",
+                         false, false, &segment_number, &line_number, &rest));
+  EXPECT_EQ("too many functions: got 1666473 of them", rest.str());
+
+  EXPECT_EQ(
+      MessageType::GlobalError,
+      ParseGlslangOutput(
+          "ERROR: #version: versions before 150 do not allow a profile token",
+          false, false, &segment_number, &line_number, &rest));
+  EXPECT_EQ("#version: versions before 150 do not allow a profile token",
+            rest.str());
+}
+
+TEST(ParseGlslangOutputTest, GlobalWarning) {
+  string_piece segment_number;
+  string_piece line_number;
+  string_piece rest;
+  EXPECT_EQ(MessageType::GlobalWarning,
+            ParseGlslangOutput("Warning, version 1000 is unknown.", false,
+                               false, &segment_number, &line_number, &rest));
+
+libshaderc_util/src/mutex_test.cc
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "libshaderc_util/mutex.h"
+
+#include <gmock/gmock.h>
+#include <thread>
+
+namespace {
+
+TEST(MutexTest, CanCreateMutex) {
+  shaderc_util::mutex mutex;
+  mutex.lock();
+  mutex.unlock();
+}
+
+#ifndef SHADERC_DISABLE_THREADED_TESTS
+
+void increment_by_1000(shaderc_util::mutex& mut, int& i) {
+  for(size_t j = 0; j < 1000; ++j) {
+    mut.lock();
+    i = i + 1;
+    mut.unlock();
+  }
+}
+
+TEST(MutexTest, MutexLocks) {
+  shaderc_util::mutex mutex;
+  int i = 0;
+  std::thread t1([&mutex, &i]() { increment_by_1000(mutex, i); });
+  std::thread t2([&mutex, &i]() { increment_by_1000(mutex, i); });
+  std::thread t3([&mutex, &i]() { increment_by_1000(mutex, i); });
+  t1.join();
+  t2.join();
+  t3.join();
+  EXPECT_EQ(3000, i);
+}
+#endif // SHADERC_DISABLE_THREADED_TESTS
+
+}  // anonymous namespace
+
+libshaderc_util/src/resources.cc
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "libshaderc_util/resources.h"
+
+#include "glslang/Include/ResourceLimits.h"
+
+namespace shaderc_util {
+
+// These numbers come from the OpenGL 4.4 core profile specification Chapter 23
+// unless otherwise specified.
+const TBuiltInResource kDefaultTBuiltInResource = {
+    /*.maxLights = */ 8,         // From OpenGL 3.0 table 6.46.
+    /*.maxClipPlanes = */ 6,     // From OpenGL 3.0 table 6.46.
+    /*.maxTextureUnits = */ 2,   // From OpenGL 3.0 table 6.50.
+    /*.maxTextureCoords = */ 8,  // From OpenGL 3.0 table 6.50.
+    /*.maxVertexAttribs = */ 16,
+    /*.maxVertexUniformComponents = */ 4096,
+    /*.maxVaryingFloats = */ 60,  // From OpenGLES 3.1 table 6.44.
+    /*.maxVertexTextureImageUnits = */ 16,
+    /*.maxCombinedTextureImageUnits = */ 80,
+    /*.maxTextureImageUnits = */ 16,
+    /*.maxFragmentUniformComponents = */ 1024,
+
+    // glslang has 32 maxDrawBuffers.
+    // Pixel phone Vulkan driver in Android N has 8
+    // maxFragmentOutputAttachments.
+    /*.maxDrawBuffers = */ 8, 
+
+    /*.maxVertexUniformVectors = */ 256,
+    /*.maxVaryingVectors = */ 15,  // From OpenGLES 3.1 table 6.44.
+    /*.maxFragmentUniformVectors = */ 256,
+    /*.maxVertexOutputVectors = */ 16,   // maxVertexOutputComponents / 4
+    /*.maxFragmentInputVectors = */ 15,  // maxFragmentInputComponents / 4
+    /*.minProgramTexelOffset = */ -8,
+    /*.maxProgramTexelOffset = */ 7,
+    /*.maxClipDistances = */ 8,
+    /*.maxComputeWorkGroupCountX = */ 65535,
+    /*.maxComputeWorkGroupCountY = */ 65535,
+    /*.maxComputeWorkGroupCountZ = */ 65535,
+    /*.maxComputeWorkGroupSizeX = */ 1024,
+    /*.maxComputeWorkGroupSizeX = */ 1024,
+    /*.maxComputeWorkGroupSizeZ = */ 64,
+    /*.maxComputeUniformComponents = */ 512,
+    /*.maxComputeTextureImageUnits = */ 16,
+    /*.maxComputeImageUniforms = */ 8,
+    /*.maxComputeAtomicCounters = */ 8,
+    /*.maxComputeAtomicCounterBuffers = */ 1,  // From OpenGLES 3.1 Table 6.43
+    /*.maxVaryingComponents = */ 60,
+    /*.maxVertexOutputComponents = */ 64,
+    /*.maxGeometryInputComponents = */ 64,
+    /*.maxGeometryOutputComponents = */ 128,
+    /*.maxFragmentInputComponents = */ 128,
+    /*.maxImageUnits = */ 8,  // This does not seem to be defined anywhere,
+                              // set to ImageUnits.
+    /*.maxCombinedImageUnitsAndFragmentOutputs = */ 8,
+    /*.maxCombinedShaderOutputResources = */ 8,
+    /*.maxImageSamples = */ 0,
+    /*.maxVertexImageUniforms = */ 0,
+
+libshaderc_util/src/shader_stage.cc
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "libshaderc_util/shader_stage.h"
+
+namespace {
+
+// Maps an identifier to a language.
+struct LanguageMapping {
+  const char* id;
+  EShLanguage language;
+};
+
+}  // anonymous namespace
+
+namespace shaderc_util {
+
+EShLanguage MapStageNameToLanguage(const string_piece& stage_name) {
+  const LanguageMapping string_to_stage[] = {
+      {"vertex", EShLangVertex},
+      {"fragment", EShLangFragment},
+      {"tesscontrol", EShLangTessControl},
+      {"tesseval", EShLangTessEvaluation},
+      {"geometry", EShLangGeometry},
+      {"compute", EShLangCompute},
+      {"raygen", EShLangRayGenNV},
+      {"intersect", EShLangIntersectNV},
+      {"anyhit", EShLangAnyHitNV},
+      {"closest", EShLangClosestHitNV},
+      {"miss", EShLangMissNV},
+      {"callable", EShLangCallableNV},
+      {"task", EShLangTaskNV},
+      {"mesh", EShLangMeshNV},
+  };
+
+  for (const auto& entry : string_to_stage) {
+    if (stage_name == entry.id) return entry.language;
+  }
+  return EShLangCount;
+}
+
+}  // namespace shaderc_util
+
+libshaderc_util/src/spirv_tools_wrapper.cc
+// Copyright 2016 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "libshaderc_util/spirv_tools_wrapper.h"
+
+#include <algorithm>
+#include <sstream>
+
+#include "spirv-tools/libspirv.hpp"
+#include "spirv-tools/optimizer.hpp"
+
+namespace shaderc_util {
+
+namespace {
+
+// Gets the corresponding target environment used in SPIRV-Tools.
+spv_target_env GetSpirvToolsTargetEnv(Compiler::TargetEnv env,
+                                      Compiler::TargetEnvVersion version) {
+  switch (env) {
+    case Compiler::TargetEnv::Vulkan:
+      switch (version) {
+        case Compiler::TargetEnvVersion::Default:
+          return SPV_ENV_VULKAN_1_0;
+        case Compiler::TargetEnvVersion::Vulkan_1_0:
+          return SPV_ENV_VULKAN_1_0;
+        case Compiler::TargetEnvVersion::Vulkan_1_1:
+          return SPV_ENV_VULKAN_1_1;
+        case Compiler::TargetEnvVersion::Vulkan_1_2:
+          return SPV_ENV_VULKAN_1_2;
+        case Compiler::TargetEnvVersion::Vulkan_1_3:
+          return SPV_ENV_VULKAN_1_3;
+        case Compiler::TargetEnvVersion::Vulkan_1_4:
+          return SPV_ENV_VULKAN_1_4;
+        default:
+          break;
+      }
+      break;
+    case Compiler::TargetEnv::OpenGL:
+      return SPV_ENV_OPENGL_4_5;
+    case Compiler::TargetEnv::OpenGLCompat:
+      // Errors out before getting here.  But the compiler wants us to handle
+      // enum anyway.
+      return SPV_ENV_OPENGL_4_5;
+  }
+  assert(false && "unexpected target environment or version");
+  return SPV_ENV_VULKAN_1_0;
+}
+
+}  // anonymous namespace
+
+bool SpirvToolsDisassemble(Compiler::TargetEnv env,
+                           Compiler::TargetEnvVersion version,
+                           const std::vector<uint32_t>& binary,
+                           std::string* text_or_error) {
+  spvtools::SpirvTools tools(GetSpirvToolsTargetEnv(env, version));
+  std::ostringstream oss;
+  tools.SetMessageConsumer([&oss](spv_message_level_t, const char*,
+                                  const spv_position_t& position,
+                                  const char* message) {
+
+libshaderc_util/src/string_piece_test.cc
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "libshaderc_util/string_piece.h"
+
+#include <gtest/gtest.h>
+#include <sstream>
+#include <unordered_map>
+
+#include "death_test.h"
+
+namespace {
+
+using shaderc_util::string_piece;
+
+TEST(string_piece, creation) {
+  std::string my_string("std::string");
+  const char* my_c_string = "c::string";
+
+  string_piece my_string_piece(my_string);
+  string_piece my_c_string_piece(my_c_string);
+  string_piece my_partial_c_string_piece(my_c_string, my_c_string + 3);
+  string_piece my_string_piece_string_piece(my_string_piece);
+
+  EXPECT_EQ("std::string", my_string_piece);
+  EXPECT_EQ("c::string", my_c_string_piece);
+  EXPECT_EQ("c::", my_partial_c_string_piece);
+  EXPECT_EQ("std::string", my_string_piece_string_piece);
+}
+
+TEST(string_piece, creation_with_empty_data) {
+  string_piece my_string_piece(nullptr, nullptr);
+  EXPECT_EQ("", my_string_piece);
+}
+
+TEST(string_piece, creation_with_nullptr) {
+  string_piece my_string_piece(nullptr);
+  EXPECT_EQ("", my_string_piece);
+}
+
+TEST(string_pieceDeathTest, creation_causing_assert) {
+  EXPECT_DEBUG_DEATH_IF_SUPPORTED(string_piece("my_cstring", nullptr), ".*");
+  EXPECT_DEBUG_DEATH_IF_SUPPORTED(string_piece(nullptr, "my_cstring"), ".*");
+}
+
+TEST(string_pieceDeathTest, front) {
+  EXPECT_DEBUG_DEATH_IF_SUPPORTED(string_piece(nullptr).front(), "Assertion");
+  EXPECT_DEBUG_DEATH_IF_SUPPORTED(string_piece(nullptr, nullptr).front(),
+                                  "Assertion");
+  EXPECT_DEBUG_DEATH_IF_SUPPORTED(string_piece("").front(), "Assertion");
+  string_piece s("nonempty");
+  s.clear();
+  EXPECT_DEBUG_DEATH_IF_SUPPORTED(s.front(), "Assertion");
+}
+
+TEST(string_pieceDeathTest, back) {
+  EXPECT_DEBUG_DEATH_IF_SUPPORTED(string_piece(nullptr).back(), "Assertion");
+  EXPECT_DEBUG_DEATH_IF_SUPPORTED(string_piece(nullptr, nullptr).back(),
+                                  "Assertion");
+
+libshaderc_util/src/version_profile.cc
+// Copyright 2015 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "libshaderc_util/version_profile.h"
+
+#include <cctype>
+#include <sstream>
+
+namespace {
+
+const int kVersionNumberLength = 3;
+const int kMaxProfileLength = 13;  // strlen(compatibility)
+const int kMaxVersionProfileLength = kVersionNumberLength + kMaxProfileLength;
+const int kMinVersionProfileLength = kVersionNumberLength;
+
+}  // anonymous namespace
+
+namespace shaderc_util {
+
+bool ParseVersionProfile(const std::string& version_profile, int* version,
+                         EProfile* profile) {
+  if (version_profile.size() < kMinVersionProfileLength ||
+      version_profile.size() > kMaxVersionProfileLength ||
+      !::isdigit(static_cast<unsigned char>(version_profile.front())))
+    return false;
+
+  std::string profile_string;
+  std::istringstream(version_profile) >> *version >> profile_string;
+
+  if (!IsKnownVersion(*version)) {
+    return false;
+  }
+  if (profile_string.empty()) {
+    *profile = ENoProfile;
+  } else if (profile_string == "core") {
+    *profile = ECoreProfile;
+  } else if (profile_string == "es") {
+    *profile = EEsProfile;
+  } else if (profile_string == "compatibility") {
+    *profile = ECompatibilityProfile;
+  } else {
+    return false;
+  }
+
+  return true;
+}
+
+}  // namespace shaderc_util
+
+libshaderc_util/src/version_profile_test.cc
+// Copyright 2017 The Shaderc Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "libshaderc_util/version_profile.h"
+
+#include "gmock/gmock.h"
+
+namespace {
+
+using shaderc_util::IsKnownVersion;
+using shaderc_util::ParseVersionProfile;
+using ::testing::Eq;
+using ::testing::ValuesIn;
+
+
+TEST(IsKnownVersionTest, Samples) {
+  EXPECT_TRUE(IsKnownVersion(100));
+  EXPECT_TRUE(IsKnownVersion(110));
+  EXPECT_TRUE(IsKnownVersion(120));
+  EXPECT_TRUE(IsKnownVersion(130));
+  EXPECT_TRUE(IsKnownVersion(140));
+  EXPECT_TRUE(IsKnownVersion(150));
+  EXPECT_TRUE(IsKnownVersion(300));
+  EXPECT_TRUE(IsKnownVersion(330));
+  EXPECT_TRUE(IsKnownVersion(310));
+  EXPECT_TRUE(IsKnownVersion(400));
+  EXPECT_TRUE(IsKnownVersion(410));
+  EXPECT_TRUE(IsKnownVersion(420));
+  EXPECT_TRUE(IsKnownVersion(430));
+  EXPECT_TRUE(IsKnownVersion(440));
+  EXPECT_TRUE(IsKnownVersion(450));
+  EXPECT_TRUE(IsKnownVersion(460));
+  EXPECT_FALSE(IsKnownVersion(101));
+  EXPECT_FALSE(IsKnownVersion(470));
+}
+
+
+struct ParseVersionProfileCase {
+  std::string input;
+  bool success;
+  // The following are only used when success is true.
+  int expected_version;
+  EProfile expected_profile;
+};
+
+using ParseVersionProfileTest = ::testing::TestWithParam<ParseVersionProfileCase>;
+
+TEST_P(ParseVersionProfileTest, Sample) {
+  int version = 0;
+  EProfile profile = EBadProfile;
+  const bool result = ParseVersionProfile(GetParam().input, &version, &profile);
+  EXPECT_THAT(result, GetParam().success);
+  if (result) {
+    EXPECT_THAT(version, GetParam().expected_version);
+    EXPECT_THAT(profile, GetParam().expected_profile);
+  }
+}
+
+

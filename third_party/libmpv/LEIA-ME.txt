@@ -1,0 +1,34 @@
+Cue 1.0 · .tinypeep
+made with love by Gabriel Benzoni
+LinkedIn: https://www.linkedin.com/in/gabrielbenzoni
+GitHub: https://github.com/gabccin
+
+O Cue é gratuito e seu código próprio é disponibilizado sob GPL-3.0-or-later.
+O texto integral está no documento Cue · GPLv3 deste leitor.
+
+A reprodução de áudio, vídeo e legendas utiliza libmpv e os componentes:
+FFmpeg, libplacebo, libass, HarfBuzz, FriBidi, FreeType, dav1d, zlib,
+Shaderc, glslang, SPIRV-Tools, SPIRV-Headers, SPIRV-Cross, Vulkan-Headers
+(cabeçalhos) e FastFloat. A distribuição combinada do motor utiliza
+LGPL-3.0-or-later; cada componente conserva sua própria licença e avisos.
+Selecione um documento na lista acima para ler seus textos completos.
+
+FONTES DO APLICATIVO
+Cue Omni, Cue Clean (Inter) e Cue Readable (Atkinson Hyperlegible) utilizam
+SIL Open Font License 1.1. Os textos e as atribuições estão neste leitor.
+Os assets próprios do projeto acompanham a GPL; veja Autoria e licenças.
+
+CÓDIGOS-FONTE
+Os códigos-fonte estão publicados junto do instalador, na página da versão:
+https://github.com/gabccin/cue/releases/tag/v1.0
+- Source code (zip): código do aplicativo, gerado pelo GitHub para a versão.
+- Cue-1.0-Engine-Source.zip: código-fonte dos 16 componentes, avisos e
+  receitas que correspondem à DLL de reprodução incluída.
+O botão códigos-fonte abre a pasta fontes, com esse endereço.
+
+Mantenha a pasta do programa inteira ao redistribuir. A DLL continua
+substituível por uma versão modificada compatível com a API libmpv.
+O software é fornecido sem garantia, conforme os termos das licenças.
+
+Portions of this software are copyright (c) The FreeType Project
+(www.freetype.org). All rights reserved.

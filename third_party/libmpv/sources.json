@@ -1,0 +1,130 @@
+[
+  {
+    "name": "dav1d",
+    "repository": "videolan/dav1d",
+    "revision": "1.5.1",
+    "url": "https://codeload.github.com/videolan/dav1d/tar.gz/1.5.1",
+    "archive": "dav1d.tar.gz",
+    "sha256": "fa635e2bdb25147b1384007c83e15de44c589582bb3b9a53fc1579cb9d74b695"
+  },
+  {
+    "name": "fast_float",
+    "repository": "fastfloat/fast_float",
+    "revision": "v8.0.2",
+    "url": "https://codeload.github.com/fastfloat/fast_float/tar.gz/v8.0.2",
+    "archive": "fast_float.tar.gz",
+    "sha256": "e14a33089712b681d74d94e2a11362643bd7d769ae8f7e7caefe955f57f7eacd"
+  },
+  {
+    "name": "ffmpeg",
+    "repository": "FFmpeg/FFmpeg",
+    "revision": "215351c",
+    "url": "https://codeload.github.com/FFmpeg/FFmpeg/tar.gz/215351c",
+    "archive": "ffmpeg.tar.gz",
+    "sha256": "a703a59b34cbbf453746965a7fd701b466bd52037213a6330b9a467a01796f3c"
+  },
+  {
+    "name": "freetype",
+    "repository": "freetype/freetype",
+    "revision": "VER-2-14-1",
+    "url": "https://codeload.github.com/freetype/freetype/tar.gz/VER-2-14-1",
+    "archive": "freetype.tar.gz",
+    "sha256": "44bd69d1f0750603410cfd4f26f1c5523c5a3a087a2dfa8639b757dc7c6677be"
+  },
+  {
+    "name": "fribidi",
+    "repository": "fribidi/fribidi",
+    "revision": "v1.0.17",
+    "url": "https://codeload.github.com/fribidi/fribidi/tar.gz/v1.0.17",
+    "archive": "fribidi.tar.gz",
+    "sha256": "ab015bb040b2ff4bf815813c21948947dad1e0186473359e99a8881c79878d5d"
+  },
+  {
+    "name": "glslang",
+    "repository": "KhronosGroup/glslang",
+    "revision": "73b25650df6dc4545966674531e6b7cc8f5d2407",
+    "url": "https://codeload.github.com/KhronosGroup/glslang/tar.gz/73b25650df6dc4545966674531e6b7cc8f5d2407",
+    "archive": "glslang.tar.gz",
+    "sha256": "96b0405991c6679ab24aadf8e568a107f97f118024a950ef85c2e6c627577e73"
+  },
+  {
+    "name": "harfbuzz",
+    "repository": "harfbuzz/harfbuzz",
+    "revision": "15.0.0",
+    "url": "https://codeload.github.com/harfbuzz/harfbuzz/tar.gz/15.0.0",
+    "archive": "harfbuzz.tar.gz",
+    "sha256": "fe4b8bad7afbbae75d61b2095c267c98f4ed04fe4a117680130ed253d2732efe"
+  },
+  {
+    "name": "libass",
+    "repository": "libass/libass",
+    "revision": "0.17.5",
+    "url": "https://codeload.github.com/libass/libass/tar.gz/0.17.5",
+    "archive": "libass.tar.gz",
+    "sha256": "fa286fc9ee1ba3b932703a3df7b8474d01dc8abe29ec69b6fa68781dc4bf7acc"
+  },
+  {
+    "name": "libplacebo",
+    "repository": "haasn/libplacebo",
+    "revision": "v7.387.0",
+    "url": "https://codeload.github.com/haasn/libplacebo/tar.gz/v7.387.0",
+    "archive": "libplacebo.tar.gz",
+    "sha256": "f9e62d3774a9c4cfd198ec3abaa88294aaade2e31c04d5ab02bcf4abc98b1df5"
+  },
+  {
+    "name": "mpv",
+    "repository": "mpv-player/mpv",
+    "revision": "ad5877edabdb05c0c62aad444722938d37666e2d",
+    "url": "https://codeload.github.com/mpv-player/mpv/tar.gz/ad5877edabdb05c0c62aad444722938d37666e2d",
+    "archive": "mpv.tar.gz",
+    "sha256": "3d4d491b369a2f7b9f31c86134c4946ac6ade9a677667f4b75ce586ddedf2bda"
+  },
+  {
+    "name": "shaderc",
+    "repository": "google/shaderc",
+    "revision": "170316e2df47f621804bb6372e7fe00c10184105",
+    "url": "https://codeload.github.com/google/shaderc/tar.gz/170316e2df47f621804bb6372e7fe00c10184105",
+    "archive": "shaderc.tar.gz",
+    "sha256": "e9bcd7885e8342342fc504f2c6d868d47323aff561dd3174303deab65575a656"
+  },
+  {
+    "name": "spirv-cross",
+    "repository": "KhronosGroup/SPIRV-Cross",
+    "revision": "300681bbcb8365a8d1eacdacdbdd0249bbf1d6b1",
+    "url": "https://codeload.github.com/KhronosGroup/SPIRV-Cross/tar.gz/300681bbcb8365a8d1eacdacdbdd0249bbf1d6b1",
+    "archive": "spirv-cross.tar.gz",
+    "sha256": "ca390d0cfb115504b97af1120c3a9479fb7b8f9e1a590fc80dca52ec1dd1c489"
+  },
+  {
+    "name": "spirv-headers",
+    "repository": "KhronosGroup/SPIRV-Headers",
+    "revision": "86f980c731e62ae4eaf383d320449d71687936bf",
+    "url": "https://codeload.github.com/KhronosGroup/SPIRV-Headers/tar.gz/86f980c731e62ae4eaf383d320449d71687936bf",
+    "archive": "spirv-headers.tar.gz",
+    "sha256": "d11ef011d0788ed002d7cc96224d298f43b126cabe887cd4d46199cb19ecf386"
+  },
+  {
+    "name": "spirv-tools",
+    "repository": "KhronosGroup/SPIRV-Tools",
+    "revision": "71f287f18ed78d496e724fbfb1c3feae3a2af75a",
+    "url": "https://codeload.github.com/KhronosGroup/SPIRV-Tools/tar.gz/71f287f18ed78d496e724fbfb1c3feae3a2af75a",
+    "archive": "spirv-tools.tar.gz",
+    "sha256": "47440727066ce496df8588caaf74b1623da2aa49d170db0b60eb812de7940ec7"
+  },
+  {
+    "name": "vulkan-headers",
+    "repository": "KhronosGroup/Vulkan-Headers",
+    "revision": "74d8a6cb930c68ef617b202c3ff3c59d919e086b",
+    "url": "https://codeload.github.com/KhronosGroup/Vulkan-Headers/tar.gz/74d8a6cb930c68ef617b202c3ff3c59d919e086b",
+    "archive": "vulkan-headers.tar.gz",
+    "sha256": "75967a8288ff16044a86d1af462b96d2e75c435937efb75f2bb4102ab0382f29"
+  },
+  {
+    "name": "zlib",
+    "repository": "madler/zlib",
+    "revision": "v1.3.2",
+    "url": "https://codeload.github.com/madler/zlib/tar.gz/v1.3.2",
+    "archive": "zlib.tar.gz",
+    "sha256": "b99a0b86c0ba9360ec7e78c4f1e43b1cbdf1e6936c8fa0f6835c0cd694a495a1"
+  }
+]

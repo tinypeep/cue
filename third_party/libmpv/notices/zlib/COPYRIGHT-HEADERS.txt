@@ -1,0 +1,925 @@
+Makefile.in
+# Makefile for zlib
+# Copyright (C) 1995-2026 Jean-loup Gailly, Mark Adler
+# For conditions of distribution and use, see copyright notice in zlib.h
+
+# To compile and test, type:
+#    ./configure; make test
+# Normally configure builds both a static and a shared library.
+# If you want to build just a static library, use: ./configure --static
+
+# To install /usr/local/lib/libz.* and /usr/local/include/zlib.h, type:
+#    make install
+# To install in $HOME instead of /usr/local, use:
+#    make install prefix=$HOME
+
+CC=cc
+GCOV=GCOV
+LLVM_GCOV_FLAG=LLMV_GCOV_FLAG
+
+CFLAGS=-O
+#CFLAGS=-O -DMAX_WBITS=14 -DMAX_MEM_LEVEL=7
+#CFLAGS=-g -DZLIB_DEBUG
+#CFLAGS=-O3 -Wall -Wwrite-strings -Wpointer-arith -Wconversion \
+#           -Wstrict-prototypes -Wmissing-prototypes
+
+SFLAGS=-O
+LDFLAGS=
+TEST_LIBS=-L. libz.a
+LDSHARED=$(CC)
+CPP=$(CC) -E
+VGFMAFLAG=
+
+STATICLIB=libz.a
+SHAREDLIB=libz.so
+SHAREDLIBV=libz.so.1.3.2
+SHAREDLIBM=libz.so.1
+LIBS=$(STATICLIB) $(SHAREDLIBV)
+
+AR=ar
+ARFLAGS=rc
+RANLIB=ranlib
+LDCONFIG=ldconfig
+LDSHAREDLIBC=-lc
+TAR=tar
+SHELL=/bin/sh
+EXE=
+
+prefix = /usr/local
+exec_prefix = ${prefix}
+libdir = ${exec_prefix}/lib
+sharedlibdir = ${libdir}
+includedir = ${prefix}/include
+mandir = ${prefix}/share/man
+man3dir = ${mandir}/man3
+pkgconfigdir = ${libdir}/pkgconfig
+SRCDIR=
+ZINC=
+ZINCOUT=-I.
+
+OBJZ = adler32.o crc32.o deflate.o infback.o inffast.o inflate.o inftrees.o trees.o zutil.o
+OBJG = compress.o uncompr.o gzclose.o gzlib.o gzread.o gzwrite.o
+OBJC = $(OBJZ) $(OBJG)
+
+PIC_OBJZ = adler32.lo crc32.lo deflate.lo infback.lo inffast.lo inflate.lo inftrees.lo trees.lo zutil.lo
+PIC_OBJG = compress.lo uncompr.lo gzclose.lo gzlib.lo gzread.lo gzwrite.lo
+PIC_OBJC = $(PIC_OBJZ) $(PIC_OBJG)
+
+# to use the asm code: make OBJA=match.o, PIC_OBJA=match.lo
+OBJA =
+PIC_OBJA =
+
+
+adler32.c
+/* adler32.c -- compute the Adler-32 checksum of a data stream
+ * Copyright (C) 1995-2011, 2016 Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+
+compress.c
+/* compress.c -- compress a memory buffer
+ * Copyright (C) 1995-2026 Jean-loup Gailly, Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+
+contrib/blast/blast.c
+/* blast.c
+ * Copyright (C) 2003, 2012, 2013 Mark Adler
+ * For conditions of distribution and use, see copyright notice in blast.h
+ * version 1.3, 24 Aug 2013
+ *
+ * blast.c decompresses data compressed by the PKWare Compression Library.
+ * This function provides functionality similar to the explode() function of
+ * the PKWare library, hence the name "blast".
+ *
+ * This decompressor is based on the excellent format description provided by
+ * Ben Rudiak-Gould in comp.compression on August 13, 2001.  Interestingly, the
+ * example Ben provided in the post is incorrect.  The distance 110001 should
+ * instead be 111000.  When corrected, the example byte stream becomes:
+ *
+ *    00 04 82 24 25 8f 80 7f
+ *
+ * which decompresses to "AIAIAIAIAIAIA" (without the quotes).
+ */
+
+contrib/blast/blast.h
+/* blast.h -- interface for blast.c
+  Copyright (C) 2003, 2012, 2013 Mark Adler
+  version 1.3, 24 Aug 2013
+
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the author be held liable for any damages
+  arising from the use of this software.
+
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would be
+     appreciated but is not required.
+  2. Altered source versions must be plainly marked as such, and must not be
+     misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source distribution.
+
+  Mark Adler    madler@alumni.caltech.edu
+ */
+
+contrib/infback9/infback9.c
+/* infback9.c -- inflate deflate64 data using a call-back interface
+ * Copyright (C) 1995-2008 Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+
+contrib/infback9/infback9.h
+/* infback9.h -- header for using inflateBack9 functions
+ * Copyright (C) 2003 Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+
+contrib/infback9/inflate9.h
+/* inflate9.h -- internal inflate state definition
+ * Copyright (C) 1995-2003 Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+
+contrib/infback9/inftree9.c
+/* inftree9.c -- generate Huffman trees for efficient decoding
+ * Copyright (C) 1995-2026 Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+/*
+  If you use the zlib library in a product, an acknowledgment is welcome
+  in the documentation of your product. If for some reason you cannot
+  include such an acknowledgment, I would appreciate that you keep this
+  copyright string in the executable of your product.
+ */
+
+contrib/infback9/inftree9.h
+/* inftree9.h -- header to use inftree9.c
+ * Copyright (C) 1995-2008 Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+
+contrib/iostream2/zstream.h
+/*
+ *
+ * Copyright (c) 1997
+ * Christian Michelsen Research AS
+ * Advanced Computing
+ * Fantoftvegen 38, 5036 BERGEN, Norway
+ *
+ * Permission to use, copy, modify, distribute and sell this software
+ * and its documentation for any purpose is hereby granted without fee,
+ * provided that the above copyright notice appear in all copies and
+ * that both that copyright notice and this permission notice appear
+ * in supporting documentation.  Christian Michelsen Research AS makes no
+ * representations about the suitability of this software for any
+ * purpose.  It is provided "as is" without express or implied warranty.
+ *
+ */
+
+contrib/minizip/crypt.h
+/* crypt.h -- base code for crypt/uncrypt ZIPfile
+
+   Copyright (C) 1998-2026 Gilles Vollant
+
+   This code is a modified version of crypting code in Infozip distribution
+
+   The encryption/decryption parts of this source code (as opposed to the
+   non-echoing password parts) were originally written in Europe.  The
+   whole source package can be freely distributed, including from the USA.
+   (Prior to January 2000, re-export from the US was a violation of US law.)
+
+   This encryption code is a direct transcription of the algorithm from
+   Roger Schlafly, described by Phil Katz in the file appnote.txt.  This
+   file (appnote.txt) is distributed with the PKZIP program (even in the
+   version without encryption capabilities).
+
+   If you don't need crypting in your application, just define symbols
+   NOCRYPT and NOUNCRYPT.
+
+   This code support the "Traditional PKWARE Encryption".
+
+   The new AES encryption added on Zip format by Winzip (see the page
+   https://www.winzip.com/aes_info.htm ) and PKWare PKZip 5.x Strong
+   Encryption is not supported.
+*/
+
+contrib/minizip/ints.h
+/* ints.h -- create integer types for 8, 16, 32, and 64 bits
+ * Copyright (C) 2024 Mark Adler
+ * For conditions of distribution and use, see the copyright notice in zlib.h
+ *
+ * There exist compilers with limits.h, but not stdint.h or inttypes.h.
+ */
+
+contrib/minizip/ioapi.c
+/* ioapi.h -- IO base function header for compress/uncompress .zip
+   part of the MiniZip project - ( https://www.winimage.com/zLibDll/minizip.html )
+
+         Copyright (C) 1998-2026 Gilles Vollant (minizip) ( https://www.winimage.com/zLibDll/minizip.html )
+
+         Modifications for Zip64 support
+         Copyright (C) 2009-2010 Mathias Svensson ( https://result42.com )
+
+         For more info read MiniZip_info.txt
+
+*/
+
+contrib/minizip/ioapi.h
+/* ioapi.h -- IO base function header for compress/uncompress .zip
+   part of the MiniZip project - ( https://www.winimage.com/zLibDll/minizip.html )
+
+         Copyright (C) 1998-2026 Gilles Vollant (minizip) ( https://www.winimage.com/zLibDll/minizip.html )
+
+         Modifications for Zip64 support
+         Copyright (C) 2009-2010 Mathias Svensson ( https://result42.com )
+
+         For more info read MiniZip_info.txt
+
+         Changes
+
+    Oct-2009 - Defined ZPOS64_T to fpos_t on windows and u_int64_t on linux. (might need to find a better why for this)
+    Oct-2009 - Change to fseeko64, ftello64 and fopen64 so large files would work on linux.
+               More if/def section may be needed to support other platforms
+    Oct-2009 - Defined fxxxx64 calls to normal fopen/ftell/fseek so they would compile on windows.
+                          (but you should use iowin32.c for windows instead)
+
+*/
+
+contrib/minizip/iowin32.c
+/* iowin32.c -- IO base function header for compress/uncompress .zip
+     part of the MiniZip project - ( https://www.winimage.com/zLibDll/minizip.html )
+
+         Copyright (C) 1998-2026 Gilles Vollant (minizip) ( https://www.winimage.com/zLibDll/minizip.html )
+
+         Modifications for Zip64 support
+         Copyright (C) 2009-2010 Mathias Svensson ( https://result42.com )
+
+     For more info read MiniZip_info.txt
+
+*/
+
+contrib/minizip/iowin32.h
+/* iowin32.h -- IO base function header for compress/uncompress .zip
+     part of the MiniZip project - ( https://www.winimage.com/zLibDll/minizip.html )
+
+         Copyright (C) 1998-2026 Gilles Vollant (minizip) ( https://www.winimage.com/zLibDll/minizip.html )
+
+         Modifications for Zip64 support
+         Copyright (C) 2009-2010 Mathias Svensson ( https://result42.com )
+
+         For more info read MiniZip_info.txt
+
+*/
+
+contrib/minizip/miniunz.c
+/*
+   miniunz.c
+   sample part of the MiniZip project - ( https://www.winimage.com/zLibDll/minizip.html )
+
+         Copyright (C) 1998-2026 Gilles Vollant (minizip) ( https://www.winimage.com/zLibDll/minizip.html )
+
+         Modifications of Unzip for Zip64
+         Copyright (C) 2007-2008 Even Rouault
+
+         Modifications for Zip64 support on both zip and unzip
+         Copyright (C) 2009-2010 Mathias Svensson ( https://result42.com )
+*/
+
+contrib/minizip/minizip.c
+/*
+   minizip.c
+   sample part of the MiniZip project - ( https://www.winimage.com/zLibDll/minizip.html )
+
+         Copyright (C) 1998-2026 Gilles Vollant (minizip) ( https://www.winimage.com/zLibDll/minizip.html )
+
+         Modifications of Unzip for Zip64
+         Copyright (C) 2007-2008 Even Rouault
+
+         Modifications for Zip64 support on both zip and unzip
+         Copyright (C) 2009-2010 Mathias Svensson ( https://result42.com )
+*/
+
+contrib/minizip/skipset.h
+/* skipset.h -- set operations using a skiplist
+// Copyright (C) 2024-2026 Mark Adler
+// See MiniZip_info.txt for the license.
+
+// This implements a skiplist set, i.e. just keys, no data, with ~O(log n) time
+// insert and search operations. The application defines the type of a key, and
+// provides a function to compare two keys.
+
+// This header is not definitions of functions found in another source file --
+// it creates the set functions, with the application's key type, right where
+// the #include is. Before this header is #included, these must be defined:
+//
+// 1. A macro or typedef for set_key_t, the type of a key.
+// 2. A macro or function set_cmp(a, b) to compare two keys. The return values
+//    are < 0 for a < b, 0 for a == b, and > 0 for a > b.
+// 3. A macro or function set_drop(s, k) to release the key k's resources, if
+//    any, when doing a set_end() or set_clear(). s is a pointer to the set
+//    that key is in, for use with set_free() if desired.
+//
+// Example usage:
+//
+//      typedef int set_key_t;
+//      #define set_cmp(a, b) ((a) < (b) ? -1 : (a) == (b) ? 0 : 1)
+//      #define set_drop(s, k)
+//      #include "skipset.h"
+//
+//      int test(void) {        // return 0: good, 1: bad, -1: out of memory
+//          set_t set;
+//          if (setjmp(set.env))
+//              return -1;
+//          set_start(&set);
+//          set_insert(&set, 2);
+//          set_insert(&set, 1);
+//          set_insert(&set, 7);
+//          int bad = !set_found(&set, 2);
+//          bad = bad || set_found(&set, 5);
+//          set_end(&set);
+//          return bad;
+//      }
+//
+// Interface summary (see more details below):
+// - set_t is the type of the set being operated on (a set_t pointer is passed)
+// - set_start() initializes a new, empty set (initialize set.env first)
+// - set_insert() inserts a new key into the set, or not if it's already there
+// - set_found() determines whether or not a key is in the set
+// - set_end() ends the use of the set, freeing all memory
+// - set_clear() empties the set, equivalent to set_end() and then set_start()
+// - set_ok() checks if set appears to be usable, i.e. started and not ended
+//
+// Auxiliary functions available to the application:
+// - set_alloc() allocates memory with optional tracking (#define SET_TRACK)
+// - set_free() deallocates memory allocated by set_alloc()
+// - set_rand() returns 32 random bits (seeded by set_start()) */
+
+contrib/minizip/unzip.c
+/* unzip.c -- IO for uncompress .zip files using zlib
+   part of the MiniZip project - ( https://www.winimage.com/zLibDll/minizip.html )
+
+         Copyright (C) 1998-2026 Gilles Vollant (minizip) ( https://www.winimage.com/zLibDll/minizip.html )
+
+         Modifications of Unzip for Zip64
+         Copyright (C) 2007-2008 Even Rouault
+
+         Modifications for Zip64 support on both zip and unzip
+         Copyright (C) 2009-2010 Mathias Svensson ( https://result42.com )
+
+         For more info read MiniZip_info.txt
+
+
+  ------------------------------------------------------------------------------------
+  Decryption code comes from crypt.c by Info-ZIP but has been greatly reduced in terms of
+  compatibility with older software. The following is from the original crypt.c.
+  Code woven in by Terry Thorsen 1/2003.
+
+  Copyright (c) 1990-2000 Info-ZIP.  All rights reserved.
+
+  See the accompanying file LICENSE, version 2000-Apr-09 or later
+  (the contents of which are also included in zip.h) for terms of use.
+  If, for some reason, all these files are missing, the Info-ZIP license
+  also may be found at:  ftp://ftp.info-zip.org/pub/infozip/license.html
+
+        crypt.c (full version) by Info-ZIP.      Last revised:  [see crypt.h]
+
+  The encryption/decryption parts of this source code (as opposed to the
+  non-echoing password parts) were originally written in Europe.  The
+  whole source package can be freely distributed, including from the USA.
+  (Prior to January 2000, re-export from the US was a violation of US law.)
+
+        This encryption code is a direct transcription of the algorithm from
+  Roger Schlafly, described by Phil Katz in the file appnote.txt.  This
+  file (appnote.txt) is distributed with the PKZIP program (even in the
+  version without encryption capabilities).
+
+        ------------------------------------------------------------------------------------
+
+        Changes in unzip.c
+
+        2007-2008 - Even Rouault - Addition of cpl_unzGetCurrentFileZStreamPos
+  2007-2008 - Even Rouault - Decoration of symbol names unz* -> cpl_unz*
+  2007-2008 - Even Rouault - Remove old C style function prototypes
+  2007-2008 - Even Rouault - Add unzip support for ZIP64
+
+        Copyright (C) 2007-2008 Even Rouault
+
+
+  Oct-2009 - Mathias Svensson - Removed cpl_* from symbol names (Even Rouault added them but since this is now moved to a new project (minizip64) I renamed them again).
+  Oct-2009 - Mathias Svensson - Fixed problem if uncompressed size was > 4G and compressed size was <4G
+                                should only read the compressed/uncompressed size from the Zip64 format if
+                                the size from normal header was 0xFFFFFFFF
+  Oct-2009 - Mathias Svensson - Applied some bug fixes from patches received from Gilles Vollant
+  Oct-2009 - Mathias Svensson - Applied support to unzip files with compression method BZIP2 (bzip2 lib is required)
+                                Patch created by Daniel Borca
+
+  Jan-2010 - back to unzip and minizip 1.0 name scheme, with compatibility layer
+
+  Copyright (C) 1998 - 2010 Gilles Vollant, Even Rouault, Mathias Svensson
+
+*/
+
+contrib/minizip/unzip.h
+/* unzip.h -- IO for uncompress .zip files using zlib
+   part of the MiniZip project - ( https://www.winimage.com/zLibDll/minizip.html )
+
+         Copyright (C) 1998-2026 Gilles Vollant (minizip) ( https://www.winimage.com/zLibDll/minizip.html )
+
+         Modifications of Unzip for Zip64
+         Copyright (C) 2007-2008 Even Rouault
+
+         Modifications for Zip64 support on both zip and unzip
+         Copyright (C) 2009-2010 Mathias Svensson ( https://result42.com )
+
+         For more info read MiniZip_info.txt
+
+         ---------------------------------------------------------------------------------
+
+        Condition of use and distribution are the same than zlib :
+
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the authors be held liable for any damages
+  arising from the use of this software.
+
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would be
+     appreciated but is not required.
+  2. Altered source versions must be plainly marked as such, and must not be
+     misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source distribution.
+
+  ---------------------------------------------------------------------------------
+
+        Changes
+
+        See header of unzip64.c
+
+*/
+
+contrib/minizip/zip.c
+/* zip.c -- IO on .zip files using zlib
+   part of the MiniZip project - ( https://www.winimage.com/zLibDll/minizip.html )
+
+         Copyright (C) 1998-2026 Gilles Vollant (minizip) ( https://www.winimage.com/zLibDll/minizip.html )
+
+         Modifications for Zip64 support
+         Copyright (C) 2009-2010 Mathias Svensson ( https://result42.com )
+
+         For more info read MiniZip_info.txt
+
+         Changes
+   Oct-2009 - Mathias Svensson - Remove old C style function prototypes
+   Oct-2009 - Mathias Svensson - Added Zip64 Support when creating new file archives
+   Oct-2009 - Mathias Svensson - Did some code cleanup and refactoring to get better overview of some functions.
+   Oct-2009 - Mathias Svensson - Added zipRemoveExtraInfoBlock to strip extra field data from its ZIP64 data
+                                 It is used when recreating zip archive with RAW when deleting items from a zip.
+                                 ZIP64 data is automatically added to items that needs it, and existing ZIP64 data need to be removed.
+   Oct-2009 - Mathias Svensson - Added support for BZIP2 as compression mode (bzip2 lib is required)
+   Jan-2010 - back to unzip and minizip 1.0 name scheme, with compatibility layer
+
+*/
+
+contrib/minizip/zip.h
+/* zip.h -- IO on .zip files using zlib
+   part of the MiniZip project - ( https://www.winimage.com/zLibDll/minizip.html )
+
+         Copyright (C) 1998-2026 Gilles Vollant (minizip) ( https://www.winimage.com/zLibDll/minizip.html )
+
+         Modifications for Zip64 support
+         Copyright (C) 2009-2010 Mathias Svensson ( https://result42.com )
+
+         For more info read MiniZip_info.txt
+
+         ---------------------------------------------------------------------------
+
+   Condition of use and distribution are the same than zlib :
+
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the authors be held liable for any damages
+  arising from the use of this software.
+
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would be
+     appreciated but is not required.
+  2. Altered source versions must be plainly marked as such, and must not be
+     misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source distribution.
+
+        ---------------------------------------------------------------------------
+
+        Changes
+
+        See header of zip.h
+
+ */
+
+contrib/puff/puff.c
+/*
+ * puff.c
+ * Copyright (C) 2002-2013 Mark Adler
+ * For conditions of distribution and use, see copyright notice in puff.h
+ * version 2.3, 21 Jan 2013
+ *
+ * puff.c is a simple inflate written to be an unambiguous way to specify the
+ * deflate format.  It is not written for speed but rather simplicity.  As a
+ * side benefit, this code might actually be useful when small code is more
+ * important than speed, such as bootstrap applications.  For typical deflate
+ * data, zlib's inflate() is about four times as fast as puff().  zlib's
+ * inflate compiles to around 20K on my machine, whereas puff.c compiles to
+ * around 4K on my machine (a PowerPC using GNU cc).  If the faster decode()
+ * function here is used, then puff() is only twice as slow as zlib's
+ * inflate().
+ *
+ * All dynamically allocated memory comes from the stack.  The stack required
+ * is less than 2K bytes.  This code is compatible with 16-bit int's and
+ * assumes that long's are at least 32 bits.  puff.c uses the short data type,
+ * assumed to be 16 bits, for arrays in order to conserve memory.  The code
+ * works whether integers are stored big endian or little endian.
+ *
+ * In the comments below are "Format notes" that describe the inflate process
+ * and document some of the less obvious aspects of the format.  This source
+ * code is meant to supplement RFC 1951, which formally describes the deflate
+ * format:
+ *
+ *    https://datatracker.ietf.org/doc/html/rfc1951
+ */
+
+contrib/puff/puff.h
+/* puff.h
+  Copyright (C) 2002-2013 Mark Adler, all rights reserved
+  version 2.3, 21 Jan 2013
+
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the author be held liable for any damages
+  arising from the use of this software.
+
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would be
+     appreciated but is not required.
+  2. Altered source versions must be plainly marked as such, and must not be
+     misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source distribution.
+
+  Mark Adler    madler@alumni.caltech.edu
+ */
+
+contrib/puff/pufftest.c
+/*
+ * pufftest.c
+ * Copyright (C) 2002-2026 Mark Adler
+ * For conditions of distribution and use, see copyright notice in puff.h
+ */
+
+crc32.c
+/* crc32.c -- compute the CRC-32 of a data stream
+ * Copyright (C) 1995-2026 Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ *
+ * This interleaved implementation of a CRC makes use of pipelined multiple
+ * arithmetic-logic units, commonly found in modern CPU cores. It is due to
+ * Kadatch and Jenkins (2010). See doc/crc-doc.1.0.pdf in this distribution.
+ */
+
+deflate.c
+/* deflate.c -- compress data using the deflation algorithm
+ * Copyright (C) 1995-2026 Jean-loup Gailly and Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+/*
+  If you use the zlib library in a product, an acknowledgment is welcome
+  in the documentation of your product. If for some reason you cannot
+  include such an acknowledgment, I would appreciate that you keep this
+  copyright string in the executable of your product.
+ */
+
+deflate.h
+/* deflate.h -- internal compression state
+ * Copyright (C) 1995-2026 Jean-loup Gailly
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+
+examples/enough.c
+/* enough.c -- determine the maximum size of inflate's Huffman code tables over
+ * all possible valid and complete prefix codes, subject to a length limit.
+ * Copyright (C) 2007, 2008, 2012, 2018, 2024 Mark Adler
+ * Version 1.6  29 July 2024  Mark Adler
+ */
+
+examples/fitblk.c
+/* fitblk.c: example of fitting compressed output to a specified size
+   Not copyrighted -- provided to the public domain
+   Version 1.1  25 November 2004  Mark Adler */
+
+examples/gun.c
+/* gun.c -- simple gunzip to give an example of the use of inflateBack()
+ * Copyright (C) 2003, 2005, 2008, 2010, 2012 Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+   Version 1.7  12 August 2012  Mark Adler */
+
+examples/gzappend.c
+/* gzappend -- command to append to a gzip file
+
+  Copyright (C) 2003, 2012 Mark Adler, all rights reserved
+  version 1.2, 11 Oct 2012
+
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the author be held liable for any damages
+  arising from the use of this software.
+
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would be
+     appreciated but is not required.
+  2. Altered source versions must be plainly marked as such, and must not be
+     misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source distribution.
+
+  Mark Adler    madler@alumni.caltech.edu
+ */
+/*
+ * Change history:
+ *
+ * 1.0  19 Oct 2003     - First version
+ * 1.1   4 Nov 2003     - Expand and clarify some comments and notes
+ *                      - Add version and copyright to help
+ *                      - Send help to stdout instead of stderr
+ *                      - Add some preemptive typecasts
+ *                      - Add L to constants in lseek() calls
+ *                      - Remove some debugging information in error messages
+ *                      - Use new data_type definition for zlib 1.2.1
+ *                      - Simplify and unify file operations
+ *                      - Finish off gzip file in gztack()
+ *                      - Use deflatePrime() instead of adding empty blocks
+ *                      - Keep gzip file clean on appended file read errors
+ *                      - Use in-place rotate instead of auxiliary buffer
+ *                        (Why you ask?  Because it was fun to write!)
+ * 1.2  11 Oct 2012     - Fix for proper z_const usage
+ *                      - Check for input buffer malloc failure
+ */
+
+examples/gzjoin.c
+/* gzjoin -- command to join gzip files into one gzip file
+
+  Copyright (C) 2004, 2005, 2012 Mark Adler, all rights reserved
+  version 1.2, 14 Aug 2012
+
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the author be held liable for any damages
+  arising from the use of this software.
+
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would be
+     appreciated but is not required.
+  2. Altered source versions must be plainly marked as such, and must not be
+     misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source distribution.
+
+  Mark Adler    madler@alumni.caltech.edu
+ */
+
+examples/gzlog.c
+/*
+ * gzlog.c
+ * Copyright (C) 2004, 2008, 2012, 2016, 2019 Mark Adler, all rights reserved
+ * For conditions of distribution and use, see copyright notice in gzlog.h
+ * version 2.3, 25 May 2019
+ */
+
+examples/gzlog.h
+/* gzlog.h
+  Copyright (C) 2004, 2008, 2012 Mark Adler, all rights reserved
+  version 2.2, 14 Aug 2012
+
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the author be held liable for any damages
+  arising from the use of this software.
+
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would be
+     appreciated but is not required.
+  2. Altered source versions must be plainly marked as such, and must not be
+     misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source distribution.
+
+  Mark Adler    madler@alumni.caltech.edu
+ */
+
+examples/gznorm.c
+/* gznorm.c -- normalize a gzip stream
+ * Copyright (C) 2018 Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ * Version 1.0  7 Oct 2018  Mark Adler */
+
+examples/zpipe.c
+/* zpipe.c: example of proper use of zlib's inflate() and deflate()
+   Not copyrighted -- provided to the public domain
+   Version 1.5  11 February 2026  Mark Adler */
+
+examples/zran.c
+/* zran.c -- example of deflate stream indexing and random access
+ * Copyright (C) 2005, 2012, 2018, 2023, 2024, 2025 Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ * Version 1.7  16 May 2025  Mark Adler */
+
+examples/zran.h
+/* zran.h -- example of deflate stream indexing and random access
+ * Copyright (C) 2005, 2012, 2018, 2023, 2024, 2025 Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ * Version 1.7  16 May 2025  Mark Adler */
+
+gzclose.c
+/* gzclose.c -- zlib gzclose() function
+ * Copyright (C) 2004, 2010 Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+
+gzguts.h
+/* gzguts.h -- zlib internal header definitions for gz* operations
+ * Copyright (C) 2004-2026 Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+
+gzlib.c
+/* gzlib.c -- zlib functions common to reading and writing gzip files
+ * Copyright (C) 2004-2026 Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+
+gzread.c
+/* gzread.c -- zlib functions for reading gzip files
+ * Copyright (C) 2004-2026 Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+
+gzwrite.c
+/* gzwrite.c -- zlib functions for writing gzip files
+ * Copyright (C) 2004-2026 Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+
+infback.c
+/* infback.c -- inflate using a call-back interface
+ * Copyright (C) 1995-2026 Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+
+inffast.c
+/* inffast.c -- fast decoding
+ * Copyright (C) 1995-2026 Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+
+inffast.h
+/* inffast.h -- header to use inffast.c
+ * Copyright (C) 1995-2003, 2010 Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+
+inflate.c
+/* inflate.c -- zlib decompression
+ * Copyright (C) 1995-2026 Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+
+inflate.h
+/* inflate.h -- internal inflate state definition
+ * Copyright (C) 1995-2019 Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+
+inftrees.c
+/* inftrees.c -- generate Huffman trees for efficient decoding
+ * Copyright (C) 1995-2026 Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+/*
+  If you use the zlib library in a product, an acknowledgment is welcome
+  in the documentation of your product. If for some reason you cannot
+  include such an acknowledgment, I would appreciate that you keep this
+  copyright string in the executable of your product.
+ */
+
+inftrees.h
+/* inftrees.h -- header to use inftrees.c
+ * Copyright (C) 1995-2026 Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+
+test/example.c
+/* example.c -- usage example of the zlib compression library
+ * Copyright (C) 1995-2026 Jean-loup Gailly
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+
+test/infcover.c
+/* infcover.c -- test zlib's inflate routines with full code coverage
+ * Copyright (C) 2011, 2016, 2024 Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+
+test/minigzip.c
+/* minigzip.c -- simulate gzip using the zlib compression library
+ * Copyright (C) 1995-2026 Jean-loup Gailly
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+
+trees.c
+/* trees.c -- output deflated data using Huffman coding
+ * Copyright (C) 1995-2026 Jean-loup Gailly
+ * detect_data_type() function provided freely by Cosmin Truta, 2006
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+
+uncompr.c
+/* uncompr.c -- decompress a memory buffer
+ * Copyright (C) 1995-2026 Jean-loup Gailly, Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+
+zconf.h
+/* zconf.h -- configuration of the zlib compression library
+ * Copyright (C) 1995-2026 Jean-loup Gailly, Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+
+zconf.h.in
+/* zconf.h -- configuration of the zlib compression library
+ * Copyright (C) 1995-2026 Jean-loup Gailly, Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+
+zlib.h
+/* zlib.h -- interface of the 'zlib' general purpose compression library
+  version 1.3.2, February 17th, 2026
+
+  Copyright (C) 1995-2026 Jean-loup Gailly and Mark Adler
+
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the authors be held liable for any damages
+  arising from the use of this software.
+
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would be
+     appreciated but is not required.
+  2. Altered source versions must be plainly marked as such, and must not be
+     misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source distribution.
+
+  Jean-loup Gailly        Mark Adler
+  jloup@gzip.org          madler@alumni.caltech.edu
+
+
+  The data format used by the zlib library is described by RFCs (Request for
+  Comments) 1950 to 1952 at https://datatracker.ietf.org/doc/html/rfc1950
+  (zlib format), rfc1951 (deflate format) and rfc1952 (gzip format).
+*/
+
+zutil.c
+/* zutil.c -- target dependent utility functions for the compression library
+ * Copyright (C) 1995-2026 Jean-loup Gailly
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */
+
+zutil.h
+/* zutil.h -- internal interface and configuration of the compression library
+ * Copyright (C) 1995-2026 Jean-loup Gailly, Mark Adler
+ * For conditions of distribution and use, see copyright notice in zlib.h
+ */

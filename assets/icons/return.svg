@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- pixel return/back arrow -->
+  <path fill="#FFFFFF" d="
+    M14 28H22V20H26V16H30V28H42
+    V32H46V36H50V44H46V40H42V36H30V48H26V44H22V40H18V36H14V28Z"/>
+</svg>

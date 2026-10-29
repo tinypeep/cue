@@ -1,0 +1,1921 @@
+audio/decode/ad_spdif.c
+/*
+ * Copyright (C) 2012 Naoya OYAMA
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+audio/filter/af_lavcac3enc.c
+/*
+ * audio filter for runtime AC-3 encoding with libavcodec.
+ *
+ * Copyright (C) 2007 Ulion <ulion A gmail P com>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+audio/filter/af_scaletempo.c
+/*
+ * scaletempo audio filter
+ *
+ * scale tempo while maintaining pitch
+ * (WSOLA technique with taxicab distance)
+ * inspired by SoundTouch library by Olli Parviainen
+ *
+ * basic algorithm
+ *   - produce 'stride' output samples per loop
+ *   - consume stride*scale input samples per loop
+ *
+ * to produce smoother transitions between strides, blend next overlap
+ * samples from last stride with correlated samples of current input
+ *
+ * Copyright (c) 2007 Robert Juliano
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+audio/filter/af_scaletempo2_internals.h
+// This filter was ported from Chromium
+// (https://chromium.googlesource.com/chromium/chromium/+/51ed77e3f37a9a9b80d6d0a8259e84a8ca635259/media/filters/audio_renderer_algorithm.cc)
+//
+// Copyright 2015 The Chromium Authors. All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are
+// met:
+//
+//    * Redistributions of source code must retain the above copyright
+// notice, this list of conditions and the following disclaimer.
+//    * Redistributions in binary form must reproduce the above
+// copyright notice, this list of conditions and the following disclaimer
+// in the documentation and/or other materials provided with the
+// distribution.
+//    * Neither the name of Google Inc. nor the names of its
+// contributors may be used to endorse or promote products derived from
+// this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+#include "common/common.h"
+
+struct mp_scaletempo2_opts {
+    // Max/min supported playback rates for fast/slow audio. Audio outside of these
+    // ranges are muted.
+    // Audio at these speeds would sound better under a frequency domain algorithm.
+    float min_playback_rate;
+    float max_playback_rate;
+    // Overlap-and-add window size in milliseconds.
+    float ola_window_size_ms;
+    // Size of search interval in milliseconds. The search interval is
+    // [-delta delta] around |output_index| * |playback_rate|. So the search
+    // interval is 2 * delta.
+    float wsola_search_interval_ms;
+};
+
+struct mp_scaletempo2 {
+    struct mp_scaletempo2_opts *opts;
+    // Number of channels in audio stream.
+    int channels;
+    // Sample rate of audio stream.
+    int samples_per_second;
+    // If muted, keep track of partial frames that should have been skipped over.
+    double muted_partial_frame;
+    // Book keeping of the current time of generated audio, in frames.
+    // Corresponds to the center of |search_block|. This is increased in
+    // intervals of |ola_hop_size| multiplied by the current playback_rate,
+    // for every WSOLA iteration. This tracks the number of advanced frames as
+    // a double to achieve accurate playback rates beyond the integer precision
+    // of |search_block_index|.
+    // Needs to be adjusted like any other index when frames are evicted from
+    // |input_buffer|.
+    double output_time;
+    // The offset of the center frame of |search_block| w.r.t. its first frame.
+    int search_block_center_offset;
+    // Index of the beginning of the |search_block|, in frames. This may be
+    // negative, which is handled by |peek_audio_with_zero_prepend|.
+    int search_block_index;
+    // Number of Blocks to search to find the most similar one to the target
+
+audio/format.c
+/*
+ * Copyright (C) 2005 Alex Beregszaszi
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+audio/out/ao_aaudio.c
+/*
+ * AAudio audio output driver
+ *
+ * Copyright (C) 2024 Jun Bo Bi <jambonmcyeah@gmail.com>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+audio/out/ao_alsa.c
+/*
+ * ALSA 0.9.x-1.x audio output driver
+ *
+ * Copyright (C) 2004 Alex Beregszaszi
+ * Zsolt Barat <joy@streamminister.de>
+ *
+ * modified for real ALSA 0.9.0 support by Zsolt Barat <joy@streamminister.de>
+ * additional AC-3 passthrough support by Andy Lo A Foe <andy@alsaplayer.org>
+ * 08/22/2002 iec958-init rewritten and merged with common init, zsolt
+ * 04/13/2004 merged with ao_alsa1.x, fixes provided by Jindrich Makovicka
+ * 04/25/2004 printfs converted to mp_msg, Zsolt.
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+audio/out/ao_audiotrack.c
+/*
+ * Android AudioTrack audio output driver.
+ * Copyright (C) 2018 Aman Gupta <aman@tmm1.net>
+ * Copyright (C) 2012-2015 VLC authors and VideoLAN, VideoLabs
+ * Authors: Thomas Guillem <thomas@gllm.fr>
+ *          Ming Hu <tewilove@gmail.com>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+audio/out/ao_coreaudio_exclusive.c
+/*
+ * CoreAudio audio output driver for macOS
+ *
+ * original copyright (C) Timothy J. Wood - Aug 2000
+ * ported to MPlayer libao2 by Dan Christiansen
+ *
+ * Chris Roccati
+ * Stefano Pigozzi
+ *
+ * The S/PDIF part of the code is based on the auhal audio output
+ * module from VideoLAN:
+ * Copyright (c) 2006 Derk-Jan Hartman <hartman at videolan dot org>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+audio/out/ao_coreaudio_properties.h
+/*
+ * This file is part of mpv.
+ * Copyright (c) 2013 Stefano Pigozzi <stefano.pigozzi@gmail.com>
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+audio/out/ao_coreaudio_utils.h
+/*
+ * This file is part of mpv.
+ * Copyright (c) 2013 Stefano Pigozzi <stefano.pigozzi@gmail.com>
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+audio/out/ao_lavc.c
+/*
+ * audio encoding using libavformat
+ *
+ * Copyright (C) 2011-2012 Rudolf Polzer <divVerent@xonotic.org>
+ * NOTE: this file is partially based on ao_pcm.c by Atmosfear
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+audio/out/ao_opensles.c
+/*
+ * OpenSL ES audio output driver.
+ * Copyright (C) 2016 Ilya Zhuravlev <whatever@xyz.is>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+audio/out/ao_pipewire.c
+/*
+ * PipeWire audio output driver.
+ * Copyright (C) 2021 Thomas Weißschuh <thomas@t-8ch.de>
+ * Copyright (C) 2021 Oschowa <oschowa@web.de>
+ * Copyright (C) 2020 Andreas Kempf <aakempf@gmail.com>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+audio/out/ao_pulse.c
+/*
+ * PulseAudio audio output driver.
+ * Copyright (C) 2006 Lennart Poettering
+ * Copyright (C) 2007 Reimar Doeffinger
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+audio/out/ao_sdl.c
+/*
+ * audio output driver for SDL 1.2+
+ * Copyright (C) 2012 Rudolf Polzer <divVerent@xonotic.org>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+audio/out/ao_sndio.c
+/*
+ * Copyright (c) 2008 Alexandre Ratchov <alex@caoua.org>
+ * Copyright (c) 2013 Christian Neukirchen <chneukirchen@gmail.com>
+ * Copyright (c) 2020 Rozhuk Ivan <rozhuk.im@gmail.com>
+ * Copyright (c) 2021 Andrew Krasavin <noiseless-ak@yandex.ru>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+common/av_log.c
+/*
+ * av_log to mp_msg converter
+ * Copyright (C) 2006 Michael Niedermayer
+ * Copyright (C) 2009 Uoti Urpala
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+common/encode.h
+/*
+ * Muxing/encoding API; ffmpeg specific implementation is in encode_lavc.*.
+ *
+ * Copyright (C) 2011-2012 Rudolf Polzer <divVerent@xonotic.org>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+common/encode_lavc.c
+/*
+ * muxing using libavformat
+ *
+ * Copyright (C) 2010 Nicolas George <george@nsup.org>
+ * Copyright (C) 2011-2012 Rudolf Polzer <divVerent@xonotic.org>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+common/encode_lavc.h
+/*
+ * muxing using libavformat
+ *
+ * Copyright (C) 2011 Rudolf Polzer <divVerent@xonotic.org>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+common/version.c
+/*
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include "common.h"
+#include "version.h"
+
+const char mpv_version[]  = "mpv " VERSION;
+const char mpv_builddate[] = BUILDDATE;
+const char mpv_copyright[] = MPVCOPYRIGHT;
+
+common/version.h.in
+#define VERSION "@VERSION@"
+#define MPVCOPYRIGHT_T(C) "Copyright " C " 2000-2026 mpv/MPlayer/mplayer2 projects"
+#define MPVCOPYRIGHT MPVCOPYRIGHT_T("\xC2\xA9")
+#define MPVCOPYRIGHT_W MPVCOPYRIGHT_T(L"\xA9")
+#ifndef NO_BUILD_TIMESTAMPS
+#define BUILDDATE __DATE__ " " __TIME__
+#else
+#define BUILDDATE "UNKNOWN"
+#endif
+
+demux/demux_lavf.c
+/*
+ * Copyright (C) 2004 Michael Niedermayer <michaelni@gmx.at>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+demux/demux_mkv.c
+/*
+ * Matroska demuxer
+ * Copyright (C) 2004 Aurelien Jacobs <aurel@gnuage.org>
+ * Based on the one written by Ronald Bultje for gstreamer
+ * and on demux_mkv.cpp from Moritz Bunkus.
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+demux/ebml.c
+/*
+ * native ebml reader for the Matroska demuxer
+ * new parser copyright (c) 2010 Uoti Urpala
+ * copyright (c) 2004 Aurelien Jacobs <aurel@gnuage.org>
+ * based on the one written by Ronald Bultje for gstreamer
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+include/mpv/client.h
+/* Copyright (C) 2017 the mpv developers
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+include/mpv/render.h
+/* Copyright (C) 2018 the mpv developers
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+include/mpv/render_d3d11.h
+/* Copyright (C) 2024 the mpv developers
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+include/mpv/render_gl.h
+/* Copyright (C) 2018 the mpv developers
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+include/mpv/stream_cb.h
+/* Copyright (C) 2017 the mpv developers
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+misc/charset_conv.c
+/*
+ * This file is part of mpv.
+ *
+ * Based on code taken from libass (ISC license), which was originally part
+ * of MPlayer (GPL).
+ * Copyright (C) 2006 Evgeniy Stepanov <eugeni.stepanov@gmail.com>
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+misc/codepoint_width.c
+#include "codepoint_width.h"
+
+#include <stdbool.h>
+#include <stdint.h>
+
+typedef uint_least32_t char32_t;
+
+// Generated by GraphemeTableGen (https://github.com/microsoft/terminal/blob/0961a77a5aec003e9f79d388f8e7bffb9a550cdb/src/tools/GraphemeTableGen/Program.cs)
+// on 2025-02-25T07:26:37Z, from Unicode 16.0.0, 9224 bytes
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
+// Manually adjusted for C compatibility
+// To generate:
+// 0. Install .NET 8.0
+// 1. Download the tool from: https://github.com/microsoft/terminal/tree/main/src/tools/GraphemeTableGen
+// 2. Download the Unicode data from: https://www.unicode.org/Public/UCD/latest/ucdxml/ucd.nounihan.grouped.zip
+// 3. Build the project: `dotnet build GraphemeTableGen.csproj`
+// 4. Run the tool: `./GraphemeTableGen ucd.nounihan.grouped.xml`
+// 5. Copy the generated code and adjust it for C compatibility by replacing `constexpr` and `auto` keywords.
+
+// clang-format off
+static const uint16_t s_stage0[] = {
+    0x0000, 0x0020, 0x0040, 0x0060, 0x0080, 0x009f, 0x00bf, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca,
+    0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00d8, 0x00f8, 0x010a, 0x010e, 0x010b, 0x0108, 0x0113, 0x0133, 0x0153, 0x0153, 0x0153, 0x016f,
+    0x018f, 0x01a7, 0x01c7, 0x01e7, 0x0133, 0x0133, 0x0205, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0221, 0x0236, 0x00ca, 0x00ca,
+    0x0256, 0x0276, 0x0133, 0x0133, 0x0133, 0x028b, 0x02ab, 0x02b9, 0x0133, 0x02cc, 0x02ea, 0x0302, 0x0322, 0x033f, 0x035f, 0x037f,
+    0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca,
+    0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x039f,
+    0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca,
+    0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x00ca, 0x039f,
+    0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133,
+    0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133,
+    0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133,
+    0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133,
+    0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133,
+    0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133,
+    0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133,
+    0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133,
+    0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133,
+    0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133,
+    0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133,
+    0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133,
+    0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133,
+    0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133,
+    0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133,
+    0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133,
+    0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133,
+    0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133,
+    0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133,
+    0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133,
+    0x03bf, 0x03c7, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133,
+    0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133, 0x0133,
+    0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153,
+    0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x03e7,
+    0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153,
+    0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x0153, 0x03e7,
+};
+static const uint16_t s_stage1[] = {
+    0x0000, 0x0004, 0x000c, 0x0014, 0x001c, 0x0024, 0x002a, 0x0031, 0x002a, 0x0037, 0x002a, 0x003f, 0x0047, 0x0049, 0x004f, 0x0057, 0x005f, 0x0065, 0x006d, 0x002a, 0x002a, 0x002a, 0x0073, 0x007b, 0x0083, 0x008a, 0x002a, 0x0091, 0x0098, 0x009f, 0x00a3, 0x00aa,
+    0x00b2, 0x00b8, 0x00be, 0x00c5, 0x00cd, 0x00d5, 0x00dd, 0x00e5, 0x00ed, 0x00f5, 0x00fd, 0x0105, 0x010d, 0x0115, 0x011d, 0x0125, 0x012d, 0x0135, 0x013d, 0x0145, 0x014d, 0x0155, 0x015d, 0x0164, 0x016b, 0x0173, 0x0175, 0x017d, 0x0182, 0x018a, 0x0192, 0x019a,
+    0x019d, 0x01a5, 0x01ad, 0x002a, 0x01b5, 0x01b9, 0x01bd, 0x01c2, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x01ca, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x01d0, 0x01d7, 0x01de, 0x01e6,
+    0x01ed, 0x002a, 0x01f5, 0x002a, 0x01fb, 0x002a, 0x002a, 0x002a, 0x0203, 0x0209, 0x0211, 0x0218, 0x0220, 0x0228, 0x0230, 0x0236, 0x023d, 0x002a, 0x002a, 0x0244, 0x002a, 0x002a, 0x002a, 0x0047, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a,
+    0x024c, 0x0254, 0x025c, 0x0262, 0x026a, 0x0272, 0x027a, 0x0282, 0x028a, 0x0292, 0x029a, 0x002a, 0x02a2, 0x002a, 0x02a9, 0x02b0, 0x002a, 0x02b8, 0x02bc, 0x02c4, 0x002a, 0x002a, 0x02cc, 0x02d4, 0x02dc, 0x02e4, 0x02ec, 0x02f4, 0x02fc, 0x0304, 0x030c, 0x002a,
+    0x002a, 0x002a, 0x002a, 0x0314, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x031c, 0x0322, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x0326, 0x002a, 0x032d, 0x002a, 0x0043, 0x002a, 0x002a, 0x0335, 0x0339, 0x0341, 0x0341, 0x0341, 0x0347, 0x034d,
+    0x0355, 0x035b, 0x0341, 0x0363, 0x0341, 0x036a, 0x036e, 0x0374, 0x037b, 0x0381, 0x0341, 0x0341, 0x0341, 0x0341, 0x0341, 0x0341, 0x0341, 0x0341, 0x0341, 0x0341, 0x0341, 0x0341, 0x0341, 0x0341, 0x0341, 0x0341, 0x0341, 0x0341, 0x0341, 0x0341, 0x0341, 0x0341,
+    0x0341, 0x0341, 0x0341, 0x0341, 0x0341, 0x0341, 0x0341, 0x0341, 0x0341, 0x0341, 0x0388, 0x0390, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x0393, 0x039b, 0x017f, 0x002a, 0x002a, 0x002a, 0x002a, 0x03a3, 0x002a, 0x03ab, 0x03b3, 0x03bb, 0x03c3, 0x03cb, 0x03d3,
+    0x03d8, 0x03e0, 0x03e8, 0x03f0, 0x002a, 0x002a, 0x002a, 0x03f7, 0x03ff, 0x0400, 0x0401, 0x0402, 0x0403, 0x0404, 0x0405, 0x03ff, 0x0400, 0x0401, 0x0402, 0x0403, 0x0404, 0x0405, 0x03ff, 0x0400, 0x0401, 0x0402, 0x0403, 0x0404, 0x0405, 0x03ff, 0x0400, 0x0401,
+    0x0402, 0x0403, 0x0404, 0x0405, 0x03ff, 0x0400, 0x0401, 0x0402, 0x0403, 0x0404, 0x0405, 0x03ff, 0x0400, 0x0401, 0x0402, 0x0403, 0x0404, 0x040c, 0x0414, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a,
+    0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x002a, 0x02bc, 0x02bc, 0x02bc, 0x02bc, 0x02bc, 0x02bc, 0x02bc, 0x02bc, 0x02bc, 0x02bc, 0x02bc, 0x02bc, 0x02bc,
+
+misc/jni.c
+/*
+ * JNI utility functions
+ *
+ * Copyright (c) 2015-2016 Matthieu Bouron <matthieu.bouron stupeflix.com>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+misc/jni.h
+/*
+ * JNI utility functions
+ *
+ * Copyright (c) 2015-2016 Matthieu Bouron <matthieu.bouron stupeflix.com>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+misc/thread_pool.c
+/* Copyright (C) 2018 the mpv developers
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+misc/thread_tools.c
+/* Copyright (C) 2018 the mpv developers
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+osdep/android/strnlen.c
+/*-
+ * Copyright (c) 2009 David Schultz <das@FreeBSD.org>
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ */
+
+osdep/android/strnlen.h
+/*-
+ * Copyright (c) 2009 David Schultz <das@FreeBSD.org>
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ */
+
+osdep/dirent-win.h
+/*
+ * Dirent interface for Microsoft Visual Studio
+ *
+ * Copyright (C) 1998-2019 Toni Ronkko
+ * This file is part of dirent.  Dirent may be freely distributed
+ * under the MIT license.  For all details and documentation, see
+ * https://github.com/tronkko/dirent
+ */
+
+osdep/mac/app_bridge_objc.h
+/*
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#import <Cocoa/Cocoa.h>
+#import <QuartzCore/QuartzCore.h>
+
+#include "player/client.h"
+#include "video/out/libmpv.h"
+#include "mpv/render_gl.h"
+
+#include "options/m_config.h"
+#include "player/core.h"
+#include "player/clipboard/clipboard.h"
+#include "common/global.h"
+#include "input/input.h"
+#include "input/event.h"
+#include "input/keycodes.h"
+#include "video/out/win_state.h"
+
+#include "osdep/main-fn.h"
+#include "osdep/mac/app_bridge.h"
+
+// complex macros won't get imported to swift so we have to reassign them
+static const int SWIFT_MBTN_LEFT       = MP_MBTN_LEFT;
+static const int SWIFT_MBTN_MID        = MP_MBTN_MID;
+static const int SWIFT_MBTN_RIGHT      = MP_MBTN_RIGHT;
+static const int SWIFT_WHEEL_UP        = MP_WHEEL_UP;
+static const int SWIFT_WHEEL_DOWN      = MP_WHEEL_DOWN;
+static const int SWIFT_WHEEL_LEFT      = MP_WHEEL_LEFT;
+static const int SWIFT_WHEEL_RIGHT     = MP_WHEEL_RIGHT;
+static const int SWIFT_MBTN_BACK       = MP_MBTN_BACK;
+static const int SWIFT_MBTN_FORWARD    = MP_MBTN_FORWARD;
+static const int SWIFT_MBTN9           = MP_MBTN9;
+
+static const int SWIFT_KEY_MOUSE_LEAVE = MP_KEY_MOUSE_LEAVE;
+static const int SWIFT_KEY_MOUSE_ENTER = MP_KEY_MOUSE_ENTER;
+
+static const char *const swift_mpv_version = mpv_version;
+static const char *const swift_mpv_copyright = mpv_copyright;
+
+NSData *app_bridge_icon(void);
+void app_bridge_tarray_append(void *t, char ***a, int *i, char *s);
+const struct m_sub_options *app_bridge_mac_conf(void);
+const struct m_sub_options *app_bridge_vo_conf(void);
+const struct m_sub_options *app_bridge_root_conf(void);
+
+osdep/terminal-unix.c
+/*
+ * Based on GyS-TermIO v2.0 (for GySmail v3) (copyright (C) 1999 A'rpi/ESP-team)
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+osdep/terminal-win.c
+/* Windows TermIO
+ *
+ * copyright (C) 2003 Sascha Sommer
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+osdep/terminal.h
+/*
+ * Based on GyS-TermIO v2.0 (for GySmail v3) (copyright (C) 1999 A'rpi/ESP-team)
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+osdep/timer-darwin.c
+/*
+ * Precise timer routines using Mach timing
+ *
+ * Copyright (c) 2003-2004, Dan Villiom Podlaski Christiansen
+ *
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use, copy,
+ * modify, merge, publish, distribute, sublicense, and/or sell copies
+ * of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ */
+
+osdep/timer-linux.c
+/*
+ * precise timer routines for Linux/UNIX
+ * copyright (C) LGB & A'rpi/ASTRAL
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+osdep/win32-console-wrapper.c
+/*
+ * conredir, a hack to get working console IO with Windows GUI applications
+ *
+ * Copyright (c) 2013, Martin Herkt
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+player/client.c
+/* Copyright (C) 2017 the mpv developers
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+stream/cookies.c
+/*
+ * HTTP Cookies
+ * Reads Netscape and Mozilla cookies.txt files
+ *
+ * Copyright (c) 2003 Dave Lambley <mplayer@davel.me.uk>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+stream/cookies.h
+/*
+ * HTTP Cookies
+ * Reads Netscape and Mozilla cookies.txt files
+ *
+ * Copyright (c) 2003 Dave Lambley <mplayer@davel.me.uk>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+stream/dvb_tune.c
+/* dvbtune - tune.c
+
+   Copyright (C) Dave Chapman 2001,2002
+   Copyright (C) Rozhuk Ivan <rozhuk.im@gmail.com> 2016 - 2017
+
+   Modified for use with MPlayer, for details see the changelog at
+   http://svn.mplayerhq.hu/mplayer/trunk/
+   $Id$
+
+   This file is part of mpv.
+
+   mpv is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 2 of the License, or
+   (at your option) any later version.
+
+   mpv is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License along
+   with mpv.  If not, see <http://www.gnu.org/licenses/>.
+
+*/
+
+stream/stream_bluray.c
+/*
+ * Copyright (C) 2010 Benjamin Zores <ben@geexbox.org>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+stream/stream_dvb.c
+/*
+
+   dvbstream
+   (C) Dave Chapman <dave@dchapman.com> 2001, 2002.
+   (C) Rozhuk Ivan <rozhuk.im@gmail.com> 2016 - 2017
+
+   Original authors: Nico, probably Arpi
+
+   Some code based on dvbstream, 0.4.3-pre3 (CVS checkout),
+   http://sourceforge.net/projects/dvbtools/
+
+   Modified for use with MPlayer, for details see the changelog at
+   http://svn.mplayerhq.hu/mplayer/trunk/
+   $Id$
+
+   Copyright notice:
+
+   This file is part of mpv.
+
+   mpv is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 2 of the License, or
+   (at your option) any later version.
+
+   mpv is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License along
+   with mpv.  If not, see <http://www.gnu.org/licenses/>.
+
+*/
+
+stream/stream_mf.c
+/*
+ * stream layer for multiple files input, based on previous work from Albeu
+ *
+ * Copyright (C) 2006 Benjamin Zores
+ * Original author: Albeu
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+sub/ass_mp.c
+/*
+ * Copyright (C) 2006 Evgeniy Stepanov <eugeni.stepanov@gmail.com>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+sub/ass_mp.h
+/*
+ * Copyright (C) 2006 Evgeniy Stepanov <eugeni.stepanov@gmail.com>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+sub/packer.c
+/*
+ * Copyright (C) 2006 Evgeniy Stepanov <eugeni.stepanov@gmail.com>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+sub/packer.h
+/*
+ * Copyright (C) 2006 Evgeniy Stepanov <eugeni.stepanov@gmail.com>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+ta/ta.c
+/* Copyright (C) 2017 the mpv developers
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+ta/ta.h
+/* Copyright (C) 2017 the mpv developers
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+ta/ta_talloc.c
+/* Copyright (C) 2017 the mpv developers
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+ta/ta_talloc.h
+/* Copyright (C) 2017 the mpv developers
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+ta/ta_utils.c
+/* Copyright (C) 2017 the mpv developers
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+video/filter/vf_sub.c
+/*
+ * Copyright (C) 2006 Evgeniy Stepanov <eugeni.stepanov@gmail.com>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+video/out/bitmap_packer.c
+/*
+ * Calculate how to pack bitmap rectangles into a larger surface
+ *
+ * Copyright 2009, 2012 Uoti Urpala
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+video/out/dither.c
+/*
+ * Generate a dithering matrix for downsampling images.
+ *
+ * Copyright © 2013  Wessel Dankers <wsl@fruit.je>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+video/out/filter_kernels.c
+/*
+ * Some of the filter code was taken from Glumpy:
+ * # Copyright (c) 2009-2016 Nicolas P. Rougier. All rights reserved.
+ * # Distributed under the (new) BSD License.
+ * (https://github.com/glumpy/glumpy/blob/master/glumpy/library/build-spatial-filters.py)
+ *
+ * Also see:
+ * - https://sourceforge.net/p/agg/svn/HEAD/tree/agg-2.4/include/agg_image_filters.h
+ * - Vapoursynth plugin fmtconv (WTFPL Licensed), which is based on
+ *   dither plugin for avisynth from the same author:
+ *   https://gitlab.com/EleonoreMizo/fmtconv/-/tree/master/src/fmtc
+ * - Paul Heckbert's "zoom"
+ * - XBMC: ConvolutionKernels.cpp etc.
+ *
+ * This file is part of mpv.
+ *
+ * This file can be distributed under the 3-clause license ("New BSD License").
+ *
+ * You can alternatively redistribute the non-Glumpy parts of this file and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ */
+
+video/out/hwdec/hwdec_aimagereader.c
+/*
+ * Copyright (c) 2021 sfan5 <sfan5@live.de>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+video/out/hwdec/hwdec_cuda.c
+/*
+ * Copyright (c) 2016 Philip Langdale <philipl@overt.org>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+video/out/hwdec/hwdec_cuda.h
+/*
+ * Copyright (c) 2019 Philip Langdale <philipl@overt.org>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+video/out/hwdec/hwdec_cuda_gl.c
+/*
+ * Copyright (c) 2019 Philip Langdale <philipl@overt.org>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+video/out/hwdec/hwdec_cuda_vk.c
+/*
+ * Copyright (c) 2019 Philip Langdale <philipl@overt.org>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+video/out/hwdec/hwdec_mac_gl.c
+/*
+ * Copyright (c) 2013 Stefano Pigozzi <stefano.pigozzi@gmail.com>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+video/out/hwdec/hwdec_vulkan.c
+/*
+ * Copyright (c) 2022 Philip Langdale <philipl@overt.org>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+video/out/opengl/context_wayland.c
+/*
+ * This file is part of mpv video player.
+ * Copyright © 2013 Alexander Preisinger <alexander.preisinger@gmail.com>
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+video/out/vo.h
+/*
+ * Copyright (C) Aaron Holtzman - Aug 1999
+ *
+ * Strongly modified, most parts rewritten: A'rpi/ESP-team - 2000-2001
+ * (C) MPlayer developers
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+video/out/vo_direct3d.c
+/*
+ * Copyright (c) 2008 Georgi Petrov (gogothebee) <gogothebee@gmail.com>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+video/out/vo_gpu_next.c
+/*
+ * Copyright (C) 2021 Niklas Haas
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+video/out/vo_lavc.c
+/*
+ * video encoding using libavformat
+ *
+ * Copyright (C) 2010 Nicolas George <george@nsup.org>
+ * Copyright (C) 2011-2012 Rudolf Polzer <divVerent@xonotic.org>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+video/out/vo_null.c
+/*
+ * based on video_out_null.c from mpeg2dec
+ *
+ * Copyright (C) Aaron Holtzman - June 2000
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+video/out/vo_sdl.c
+/*
+ * video output driver for SDL 2.0+
+ *
+ * Copyright (C) 2012 Rudolf Polzer <divVerent@xonotic.org>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+video/out/vo_sixel.c
+/*
+ * Sixel mpv output device implementation based on ffmpeg libavdevice implementation
+ * by Hayaki Saito
+ * https://github.com/saitoha/FFmpeg-SIXEL/blob/sixel/libavdevice/sixel.c
+ *
+ * Copyright (c) 2014 Hayaki Saito
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+video/out/vo_vaapi.c
+/*
+ * VA API output module
+ *
+ * Copyright (C) 2008-2009 Splitted-Desktop Systems
+ * Gwenole Beauchesne <gbeauchesne@splitted-desktop.com>
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+video/out/vo_vdpau.c
+/*
+ * VDPAU video output driver
+ *
+ * Copyright (C) 2008 NVIDIA (Rajib Mahapatra <rmahapatra@nvidia.com>)
+ * Copyright (C) 2009 Uoti Urpala
+ *
+ * This file is part of mpv.
+ *
+ * mpv is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+video/vdpau_mixer.c
+/*
+ * This file is part of mpv.
+ *
+ * Parts of video mixer creation code:
+ * Copyright (C) 2008 NVIDIA (Rajib Mahapatra <rmahapatra@nvidia.com>)
+ * Copyright (C) 2009 Uoti Urpala
+ *
+ * mpv is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * mpv is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with mpv.  If not, see <http://www.gnu.org/licenses/>.
+ */

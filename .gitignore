@@ -1,0 +1,16 @@
+/build/
+/out/
+/preview
+*.o
+*.obj
+*.pdb
+*.ilk
+*.log
+state.json
+state.json.*
+.env
+.env.*
+!.env.example
+__pycache__/
+*.pyc
+/dist/
