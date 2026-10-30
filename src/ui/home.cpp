@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include "../core/i18n.h"
+
 namespace {
 constexpr int kRowPitch = 16;  // art px
 constexpr int kMaxRows = 6;
@@ -35,7 +37,7 @@ void HomeView::layout() {
   face.max_look = 3.0 * face.scale / 1.5;
 
   // micro-instruction button under the eyes
-  int iw = 11 + 6 + text_w("abra um arquivo", 1);
+  int iw = 11 + 6 + text_w(tr(str::home_open_file), 1);
   int ix = (int)std::lround(ox + split * 0.56 - iw / 2.0);
   int iy = (int)std::lround(face.eye_y() / s + 9 * face.scale + 14);
   r_open_ = {(ix - 5) * s, (iy - 3) * s, (iw + 10) * s, 18 * s};
@@ -48,31 +50,70 @@ void HomeView::layout() {
   int y0 = (int)std::lround(H * 0.47 - block / 2.0 - 3);
   r_title_ = {x0 * s, y0 * s, (x1 - x0) * s, 12 * s};
   r_dots_ = {(x1 - 9) * s, (y0 + 1) * s, 11 * s, 10 * s};
-  r_menu_ = {(x1 - 82) * s, (y0 + 12) * s, 84 * s, 17 * s};
   r_rows_.clear();
   for (int i = 0; i < (int)rows.size(); ++i)
     r_rows_.push_back({(x0 - 5) * s, (y0 + 21 + i * kRowPitch) * s, (x1 - x0 + 10) * s, 14 * s});
   r_list_ = {(x0 - 8) * s, y0 * s - 6 * s, (x1 - x0 + 16) * s, (block + 12) * s};
+  layout_menu();
   layout_update();
+}
+
+std::string HomeView::menu_label(int id) const {
+  if (id == kMenuLang) return tr(str::more_language);
+  if (id == kMenuClear) return tr(str::home_clear_recents);
+  if (id == kLangOpt) return tr(str::language_auto);
+  if (id > kLangOpt && id <= kLangOpt + i18n::kLangCount) return i18n::native_name((i18n::Lang)(id - kLangOpt - 1));
+  return "";
+}
+
+// The menu hangs under the ··· at the end of the Recentes title, as wide as its longest word.
+void HomeView::layout_menu() {
+  menu_ids_.clear();
+  r_menu_items_.clear();
+  if (menu_lang_) {
+    for (int i = 0; i <= i18n::kLangCount; ++i) menu_ids_.push_back(kLangOpt + i);
+  } else {
+    menu_ids_.push_back(kMenuLang);
+    if (!rows.empty()) menu_ids_.push_back(kMenuClear);
+  }
+  int words = 0;
+  for (int id : menu_ids_) words = std::max(words, text_w(menu_label(id), 1));
+  const int lead = menu_lang_ ? 14 : 4, trail = menu_lang_ ? 6 : 14;  // check column / chevron
+  const int W = std::max(84, 2 + lead + words + trail + 2), H = 4 + 13 * (int)menu_ids_.size();
+  const int x1 = r_title_.r() / s, y0 = r_title_.y / s;
+  r_menu_ = {(x1 + 2 - W) * s, (y0 + 12) * s, W * s, H * s};
+  for (size_t i = 0; i < menu_ids_.size(); ++i)
+    r_menu_items_.push_back({r_menu_.x + 2 * s, r_menu_.y + (2 + 13 * (int)i) * s, (W - 4) * s, 13 * s});
+}
+
+void HomeView::open_menu(bool lang) {
+  menu_ = true;
+  menu_lang_ = lang;
+  layout_menu();
+  if (kb_) focus_ = menu_ids_.empty() ? -1 : (lang ? kLangOpt + language + 1 : menu_ids_[0]);
 }
 
 void HomeView::layout_update() {
   r_update_ = r_update_skip_ = {};
   if (update_version.empty()) return;
   const int H = h / s;
-  std::string label = "nova versão " + update_version + " · atualizar";
+  std::string label = i18n::format(str::home_update_offer, {{"version", update_version}});
   int tw = 11 + 6 + text_w(label, 1);
   r_update_ = {10 * s, (H - 24) * s, (tw + 10) * s, 16 * s};
   r_update_skip_ = {r_update_.r() + 2 * s, r_update_.y, 14 * s, 16 * s};
 }
 
 int HomeView::hit(int x, int y) const {
-  if (menu_ && r_menu_.contains(x, y)) return kMenuClear;
+  if (menu_ && r_menu_.contains(x, y)) {
+    for (size_t i = 0; i < r_menu_items_.size(); ++i)
+      if (r_menu_items_[i].contains(x, y)) return menu_ids_[i];
+    return kMenuPad;
+  }
   if (!update_version.empty() && !update_busy) {
     if (r_update_.contains(x, y)) return kUpdate;
     if (r_update_skip_.contains(x, y)) return kUpdateSkip;
   }
-  if (!rows.empty() && r_dots_.contains(x, y)) return kDots;
+  if (r_dots_.contains(x, y)) return kDots;
   for (int i = 0; i < (int)r_rows_.size(); ++i)
     if (r_rows_[i].contains(x, y)) return i;
   if (r_open_.contains(x, y) && engine_problem.empty()) return kOpen;
@@ -151,9 +192,13 @@ HomeAction HomeView::mouse_down(int x, int y, double now) {
     default: break;
   }
   int hh = hit(x, y);
-  if (menu_ && hh != kMenuClear && hh != kDots) { menu_ = false; return {}; }
+  bool in_menu = hh == kMenuPad || hh == kMenuClear || hh == kMenuLang || (hh >= kLangOpt && hh <= kLangOpt + i18n::kLangCount);
+  if (menu_ && !in_menu && hh != kDots) { menu_ = false; return {}; }
+  if (hh == kMenuPad) return {};
   if (hh == kMenuClear) { menu_ = false; return {HomeAct::ClearRecents, -1}; }
-  if (hh == kDots) { menu_ = !menu_; return {}; }
+  if (hh == kMenuLang) { open_menu(true); return {}; }
+  if (hh >= kLangOpt && hh <= kLangOpt + i18n::kLangCount) return {HomeAct::Language, hh - kLangOpt - 1};
+  if (hh == kDots) { if (menu_) menu_ = false; else open_menu(false); return {}; }
   if (hh == kOpen) return {HomeAct::OpenDialog, -1};
   if (hh == kUpdate) return {HomeAct::Update, -1};
   if (hh == kUpdateSkip) return {HomeAct::SkipUpdate, -1};
@@ -174,8 +219,8 @@ HomeAction HomeView::key(const std::string& k, bool shift, double now) {
   std::vector<int> order;
   if (engine_problem.empty()) order.push_back(kOpen);
   for (int i = 0; i < (int)rows.size(); ++i) order.push_back(i);
-  if (!rows.empty()) order.push_back(kDots);
-  if (menu_) order.push_back(kMenuClear);
+  order.push_back(kDots);
+  if (menu_) for (int id : menu_ids_) order.push_back(id);
   if (!update_version.empty() && !update_busy) order.push_back(kUpdate);
   auto idx = [&] { auto it = std::find(order.begin(), order.end(), focus_); return it == order.end() ? -1 : (int)(it - order.begin()); };
   if (k == "tab") {
@@ -193,13 +238,14 @@ HomeAction HomeView::key(const std::string& k, bool shift, double now) {
   } else if (k == "enter" || (k == "space" && kb_)) {
     if (focus_ == kOpen) return {HomeAct::OpenDialog, -1};
     if (focus_ == kUpdate) return {HomeAct::Update, -1};
-    if (focus_ == kDots) { menu_ = !menu_; if (menu_) focus_ = kMenuClear; }
+    if (focus_ == kDots) { if (menu_) menu_ = false; else open_menu(false); }
     else if (focus_ == kMenuClear) { menu_ = false; focus_ = -1; return {HomeAct::ClearRecents, -1}; }
+    else if (focus_ == kMenuLang) open_menu(true);
+    else if (focus_ >= kLangOpt && focus_ <= kLangOpt + i18n::kLangCount) return {HomeAct::Language, focus_ - kLangOpt - 1};
     else if (focus_ >= 0 && focus_ < (int)rows.size()) return {HomeAct::OpenRecent, focus_};
   } else if (k == "esc") {
-    menu_ = false;
-    kb_ = false;
-    focus_ = -1;
+    if (menu_ && menu_lang_) { open_menu(false); if (kb_) focus_ = kMenuLang; }  // one level back
+    else { menu_ = false; kb_ = false; focus_ = -1; }
   }
   update_face_target(now);
   return {};
@@ -349,7 +395,7 @@ bool HomeView::tick(double now, double dt) {
   moving |= chrome.tick(dt);
   if (leave_t0_ > 0 && now - leave_t0_ < leave_dur() + 0.05) moving = true;
   if (now - enter_t0_ < 0.45) moving = true;
-  size_t n = rows.size() + 5;
+  size_t n = rows.size() + kHitIds;
   if (hov_.size() != n) hov_.assign(n, 0.0);
   for (size_t k = 0; k < n; ++k) {
     int id = k < rows.size() ? (int)k : 100 + (int)(k - rows.size());
@@ -463,11 +509,11 @@ void HomeView::render(Canvas& c, double now) {
 
   // micro-instruction / state line
   {
-    std::string label = "abra um arquivo";
+    std::string label = tr(str::home_open_file);
     Rgb col = p.dim;
     bool show_icon = true;
     if (!engine_problem.empty()) { label = engine_problem; show_icon = false; }
-    else if (drag_) { label = "solte aqui"; col = p.fg; show_icon = false; }
+    else if (drag_) { label = tr(str::home_drop_here); col = p.fg; show_icon = false; }
     else if (!notice.empty()) { label = notice; show_icon = false; }
     double ha = show_icon ? hov(kOpen) : 0.0;
     int tw = text_w(label, s) + (show_icon ? 17 * s : 0);
@@ -482,15 +528,15 @@ void HomeView::render(Canvas& c, double now) {
   }
 
   // Recentes
-  text(c, "Recentes", r_title_.x, r_title_.y, s, p.fg);
-  bool show_dots = !rows.empty() && (menu_ || r_list_.contains(mx_, my_) || (kb_ && (focus_ == kDots || focus_ == kMenuClear)));
+  text(c, tr(str::home_recents), r_title_.x, r_title_.y, s, p.fg);
+  bool show_dots = menu_ || r_list_.contains(mx_, my_) || r_dots_.contains(mx_, my_) || (kb_ && focus_ == kDots);
   if (show_dots) {
     double on = menu_ ? 1.0 : hov(kDots);
     if (on > 0) c.cornered(r_dots_, s, p.hover, on);
     c.bitmap(bmp("dots"), r_dots_.x + 3 * s, r_dots_.y + 5 * s, s, mix(p.dim, p.fg, on));
   }
   if (rows.empty()) {
-    text(c, "nada por aqui ainda", r_title_.x, r_title_.y + 21 * s, s, p.faint);
+    text(c, tr(str::home_recents_empty), r_title_.x, r_title_.y + 21 * s, s, p.faint);
   }
   for (int i = 0; i < (int)rows.size(); ++i) {
     const Rect& r = r_rows_[i];
@@ -516,10 +562,16 @@ void HomeView::render(Canvas& c, double now) {
   }
   if (menu_) {
     draw_panel(c, r_menu_.x, r_menu_.y, r_menu_.w / s, r_menu_.h / s, s, {1}, p.sheet, 1.0, p.edge, 1.0);
-    bool on = active() == kMenuClear;
-    Rect ir = r_menu_.inset(2 * s);
-    if (on) c.cornered(ir, s, p.hover);
-    text(c, "limpar recentes", ir.x + 4 * s, ir.y + 1 * s, s, on ? p.fg : p.dim);
+    for (size_t i = 0; i < menu_ids_.size(); ++i) {
+      int id = menu_ids_[i];
+      const Rect& ir = r_menu_items_[i];
+      bool on = active() == id;
+      if (on) c.cornered(ir, s, p.hover);
+      bool chosen = id >= kLangOpt && id - kLangOpt - 1 == language;
+      if (chosen) c.bitmap(bmp("check"), ir.x + 3 * s, ir.y + 4 * s, s, p.fg);
+      text(c, menu_label(id), ir.x + (menu_lang_ ? 14 : 4) * s, ir.y + 1 * s, s, on || chosen ? p.fg : p.dim);
+      if (id == kMenuLang) c.bitmap(bmp("chev-right5"), ir.r() - 8 * s, ir.y + 4 * s, s, on ? p.fg : p.dim);
+    }
   }
 
   // a newer version: one quiet line, bottom left; a progress whisper while it downloads
@@ -527,9 +579,10 @@ void HomeView::render(Canvas& c, double now) {
     layout_update();
     double ha = update_busy ? 0.0 : hov(kUpdate);
     std::string label;
-    if (update_progress >= 0) label = "baixando " + update_version + " · " + std::to_string((int)std::lround(update_progress * 100)) + "%";
-    else if (update_busy) label = "preparando a atualização";
-    else label = "nova versão " + update_version + " · atualizar";
+    if (update_progress >= 0)
+      label = i18n::format(str::home_update_downloading, {{"version", update_version}, {"percent", std::to_string((int)std::lround(update_progress * 100))}});
+    else if (update_busy) label = tr(str::home_update_preparing);
+    else label = i18n::format(str::home_update_offer, {{"version", update_version}});
     Rect r = r_update_;
     if (ha > 0) c.cornered({r.x, r.y, 11 * s + 6 * s + text_w(label, s) + 10 * s, r.h}, s, p.hover, ha);
     int x = r.x + 5 * s, y = r.y + 3 * s;

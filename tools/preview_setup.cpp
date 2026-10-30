@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <string>
+#include "../src/core/i18n.h"
 #include "../installer/setup_ui.h"
 void save_canvas(const Canvas& c, const std::string& name) {
   std::string raw = name + ".rgba";
@@ -17,14 +18,16 @@ void save_canvas(const Canvas& c, const std::string& name) {
   if (std::system(cmd.c_str()) != 0) std::fprintf(stderr, "convert failed\n");
 }
 int main(int argc, char** argv) {
+  // CUE_LANG=en|es|fr|zh-Hans picks the interface language (Portuguese by default)
+  { i18n::Lang l = i18n::Lang::PtBR; if (const char* e = std::getenv("CUE_LANG")) i18n::parse_tag(e, l); i18n::set_language(l); }
   std::string out = argc > 1 ? argv[1] : "out";
   double s = 2;
   Canvas c;
   auto shot = [&](SetupMode m, SetupStage st, double prog, const std::string& name, bool hover = false) {
     SetupView v; v.mode = m; v.version = "1.0"; v.old_version = m == SetupMode::Install ? "" : "0.9";
     v.dir = "C:\\Cue";
-    v.status = "copiando libmpv-2.dll"; v.error = "sem permissão para escrever nessa pasta. escolha outra ou abra como administrador";
-    v.set_size(SetupView::kW * s, SetupView::kH * s, s);
+    v.status = i18n::format(str::setup_copying, {{"file", "libmpv-2.dll"}}); v.error = tr(str::setup_needs_admin);
+    v.set_size(SetupView::art_w() * s, SetupView::kH * s, s);
     double now = 1; v.start(now);
     if (hover) v.mouse_move(v.w - 60, v.h - 24, now);
     for (int i = 0; i < 60; ++i) { now += 1 / 60.0; v.tick(now, 1 / 60.0); }

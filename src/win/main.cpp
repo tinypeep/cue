@@ -10,6 +10,7 @@
 #include "platform.h"
 #include "single_instance.h"
 #include "thumbhost.h"
+#include "ui_language.h"
 
 #include <cstdio>
 #include <cstring>
@@ -50,7 +51,7 @@ static LONG WINAPI on_crash(EXCEPTION_POINTERS* ep) {
   std::ofstream f(std::filesystem::path(data_dir()) / "cue.log", std::ios::app);
   f << line << "\n";
   f.close();
-  MessageBoxW(nullptr, L"O Cue fechou por um erro.\nOs detalhes ficaram em %APPDATA%\\tinyoffice\\Cue\\cue.log",
+  MessageBoxW(nullptr, widen(i18n::format(str::win_crash, {{"path", "%APPDATA%\\tinyoffice\\Cue\\cue.log"}})).c_str(),
               L"Cue", MB_OK | MB_ICONWARNING);
   return EXCEPTION_EXECUTE_HANDLER;
 }
@@ -77,6 +78,10 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
       SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
       return thumb_host_main();
     }
+  }
+  // the interface language, once per start: the saved choice, else Windows' display languages
+  apply_ui_language(saved_language_pref(data_dir() + L"\\state.json"), windows_ui_languages());
+  for (auto& a : args) {
     if (a == "--register") {
       std::string err;
       bool ok = register_open_with(&err);
@@ -88,8 +93,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
   auto route = instance.route(args);
   if (route == SingleInstance::Result::Forwarded) return 0;
   if (route == SingleInstance::Result::Error) {
-    MessageBoxW(nullptr, L"Não foi possível abrir o vídeo na janela do Cue.\nFeche o Cue e tente novamente.",
-                L"Cue", MB_OK | MB_ICONWARNING);
+    MessageBoxW(nullptr, widen(tr(str::win_forward_failed)).c_str(), L"Cue", MB_OK | MB_ICONWARNING);
     return 1;
   }
 

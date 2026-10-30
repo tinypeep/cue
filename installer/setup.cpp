@@ -29,7 +29,9 @@
 #include <string>
 #include <vector>
 
+#include "../src/core/i18n.h"
 #include "../src/core/release.h"
+#include "../src/win/ui_language.h"
 #include "../src/core/version.h"
 #include "../src/ui/anim.h"
 #include "lzma/LzmaDec.h"
@@ -160,7 +162,7 @@ void close_running_cue(Job& job) {
   if (job.wait_pid)
     if (HANDLE h = OpenProcess(SYNCHRONIZE, FALSE, job.wait_pid)) procs.push_back(h);
   if (procs.empty()) return;
-  job.say("esperando o Cue fechar");
+  job.say(tr(str::setup_waiting));
   for (HANDLE h : procs) {
     WaitForSingleObject(h, 15000);
     CloseHandle(h);
@@ -256,14 +258,14 @@ void open_cue(const std::wstring& dir) {
 void install(Job& job) {
   HRESULT com = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
   auto done = [&] { if (SUCCEEDED(com)) CoUninitialize(); };
-  job.say("preparando");
+  job.say(tr(str::setup_preparing));
   close_running_cue(job);
 
   // the folder, and whether we may write there
   int r = SHCreateDirectoryExW(nullptr, job.dir.c_str(), nullptr);
   if (r != ERROR_SUCCESS && r != ERROR_ALREADY_EXISTS && r != ERROR_FILE_EXISTS) {
     if (r == ERROR_ACCESS_DENIED && !is_elevated()) { job.result = 3; done(); return; }
-    job.fail("não foi possível criar a pasta (" + std::to_string(r) + ")");
+    job.fail(i18n::format(str::setup_mkdir_failed, {{"code", std::to_string(r)}}));
     done();
     return;
   }
@@ -273,7 +275,7 @@ void install(Job& job) {
     if (f == INVALID_HANDLE_VALUE) {
       DWORD e = GetLastError();
       if (e == ERROR_ACCESS_DENIED && !is_elevated()) { job.result = 3; done(); return; }
-      job.fail("sem permissão para escrever nessa pasta");
+      job.fail(tr(str::setup_no_write));
       done();
       return;
     }
@@ -281,7 +283,7 @@ void install(Job& job) {
   }
 
   // read and unpack the archive (0 .. 55%)
-  job.say("abrindo o pacote");
+  job.say(tr(str::setup_opening));
   const PayloadFooter& ft = job.payload.footer;
   std::vector<unsigned char> packed(ft.size), plain(ft.unpacked);
   {
@@ -297,13 +299,13 @@ void install(Job& job) {
       total += got;
     }
     if (f != INVALID_HANDLE_VALUE) CloseHandle(f);
-    if (!ok || packed.size() < 13) { job.fail("o instalador está incompleto, baixe de novo"); done(); return; }
+    if (!ok || packed.size() < 13) { job.fail(tr(str::setup_incomplete)); done(); return; }
   }
   {
     CLzmaDec dec;
     LzmaDec_Construct(&dec);
     if (LzmaDec_AllocateProbs(&dec, packed.data(), LZMA_PROPS_SIZE, &kAlloc) != SZ_OK) {
-      job.fail("pacote inválido");
+      job.fail(tr(str::setup_invalid));
       done();
       return;
     }
@@ -323,7 +325,7 @@ void install(Job& job) {
     }
     LzmaDec_FreeProbs(&dec, &kAlloc);
     if (!ok || dec.dicPos != plain.size() || crc32_update(0, plain.data(), plain.size()) != ft.crc) {
-      job.fail("o pacote está corrompido, baixe de novo");
+      job.fail(tr(str::setup_corrupt));
       done();
       return;
     }
@@ -345,7 +347,7 @@ void install(Job& job) {
     uint64_t size = u64(at);
     at += 8;
     if (at + size > plain.size() || rel.find("..") != std::string::npos || rel.find(':') != std::string::npos) {
-      job.fail("pacote inválido");
+      job.fail(tr(str::setup_invalid));
       done();
       return;
     }
@@ -353,11 +355,11 @@ void install(Job& job) {
     std::replace(wrel.begin(), wrel.end(), L'/', L'\\');
     std::wstring dst = job.dir + L"\\" + wrel;
     SHCreateDirectoryExW(nullptr, fs::path(dst).parent_path().c_str(), nullptr);
-    job.say("copiando " + rel.substr(rel.find_last_of('/') == std::string::npos ? 0 : rel.find_last_of('/') + 1));
+    job.say(i18n::format(str::setup_copying, {{"file", rel.substr(rel.find_last_of('/') == std::string::npos ? 0 : rel.find_last_of('/') + 1)}}));
     DWORD err = 0;
     if (!write_file(dst, plain.data() + at, (size_t)size, &err)) {
       if (err == ERROR_ACCESS_DENIED && !is_elevated()) { job.result = 3; done(); return; }
-      job.fail("não deu pra gravar " + rel + " (" + std::to_string(err) + ")");
+      job.fail(i18n::format(str::setup_write_failed, {{"file", rel}, {"code", std::to_string(err)}}));
       done();
       return;
     }
@@ -379,7 +381,7 @@ void install(Job& job) {
   }
 
   // the uninstaller: this same program, without the archive
-  job.say("registrando no Windows");
+  job.say(tr(str::setup_registering));
   {
     std::ifstream in(fs::path(job.self), std::ios::binary);
     std::vector<char> stub((size_t)ft.offset);
@@ -397,8 +399,8 @@ void install(Job& job) {
 
   // shortcuts, Apps & features, App Paths
   std::wstring exe = job.dir + L"\\Cue.exe";
-  make_shortcut(start_menu_link(), exe, job.dir, L"Player de vídeo leve e local");
-  if (job.desktop) make_shortcut(desktop_link(), exe, job.dir, L"Player de vídeo leve e local");
+  make_shortcut(start_menu_link(), exe, job.dir, widen(tr(str::setup_shortcut)));
+  if (job.desktop) make_shortcut(desktop_link(), exe, job.dir, widen(tr(str::setup_shortcut)));
   else if (job.mode == SetupMode::Install) DeleteFileW(desktop_link().c_str());
   std::wstring un = L"\"" + job.dir + L"\\uninstall.exe\" --uninstall";
   uint64_t kb = 0;
@@ -423,11 +425,11 @@ void install(Job& job) {
   job.progress = 0.96;
 
   // "Abrir com" in Explorer: Cue registers itself (the same code it runs on every start)
-  job.say("adicionando ao abrir com");
+  job.say(tr(str::setup_open_with));
   run_hidden(exe, L"--register", 6000);
   SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
   job.progress = 1.0;
-  job.say("pronto");
+  job.say(tr(str::setup_done));
   job.result = 1;
   done();
 }
@@ -435,12 +437,12 @@ void install(Job& job) {
 // ── uninstall ───────────────────────────────────────────────────────
 void uninstall(Job& job) {
   HRESULT com = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-  job.say("fechando o Cue");
+  job.say(tr(str::setup_closing));
   close_running_cue(job);
   job.progress = 0.1;
   std::vector<std::wstring> files = read_manifest(job.dir);
   if (files.empty()) files = {L"Cue.exe", L"libmpv-2.dll"};  // a folder without a list: only what is surely ours
-  job.say("removendo arquivos");
+  job.say(tr(str::setup_removing));
   std::set<std::wstring> dirs;
   for (size_t i = 0; i < files.size(); ++i) {
     std::wstring p = job.dir + L"\\" + files[i];
@@ -455,7 +457,7 @@ void uninstall(Job& job) {
   for (auto& d : sorted) RemoveDirectoryW(d.c_str());  // only the empty ones go
   RemoveDirectoryW(job.dir.c_str());
 
-  job.say("limpando o registro");
+  job.say(tr(str::setup_cleaning));
   // shortcuts that point at this install
   DeleteFileW(start_menu_link().c_str());
   DeleteFileW(desktop_link().c_str());
@@ -481,12 +483,12 @@ void uninstall(Job& job) {
   SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
   job.progress = 0.9;
   if (!job.keep) {
-    job.say("apagando preferências");
+    job.say(tr(str::setup_deleting_prefs));
     std::error_code ec;
     fs::remove_all(fs::path(known_folder(FOLDERID_RoamingAppData)) / L"tinyoffice" / L"Cue", ec);
   }
   job.progress = 1.0;
-  job.say("pronto");
+  job.say(tr(str::setup_done));
   job.result = 1;
   if (SUCCEEDED(com)) CoUninitialize();
 }
@@ -549,7 +551,7 @@ void relaunch_elevated() {
   sei.nShow = SW_SHOWNORMAL;
   sei.hwnd = g->hwnd;
   if (ShellExecuteExW(&sei)) { DestroyWindow(g->hwnd); return; }
-  g->job.fail("essa pasta precisa de permissão de administrador. escolha outra pasta");
+  g->job.fail(tr(str::setup_needs_admin));
   g->view.error = g->job.error;
   g->view.set_stage(SetupStage::Failed, g->now());
 }
@@ -560,7 +562,7 @@ void pick_folder() {
   DWORD opts = 0;
   dlg->GetOptions(&opts);
   dlg->SetOptions(opts | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM);
-  dlg->SetTitle(L"Onde instalar o Cue");
+  dlg->SetTitle(widen(tr(str::setup_choose_folder)).c_str());
   if (SUCCEEDED(dlg->Show(g->hwnd))) {
     IShellItem* item = nullptr;
     if (SUCCEEDED(dlg->GetResult(&item))) {
@@ -787,6 +789,10 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
   }
   LocalFree(argv);
 
+  // the installer speaks the language Cue would: a choice saved in Cue's preferences (updates,
+  // reinstalls, the uninstaller), otherwise the first supported Windows display language
+  apply_ui_language(saved_language_pref(known_folder(FOLDERID_RoamingAppData) + L"\\tinyoffice\\Cue\\state.json"),
+                    windows_ui_languages());
   ui.job.self = self_path();
   ui.job.payload = read_footer(ui.job.self);
   if (!ui.job.payload.ok) want_uninstall = true;  // the plain uninstall.exe, double-clicked
@@ -851,7 +857,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
         fn(mon, 0, &mdpi, &dy);
     ui.dpi = mdpi;
     ui.s = scale_for(mdpi);
-    int cw = (int)(SetupView::kW * ui.s), ch = (int)(SetupView::kH * ui.s);
+    int cw = (int)(SetupView::art_w() * ui.s), ch = (int)(SetupView::kH * ui.s);
     int ww = cw + 2, wh = ch + 2;
     int x = mi.rcWork.left + (mi.rcWork.right - mi.rcWork.left - ww) / 2;
     int y = mi.rcWork.top + (mi.rcWork.bottom - mi.rcWork.top - wh) / 2;
@@ -875,8 +881,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     ui.view.set_size(cw, ch, ui.s);
     reduce_motion() = [] { BOOL anim = TRUE; SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, &anim, 0); return !anim; }();
 
-    const wchar_t* title = ui.job.mode == SetupMode::Uninstall ? L"Desinstalar o Cue" : L"Instalar o Cue";
-    ui.hwnd = CreateWindowExW(WS_EX_APPWINDOW, wc.lpszClassName, title, WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
+    const std::wstring title = widen(tr(ui.job.mode == SetupMode::Uninstall ? str::setup_title_uninstall : str::setup_title_install));
+    ui.hwnd = CreateWindowExW(WS_EX_APPWINDOW, wc.lpszClassName, title.c_str(), WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
                               x, y, ww, wh, nullptr, nullptr, inst, nullptr);
     if (!ui.hwnd) return 1;
     apply_frame(ui.hwnd);

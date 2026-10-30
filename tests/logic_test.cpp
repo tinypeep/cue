@@ -1,4 +1,5 @@
 // Behaviour checks for the portable core (run on any OS).
+#include "../src/core/i18n.h"
 #include <cassert>
 #include <cstdio>
 #include <filesystem>
@@ -14,6 +15,7 @@ static int fails = 0;
 static void run(PlayView& pv, double& t, double secs) { for (double k = 0; k < secs; k += 1/60.0) { t += 1/60.0; pv.tick(t, 1/60.0); } }
 
 int main() {
+  i18n::set_language(i18n::Lang::PtBR);  // these checks pin the Portuguese reference wording
   PlayView pv; int s = 2, W = 1280, H = 720;
   pv.in.dur = 3000; pv.in.time = 100;
   pv.resize(W, H, s); double t = 1; pv.reset(t);

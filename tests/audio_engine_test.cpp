@@ -1,4 +1,5 @@
-// Windows integration check against the actual shipped DLL. Compile with mpv.cpp.
+// Windows integration check against the actual shipped DLL. Compile with src/win/mpv.cpp and
+// src/core/i18n.cpp (engine errors are catalog keys).
 // Usage: audio_engine_test.exe DLL_DIRECTORY AUDIO_MP4 AUDIO_OGG VIDEO_MP4
 #ifdef _WIN32
 #include "../src/win/mpv.h"

@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <string>
+#include "../src/core/i18n.h"
 #include <vector>
 
 #include "../src/ui/gfx.h"
@@ -39,6 +40,8 @@ static void run(HomeView& hv, double& now, double secs) {
 }
 
 int main(int argc, char** argv) {
+  // CUE_LANG=en|es|fr|zh-Hans picks the interface language (Portuguese by default)
+  { i18n::Lang l = i18n::Lang::PtBR; if (const char* e = std::getenv("CUE_LANG")) i18n::parse_tag(e, l); i18n::set_language(l); }
   std::string out = argc > 1 ? argv[1] : "out";
   int s = argc > 2 ? std::atoi(argv[2]) : 2;
   int W = 480 * s, H = 270 * s;
@@ -48,7 +51,7 @@ int main(int argc, char** argv) {
                {"Episódio de exemplo.mkv", "31:09", 0.62},
                {"entrevista.mp4", "08:42", 0.3},
                {"filme.mov", "52:17", 0.44},
-               {"Paisagem ao entardecer (versão final revisada).mp4", "12:03", -1}});
+               {"Landscape at sunset (final revision).mp4", "12:03", -1}});
   Canvas c;
   double now = 10;
   run(hv, now, 0.1);

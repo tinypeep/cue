@@ -1,68 +1,38 @@
-# Cue 1.1.4 — fontes do motor de reprodução
+# Playback engine sources · build 1.1.4
 
-Este pacote contém os arquivos de fonte efetivamente usados na compilação
-local de libmpv-2.dll, suas dependências incorporadas, as receitas de build e
-os avisos de licença. Não contém mídias de exemplo nem dados pessoais.
+This package contains the sources actually used to build `libmpv-2.dll`, its incorporated dependencies, build recipes, and license notices. No sample media or personal data is included.
 
-## Compilação
+## Build
 
-Ambiente: Linux x86_64, GCC/MinGW-w64 POSIX (usado GCC 13), Python 3.12,
-GNU Make, pkgconf e NASM 2.16 ou posterior. As ferramentas Python usadas
-estão fixadas em requirements-build.txt. As ferramentas de compilação de
-uso geral não estão embutidas no pacote; obtenha-as de suas distribuições.
+Environment: Linux x86_64, GCC/MinGW-w64 POSIX (GCC 13 was used), Python 3.12, GNU Make, pkgconf, and NASM 2.16 or newer. Python build tools are pinned in `requirements-build.txt`; general-purpose build tools are not bundled.
 
-Em Ubuntu/Debian, os pacotes necessários incluem g++-mingw-w64-x86-64,
-mingw-w64-tools, make, nasm, pkgconf, python3 e python3-venv. Instale as
-ferramentas Python em um venv, ative-o, e execute:
+On Ubuntu/Debian, install `g++-mingw-w64-x86-64`, `mingw-w64-tools`, `make`, `nasm`, `pkgconf`, `python3`, and `python3-venv`. Create/activate a virtual environment, then run:
 
 ```sh
 python3 -m pip install -r requirements-build.txt
 bash build-all.sh
 ```
 
-As fontes são verificadas por SHA256 antes da extração. Nenhum download de
-fontes de bibliotecas é feito durante a compilação: os arquivos já estão em
-archives/. O resultado fica em output/libmpv-2.dll. Uma diferença de sistema,
-compilador ou ferramentas pode alterar o hash; não se promete reprodução
-bit a bit com ferramentas diferentes. As fontes e configurações correspondem
-ao binário identificado em binary-manifest.json.
+Sources in `archives/` are checked by SHA256 before extraction; no library source downloads occur during the build. Output: `output/libmpv-2.dll`. Toolchain differences may change the binary hash; bit-for-bit reproduction with different tools is not promised. Sources/configuration correspond to `binary-manifest.json`.
 
-## Configuração
+## Configuration
 
-- mpv em modo LGPL, sem cplayer e sem partes GPL-only.
-- FFmpeg sem GPL/nonfree: decodificadores, demuxers e filtros nativos;
-  encoder PNG/rawvideo para screenshots; dav1d para AV1 e zlib.
-- libass, FreeType, HarfBuzz e FriBidi para legendas e fontes.
-- Renderização D3D11, Shaderc, SPIRV-Cross e libplacebo; D3D11VA e WASAPI.
-- As bibliotecas são incorporadas estaticamente à DLL substituível.
-- Não são incluídos backends opcionais de DVD/Blu-ray, VapourSynth, Vulkan,
-  Lua/JavaScript ou bibliotecas externas de codificação de vídeo.
+- mpv in LGPL mode, without cplayer or GPL-only parts.
+- FFmpeg without GPL/nonfree: native decoders, demuxers, filters, PNG/rawvideo screenshot encoders, dav1d for AV1, and zlib.
+- libass, FreeType, HarfBuzz, and FriBidi for subtitles/fonts.
+- D3D11 rendering, Shaderc, SPIRV-Cross, libplacebo, D3D11VA, and WASAPI.
+- Libraries statically incorporated into the replaceable DLL.
+- No optional DVD/Blu-ray backends, VapourSynth, Vulkan, Lua/JavaScript, or external video encoders.
 
-Alguns nomes de pkg-config foram criados pelas receitas para usar bibliotecas
-estáticas; zlib usa uma cópia libz.a de libzs.a. Nenhum patch funcional foi
-aplicado ao código de reprodução. As ligações de diretórios das dependências
-de Shaderc e fast_float são reconstruídas pelas receitas.
+Recipes create some pkg-config names for static linking; zlib uses a `libz.a` copy of `libzs.a`. No functional playback patches were applied. Shaderc and FastFloat dependency directory links are reconstructed by the recipes.
 
-## Licenças
+## Licenses and distribution
 
-A distribuição combinada do motor é oferecida sob LGPL-3.0-or-later,
-selecionando versões posteriores quando as dependências LGPL permitem,
-para compatibilidade com componentes Apache-2.0. As licenças individuais
-permanecem preservadas em notices/ e nos arquivos de fonte originais.
-FreeType é usado sob FreeType License (FTL). FastFloat é usado sob MIT.
-GCC/libstdc++ e MinGW têm suas respectivas permissões/exceções de runtime;
-as ferramentas do Windows são bibliotecas de sistema e não são fornecidas.
+The combined engine uses LGPL-3.0-or-later, selecting permitted later LGPL versions for Apache-2.0 compatibility. Individual notices remain in `notices/` and original sources. FreeType uses FTL; FastFloat uses MIT. GCC/libstdc++ and MinGW retain their runtime permissions/exceptions. Windows system libraries are not supplied.
 
 Portions of this software are copyright © The FreeType Project
 (www.freetype.org). All rights reserved.
 
-## Publicação
+Publish this source ZIP beside the Windows package of the **same version** and Cue's source code. Preserve archives, manifests, notices, and clear source access; do not substitute a moving “latest” source link. Users may replace the DLL with an API-compatible modified build.
 
-Publique este ZIP ao lado do pacote Windows da MESMA versão e do código do
-Cue. Indique o download das fontes do motor junto ao download do programa.
-Preserve os ZIPs e o manifesto; não substitua por um link móvel "latest".
-Os avisos de notices/ acompanham também a distribuição Windows. Usuários
-podem substituir a DLL por uma versão modificada compatível com a API.
-
-Este pacote resolve a entrega das fontes do motor compilado aqui; não
-comprova a autoria da fonte Cue Omni ou dos desenhos do aplicativo.
+This package covers the corresponding engine sources, not the authorship of Cue Omni or project artwork.

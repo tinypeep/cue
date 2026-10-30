@@ -13,7 +13,10 @@ enum class SetupStage { Ask, Working, Done, Failed };
 enum class SetupAct { None, Primary, Secondary, ToggleDesktop, ToggleLaunch, ToggleKeep, ChangeDir, Min, Close };
 
 struct SetupView {
-  static constexpr int kW = 392, kH = 236;  // art px
+  static constexpr int kBaseW = 392, kH = 236;  // art px
+  // The window is 392 px of art wide, wider only when the current language's words need it
+  // (the eyes' panel keeps its size; the content column grows). Fixed for the whole run.
+  static int art_w();
   int w = 0, h = 0;
   double s = 2;
   SetupMode mode = SetupMode::Install;

@@ -7,6 +7,7 @@
 #include <sstream>
 
 #include "json.h"
+#include "i18n.h"
 
 std::string normalize_path(const std::string& p) {
   std::string o = p;
@@ -78,6 +79,7 @@ bool SettingsStore::parse(const std::string& text) {
   slang = pf["slang"].str();
   alang = pf["alang"].str();
   onboarded = pf["onboarded"].boolean(false);
+  language = i18n::normalize_pref(pf["language"].str(i18n::kAuto));  // missing or unknown: follow Windows
   const JVal& up = ss["update"];
   update_checked = (int64_t)up["checked"].num(0);
   update_available = up["available"].str();
@@ -155,6 +157,7 @@ bool SettingsStore::save(const std::filesystem::path& path) const {
   o += std::string("    \"controls_free\": ") + (controls_free ? "true" : "false") + ",\n";
   o += std::string("    \"loop\": ") + (loop ? "true" : "false") + ",\n";
   o += std::string("    \"onboarded\": ") + (onboarded ? "true" : "false") + ",\n";
+  o += "    \"language\": " + json_quote(i18n::normalize_pref(language)) + ",\n";
   o += "    \"slang\": " + json_quote(slang) + ", \"alang\": " + json_quote(alang) + "\n  },\n";
   // session
   o += "  \"session\": {\n";

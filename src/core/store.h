@@ -27,6 +27,10 @@ struct SettingsStore {
   bool resume = true;        // continue where a file was left
   std::string slang, alang;  // last subtitle / audio language picked by hand
   bool onboarded = false;     // the first-run welcome was seen (or skipped)
+  // interface language: "auto" follows Windows' display languages at every start; a tag
+  // ("pt-BR", "en", "es", "fr", "zh-Hans") is the person's own choice and stays until changed.
+  // Independent of slang/alang (subtitle and audio tracks).
+  std::string language = "auto";
   // updates (GitHub releases): when the last check ran (unix seconds), what it found,
   // and a version the person chose to skip
   int64_t update_checked = 0;

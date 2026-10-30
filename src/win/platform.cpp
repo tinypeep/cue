@@ -6,6 +6,8 @@
 
 #include <cmath>
 
+#include "../core/i18n.h"
+
 std::wstring widen(const std::string& s) {
   if (s.empty()) return {};
   int n = MultiByteToWideChar(CP_UTF8, 0, s.data(), (int)s.size(), nullptr, 0);
@@ -56,14 +58,18 @@ std::vector<std::string> open_file_dialog(HWND owner, DialogKind kind) {
   std::vector<std::string> out;
   IFileOpenDialog* dlg = nullptr;
   if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dlg)))) return out;
+  // the dialog itself (buttons, places, columns) is Windows' own, in Windows' language;
+  // only the title and the type names below are Cue's
+  const std::wstring media = widen(tr(str::win_filter_media)), audio = widen(tr(str::win_filter_audio)),
+                     all = widen(tr(str::win_filter_all)), subtitles = widen(tr(str::win_filter_subtitles));
   COMDLG_FILTERSPEC video[] = {
-      {L"Vídeos e áudios", L"*.mkv;*.mp4;*.m4v;*.mov;*.avi;*.webm;*.wmv;*.flv;*.ts;*.m2ts;*.mts;*.mpg;*.mpeg;*.ogv;*.3gp;*.vob;*.ogg;*.oga;*.opus;*.mp3;*.m4a;*.aac;*.wav;*.flac;*.aif;*.aiff;*.wma;*.mka"},
-      {L"Áudios", L"*.mp4;*.ogg;*.oga;*.opus;*.mp3;*.m4a;*.aac;*.wav;*.flac;*.aif;*.aiff;*.wma;*.mka"},
-      {L"Todos os arquivos", L"*.*"}};
-  COMDLG_FILTERSPEC subs[] = {{L"Legendas", L"*.srt;*.vtt;*.ass;*.ssa;*.sub;*.sup;*.idx"}, {L"Todos os arquivos", L"*.*"}};
+      {media.c_str(), L"*.mkv;*.mp4;*.m4v;*.mov;*.avi;*.webm;*.wmv;*.flv;*.ts;*.m2ts;*.mts;*.mpg;*.mpeg;*.ogv;*.3gp;*.vob;*.ogg;*.oga;*.opus;*.mp3;*.m4a;*.aac;*.wav;*.flac;*.aif;*.aiff;*.wma;*.mka"},
+      {audio.c_str(), L"*.mp4;*.ogg;*.oga;*.opus;*.mp3;*.m4a;*.aac;*.wav;*.flac;*.aif;*.aiff;*.wma;*.mka"},
+      {all.c_str(), L"*.*"}};
+  COMDLG_FILTERSPEC subs[] = {{subtitles.c_str(), L"*.srt;*.vtt;*.ass;*.ssa;*.sub;*.sup;*.idx"}, {all.c_str(), L"*.*"}};
   if (kind == DialogKind::Video) dlg->SetFileTypes(3, video);
   else dlg->SetFileTypes(2, subs);
-  dlg->SetTitle(kind == DialogKind::Video ? L"abrir arquivo" : L"adicionar legenda");
+  dlg->SetTitle(widen(tr(kind == DialogKind::Video ? str::win_open_title : str::win_subtitle_title)).c_str());
   if (SUCCEEDED(dlg->Show(owner))) {
     IShellItem* item = nullptr;
     if (SUCCEEDED(dlg->GetResult(&item))) {
@@ -147,7 +153,8 @@ bool register_open_with(std::string* err) {
   GetModuleFileNameW(nullptr, exe, (DWORD)(sizeof exe / sizeof exe[0]));
   std::wstring cmd = L"\"" + std::wstring(exe) + L"\" \"%1\"";
   const wchar_t* prog = L"Software\\Classes\\tinyoffice.Cue.video";
-  bool ok = reg_set(HKEY_CURRENT_USER, prog, nullptr, L"Mídia do Cue") &&
+  // the file type's name in Explorer, in the interface language of the last registration
+  bool ok = reg_set(HKEY_CURRENT_USER, prog, nullptr, widen(tr(str::win_progid))) &&
             reg_set(HKEY_CURRENT_USER, std::wstring(prog) + L"\\Application", L"ApplicationName", L"Cue") &&
             reg_set(HKEY_CURRENT_USER, std::wstring(prog) + L"\\DefaultIcon", nullptr, std::wstring(exe) + L",0") &&
             reg_set(HKEY_CURRENT_USER, std::wstring(prog) + L"\\shell\\open\\command", nullptr, cmd);
@@ -190,7 +197,7 @@ bool register_open_with(std::string* err) {
   }
   if (ok) ok = reg_set(HKEY_CURRENT_USER, app, L"CueMediaTypes", L"video-audio-1");
   SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
-  if (!ok && err) *err = "não deu pra registrar";
+  if (!ok && err) *err = "register failed";  // log only
   return ok;
 }
 
@@ -217,6 +224,7 @@ void refresh_open_with() {
   if (!len || len >= sizeof exe / sizeof exe[0]) return;
   const std::wstring command = L"\"" + std::wstring(exe) + L"\" \"%1\"";
   if (read(app, L"FriendlyAppName") == L"Cue" &&
+      read(prog, nullptr) == widen(tr(str::win_progid)) &&
       read(app, L"CueMediaTypes") == L"video-audio-1" &&
       read(std::wstring(app) + L"\\shell\\open\\command", nullptr) == command &&
       read(std::wstring(prog) + L"\\Application", L"ApplicationName") == L"Cue" &&

@@ -11,9 +11,13 @@ cl /nologo /std:c++20 /O2 /GL /Gy /Gw /EHsc /utf-8 /W4 /wd4100 /DUNICODE /D_UNIC
 copy /y assets\fonts\*.ttf build\Cue\fonts\ >nul
 if not exist build\Cue\licenses mkdir build\Cue\licenses
 copy /y assets\fonts\*.txt build\Cue\licenses\ >nul
+copy /y third_party\fusion-pixel-font\OFL.txt build\Cue\licenses\FusionPixel-OFL.txt >nul
 copy /y docs\LICENSES.md build\Cue\ >nul
+copy /y docs\ASSETS.md build\Cue\ >nul
+if not exist build\Cue\sources mkdir build\Cue\sources
+copy /y res\sources-README.txt build\Cue\sources\README.txt >nul
 copy /y LICENSE build\Cue\ >nul
 copy /y COPYRIGHT.md build\Cue\ >nul
-xcopy /y /e /i third_party build\Cue\third_party >nul
-if not exist build\Cue\libmpv-2.dll echo Falta libmpv-2.dll em build\Cue. Rode tools\fetch-libmpv.ps1
+xcopy /y /e /i third_party\libmpv build\Cue\third_party\libmpv >nul
+if not exist build\Cue\libmpv-2.dll echo Missing libmpv-2.dll in build\Cue. Run tools\fetch-libmpv.ps1
 echo ok: build\Cue\Cue.exe

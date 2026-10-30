@@ -91,7 +91,12 @@ int text(Canvas& c, std::string_view utf8, int x, int y, double s, Rgb col, doub
 // Cuts long names in the middle and keeps the extension: "Pôr do sol em Rio Pr…se).mp4"
 std::string fit_middle(std::string_view name, int max_w, double s);
 std::string fit_end(std::string_view text, int max_w, double s);
+// Characters the Omni lacks (Chinese, kana, Greek, Cyrillic...) are drawn from a pixel fallback
+// on the same 12-row grid; anything neither has is skipped, never drawn as a box.
 bool has_glyph(uint32_t cp);
+// Word wrap for the pixel font: breaks at spaces, and between ideographs (never before a
+// closing mark such as ，。：）or after an opening one), so Chinese wraps without spaces.
+std::vector<std::string> wrap_lines(std::string_view text, int max_w, double s);
 
 // UTF-8 helpers
 uint32_t next_cp(std::string_view s, size_t& i);

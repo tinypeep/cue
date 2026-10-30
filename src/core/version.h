@@ -6,4 +6,4 @@
 #define CUE_VERSION "1.0"
 #define CUE_VERSION_SHORT "1.0"
 // Releases are published on GitHub. The update check reads the latest release of this repo.
-#define CUE_UPDATE_REPO "gabccin/cue"
+#define CUE_UPDATE_REPO "tinypeep/cue"

@@ -180,6 +180,8 @@ class App {
   std::wstring last_frame_;  // the frame saved last, for the toast's folder button
   bool eof_ = false;         // paused on the last frame (play starts over)
   void set_ui_scale(int v);
+  void apply_language(bool relayout);  // resolve and apply the interface language
+  void set_language_pref(int lang);    // -1 automatic (follow Windows), else i18n::Lang
   // updates from GitHub Releases: checked every 15 days in the background, or when asked
   enum class Upd { Idle, Checking, Available, Downloading, Launching };
   Upd upd_ = Upd::Idle;

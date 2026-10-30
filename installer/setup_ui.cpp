@@ -3,14 +3,47 @@
 #include <algorithm>
 #include <cmath>
 
+#include "../src/core/i18n.h"
+
 namespace {
 // Two zones: a quiet panel on the left where the eyes live, the content on the right
 // with generous margins. Art px; rows are spaced on a 4 px rhythm.
 constexpr int kPanel = 168;              // left panel width
 constexpr int kX0 = kPanel + 28;         // content column
-constexpr int kCW = SetupView::kW - kX0 - 28;
 constexpr int kTitleY = 40, kVersionY = 70, kBodyY = 102, kButtonsY = SetupView::kH - 28 - 18;
 }
+
+// The widest fixed text of the current language, in art px, as it sits in the content column.
+static int content_need() {
+  auto w = [](str::Id id) { return text_w(tr(id), 1); };
+  int need = 168;  // the original column
+  for (str::Id id : {str::setup_keep_prefs, str::setup_desktop, str::setup_launch}) need = std::max(need, w(id) + 13);
+  for (str::Id id : {str::setup_remove_question, str::setup_frames_kept, str::setup_ready_update, str::setup_removed,
+                     str::setup_prefs_kept, str::setup_bye, str::setup_installed, str::setup_updated, str::setup_start_menu,
+                     str::setup_failed, str::setup_waiting, str::setup_preparing, str::setup_opening,
+                     str::setup_registering, str::setup_open_with, str::setup_closing, str::setup_removing,
+                     str::setup_cleaning, str::setup_deleting_prefs})
+    need = std::max(need, w(id));
+  for (str::Id id : {str::setup_uninstalling, str::setup_installing, str::setup_updating})
+    need = std::max(need, text_w(i18n::format(id, {{"percent", "100"}}), 1));
+  need = std::max(need, text_w(tr(str::setup_folder), 1) + text_w(tr(str::setup_change), 1) + 20);
+  // the two buttons of each stage side by side
+  auto bw = [](str::Id id, bool primary) { return text_w(tr(id), 1) + (primary ? 9 + 28 : 24); };
+  static const str::Id pairs[][2] = {{str::setup_install, str::setup_cancel}, {str::setup_reinstall, str::setup_cancel},
+                                      {str::setup_update, str::setup_cancel},  {str::setup_uninstall, str::setup_cancel},
+                                      {str::setup_open_cue, str::setup_close}, {str::setup_retry, str::setup_close}};
+  for (auto& pr : pairs) need = std::max(need, bw(pr[0], true) + 8 + bw(pr[1], false));
+  return need;
+}
+
+int SetupView::art_w() {
+  // measured once per language (the render asks every frame)
+  static uint32_t rev = 0;
+  static int w = kBaseW;
+  if (rev != i18n::revision()) { rev = i18n::revision(); w = std::clamp(kX0 + content_need() + 28, kBaseW, 600); }
+  return w;
+}
+static int content_w() { return SetupView::art_w() - kX0 - 28; }
 
 void SetupView::set_size(int w_, int h_, double s_) {
   w = w_;
@@ -21,6 +54,7 @@ void SetupView::set_size(int w_, int h_, double s_) {
 
 void SetupView::layout() {
   auto R = [&](double x, double y, double ww, double hh) { return Rect(x * s, y * s, ww * s, hh * s); };
+  const int kW = art_w(), kCW = content_w();
   r_[kMin] = R(kW - 44, 8, 16, 16);
   r_[kClose] = R(kW - 24, 8, 16, 16);
   int pw = text_w(primary_label(), 1) + 9 + 28;
@@ -39,20 +73,20 @@ void SetupView::layout() {
 std::string SetupView::primary_label() const {
   switch (stage) {
     case SetupStage::Ask:
-      if (mode == SetupMode::Upgrade && old_version.empty()) return "reinstalar";
-      return mode == SetupMode::Uninstall ? "desinstalar" : mode == SetupMode::Install ? "instalar" : "atualizar";
+      if (mode == SetupMode::Upgrade && old_version.empty()) return tr(str::setup_reinstall);
+      return tr(mode == SetupMode::Uninstall ? str::setup_uninstall : mode == SetupMode::Install ? str::setup_install : str::setup_update);
     case SetupStage::Working: return "";
-    case SetupStage::Done: return mode == SetupMode::Uninstall ? "fechar" : "abrir o Cue";
-    case SetupStage::Failed: return "tentar de novo";
+    case SetupStage::Done: return tr(mode == SetupMode::Uninstall ? str::setup_close : str::setup_open_cue);
+    case SetupStage::Failed: return tr(str::setup_retry);
   }
   return "";
 }
 
 std::string SetupView::secondary_label() const {
   switch (stage) {
-    case SetupStage::Ask: return "cancelar";
-    case SetupStage::Done: return mode == SetupMode::Uninstall ? "" : "fechar";
-    case SetupStage::Failed: return "fechar";
+    case SetupStage::Ask: return tr(str::setup_cancel);
+    case SetupStage::Done: return mode == SetupMode::Uninstall ? "" : tr(str::setup_close);
+    case SetupStage::Failed: return tr(str::setup_close);
     default: return "";
   }
 }
@@ -179,7 +213,7 @@ bool SetupView::tick(double now, double dt) {
   // the eyes: on the button while asking, on the bar while working, on the cursor when it comes near
   bool near = mx_ >= 0;
   if (stage == SetupStage::Working) {
-    double bx = (kX0 + kCW * bar_.x) * s, by = (kBodyY + 24) * s;
+    double bx = (kX0 + content_w() * bar_.x) * s, by = (kBodyY + 24) * s;
     face.look_at(bx, by, 0.9);
     moving = true;
   } else if (near) face.look_at(mx_, my_, 0.6);
@@ -233,6 +267,7 @@ void SetupView::render(Canvas& c, double now) {
   int lift = (int)std::lround(content_.x * s);
   double ca = intro * ease_out(clamp01((now - stage_t0_) / 0.22 + (stage == SetupStage::Ask ? 1 : 0)));
   auto X = [&](double ax) { return (int)std::lround(ax * s); };
+  const int kCW = content_w();
 
   // the eyes' panel: one step lighter than the page, full height
   c.fill(0, 0, X(kPanel), h, p.band);
@@ -267,34 +302,34 @@ void SetupView::render(Canvas& c, double now) {
   switch (stage) {
     case SetupStage::Ask:
       if (mode == SetupMode::Uninstall) {
-        line("remover o Cue do computador?", kBodyY, p.fg);
+        line(tr(str::setup_remove_question), kBodyY, p.fg);
         Rect r = r_[kKeep];
         r.y += lift;
-        draw_check(c, r, keep, "manter preferências e recentes", ease_out(hov_[kKeep]), ca);
-        line("frames salvos não são apagados", kBodyY + 46, p.faint);
+        draw_check(c, r, keep, tr(str::setup_keep_prefs), ease_out(hov_[kKeep]), ca);
+        line(tr(str::setup_frames_kept), kBodyY + 46, p.faint);
       } else if (mode == SetupMode::Update) {
-        line("pronto para atualizar", kBodyY, p.fg);
+        line(tr(str::setup_ready_update), kBodyY, p.fg);
       } else {
         Rect r1 = r_[kDesktop], r2 = r_[kLaunch];
         r1.y += lift; r2.y += lift;
-        draw_check(c, r1, desktop, "atalho na área de trabalho", ease_out(hov_[kDesktop]), ca);
-        draw_check(c, r2, launch, "abrir o Cue ao terminar", ease_out(hov_[kLaunch]), ca);
+        draw_check(c, r1, desktop, tr(str::setup_desktop), ease_out(hov_[kDesktop]), ca);
+        draw_check(c, r2, launch, tr(str::setup_launch), ease_out(hov_[kLaunch]), ca);
         double hv = mode == SetupMode::Install ? ease_out(hov_[kDir]) : 0.0;
         Rect rd = r_[kDir];
         rd.y += lift;
         if (hv > 0) c.cornered(rd, (int)s, p.hover, hv * ca);
-        text(c, "pasta", rd.x + X(5), rd.y + X(2), s, p.faint, ca);
+        text(c, tr(str::setup_folder), rd.x + X(5), rd.y + X(2), s, p.faint, ca);
         if (mode == SetupMode::Install) {
-          std::string alt = "alterar";
+          std::string alt = tr(str::setup_change);
           text(c, alt, rd.r() - X(5) - text_w(alt, s), rd.y + X(2), s, mix(p.faint, p.fg, hv), ca);
         }
         text(c, fit_middle(dir, rd.w - X(10), s), rd.x + X(5), rd.y + X(15), s, mix(p.dim, p.fg, hv), ca);
       }
       break;
     case SetupStage::Working: {
-      std::string head = mode == SetupMode::Uninstall ? "desinstalando" : mode == SetupMode::Install ? "instalando" : "atualizando";
+      str::Id head = mode == SetupMode::Uninstall ? str::setup_uninstalling : mode == SetupMode::Install ? str::setup_installing : str::setup_updating;
       int pct = (int)std::lround(std::clamp(bar_.x, 0.0, 1.0) * 100);
-      line(head + " · " + std::to_string(pct) + "%", kBodyY, p.fg);
+      line(i18n::format(head, {{"percent", std::to_string(pct)}}), kBodyY, p.fg);
       // the bar: blocks of 4 art px with a 1 px gap; the leading block breathes
       int bx = X(kX0), by = X(kBodyY + 20) + lift, bw = X(kCW), bh = X(8);
       int blocks = kCW / 5;
@@ -314,27 +349,20 @@ void SetupView::render(Canvas& c, double now) {
     }
     case SetupStage::Done:
       if (mode == SetupMode::Uninstall) {
-        line("o Cue foi removido", kBodyY, p.fg);
-        line(keep ? "preferências guardadas" : "até a próxima", kBodyY + 18, p.faint);
+        line(tr(str::setup_removed), kBodyY, p.fg);
+        line(tr(keep ? str::setup_prefs_kept : str::setup_bye), kBodyY + 18, p.faint);
       } else {
-        line(mode == SetupMode::Install ? "pronto, o Cue está instalado" : "pronto, o Cue está atualizado", kBodyY, p.fg);
-        line("ele está no menu iniciar", kBodyY + 18, p.faint);
+        line(tr(mode == SetupMode::Install ? str::setup_installed : str::setup_updated), kBodyY, p.fg);
+        line(tr(str::setup_start_menu), kBodyY + 18, p.faint);
       }
       break;
     case SetupStage::Failed: {
-      line("não deu certo", kBodyY, p.fg);
-      // the reason, wrapped on two lines at most
-      std::string rest = error, l1, l2;
-      std::string word;
-      for (size_t i = 0; i <= rest.size(); ++i) {
-        char ch = i < rest.size() ? rest[i] : ' ';
-        if (ch != ' ') { word += ch; continue; }
-        std::string& target = l2.empty() && text_w(l1 + " " + word, 1) <= kCW ? l1 : l2;
-        target = target.empty() ? word : target + " " + word;
-        word.clear();
-      }
-      line(l1, kBodyY + 18, p.dim);
-      if (!l2.empty()) line(l2, kBodyY + 32, p.dim);
+      line(tr(str::setup_failed), kBodyY, p.fg);
+      // the reason, wrapped on three lines at most (between words, or between ideographs)
+      auto lines = wrap_lines(error, X(kCW), s);
+      const char* gap = i18n::language() == i18n::Lang::ZhHans ? "" : " ";  // Chinese wraps without spaces
+      for (size_t i = 3; i < lines.size(); ++i) lines[2] += gap + lines[i];  // the rest ends with "…"
+      for (size_t i = 0; i < lines.size() && i < 3; ++i) line(lines[i], kBodyY + 18 + 14 * i, p.dim);
       break;
     }
   }

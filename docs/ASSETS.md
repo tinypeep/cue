@@ -1,36 +1,25 @@
-# Origem e licenças dos elementos visuais
+# Visual assets: origin and licenses
 
-Gabriel Benzoni informou que a fonte pixelada Cue Omni e os SVGs/glifos/sprites
-do projeto Omni foram criados pelo Claude para seu projeto. Este registro se
-baseia nessa declaração de criação; não representa uma perícia de originalidade.
-A utilização de IA, por si só, não é tratada como indício de infração.
+Gabriel Benzoni states that Cue Omni and the custom Omni SVGs, glyphs, and sprites were created with Claude for this project. This records the author's declaration, not an independent originality assessment. AI use alone is not treated as evidence of infringement; licenses cover rights the distributor can grant and do not override pre-existing third-party rights. The supplied review identified no concrete evidence of prohibited copying.
 
-- Código, SVGs, glifos e sprites próprios do projeto: GPL-3.0-or-later,
-  acompanhando a licença do código do Cue.
-- Fonte Cue Omni: SIL Open Font License 1.1, texto em assets/fonts/CueOmni-OFL.txt
-  (licenses/CueOmni-OFL.txt no pacote Windows). Nenhum nome de fonte foi reservado.
-- Cue Clean/Inter e Cue Readable/Atkinson: mantidas sob suas licenças OFL,
-  com copyright e atribuições originais.
+| Asset | License / provenance |
+|---|---|
+| Custom code, SVGs, glyphs, sprites | GPL-3.0-or-later |
+| Cue Omni | SIL OFL 1.1; no Reserved Font Name; `assets/fonts/CueOmni-OFL.txt` |
+| Cue Clean / Inter | Original SIL OFL 1.1 and attribution preserved |
+| Cue Readable / Atkinson Hyperlegible | Original SIL OFL 1.1 and attribution preserved |
+| Fusion Pixel fallback glyphs | Fusion Pixel Font 10px (zh_hans), 2024.05.12, Copyright (c) 2022 TakWolf, SIL OFL 1.1; Reserved Font Name “Fusion Pixel” |
 
-Os contornos, a família e a aparência de Cue Omni foram preservados; somente
-os metadados de copyright/licença e o texto da licença foram acrescentados.
-As licenças concedem os direitos que o distribuidor pode conceder, sem
-substituir eventuais direitos de terceiros sobre materiais preexistentes.
-A revisão não identificou evidência concreta de cópia proibida desses assets.
+Cue Omni's outlines, family, and appearance were preserved when copyright/license metadata and the license text were added. Font notices are copied to `licenses/` in the Windows package.
 
-O ícone do aplicativo em res/cue.ico foi fornecido pelo usuário para a versão
-1.1.5. Suas sete resoluções originais foram preservadas, seguindo a licença
-dos assets próprios do projeto.
+## Supplied artwork
 
-Os seis ícones de ações em assets/icons/ foram enviados pelo usuário para
-a versão 1.1.7: salvar frame, retorno, informações, abrir arquivo, fechar
-vídeo e sobre o Cue. Os SVGs originais foram preservados; a grade compilada
-é gerada por tools/gen_action_icons.py, sem suavização ou dependências no
-aplicativo. Seguem a licença dos assets próprios do projeto.
+- `res/cue.ico`: supplied by the author for 1.1.5; all seven resolutions preserved.
+- Six action SVGs in `assets/icons/`: supplied for 1.1.7 (save frame, back, information, open, close video, About). Originals are preserved; `tools/gen_action_icons.py` compiles the pixel grid without runtime SVG dependencies.
+- `assets/icons/skip-15s-sheet.svg`: supplied for 1.1.8; retained after compact icons returned in 1.1.9.
 
-A sheet de ícones de salto de 15s foi fornecida pelo usuário na versão
-1.1.8 e está preservada em assets/icons/skip-15s-sheet.svg. O feedback de
-frame salvo é sintetizado no código, sem gravação de terceiros.
+These assets follow the custom project asset license. The saved-frame sound is synthesized in code, without a third-party recording.
 
-A versão 1.1.9 restaura os ícones compactos anteriores de voltar/avançar
-15s; a sheet fornecida na 1.1.8 permanece arquivada no código.
+## Language glyphs
+
+`tools/gen_fallback_glyphs.py` converts a subset of Fusion Pixel Font into a pixel table for characters absent from Omni. Source and OFL text remain in `third_party/fusion-pixel-font/`; the Windows package includes `licenses/FusionPixel-OFL.txt`. The compiled table is not distributed as a font named “Fusion Pixel”. Existing Omni glyphs are unchanged. `¿`, `¡`, nonbreaking spaces, and the 7×7 language globe were drawn in the project's visual grammar and follow the custom asset license.

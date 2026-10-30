@@ -1,5 +1,6 @@
 #include "licenses.h"
 #include "platform.h"
+#include "../core/i18n.h"
 #include <dwmapi.h>
 #include <richedit.h>
 #include <algorithm>
@@ -11,7 +12,10 @@
 
 namespace {
 HWND window = nullptr;
-struct Document { std::wstring title; std::filesystem::path path; };
+// A document keeps its own file and language; Cue only names it (key) in the interface language.
+// The license texts themselves stay as written: legal documents are not translated.
+struct Document { std::wstring title; std::filesystem::path path; str::Id key = str::kCount; };
+std::wstring doc_title(const Document& d) { return d.key < str::kCount ? widen(tr(d.key)) : d.title; }
 struct View {
   HWND combo = nullptr, text = nullptr, sources = nullptr, close = nullptr;
   HFONT font = nullptr;
@@ -32,7 +36,7 @@ void display(View& v) {
     in.seekg(0,std::ios::end); auto size=in.tellg();
     if (size>=0 && size<=16*1024*1024) { in.seekg(0);bytes.assign(std::istreambuf_iterator<char>(in),{}); }
   }
-  std::wstring value = bytes.empty() ? L"Não foi possível ler este documento. Confira se a pasta do Cue foi extraída inteira." : widen(bytes);
+  std::wstring value = bytes.empty() ? widen(tr(str::lic_read_failed)) : widen(bytes);
   std::wstring lines;
   lines.reserve(value.size());
   for (size_t i=0; i<value.size(); ++i) {
@@ -65,21 +69,23 @@ LRESULT CALLBACK proc(HWND w,UINT message,WPARAM wp,LPARAM lp) {
       v->font=CreateFontW(-v->scale(16),0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
       v->combo=CreateWindowExW(0,L"COMBOBOX",nullptr,WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST|WS_VSCROLL,0,0,0,0,w,(HMENU)101,GetModuleHandleW(nullptr),nullptr);
       v->text=CreateWindowExW(0,MSFTEDIT_CLASS,nullptr,WS_CHILD|WS_VISIBLE|WS_TABSTOP|WS_VSCROLL|ES_MULTILINE|ES_READONLY|ES_AUTOVSCROLL,0,0,0,0,w,(HMENU)102,GetModuleHandleW(nullptr),nullptr);
-      v->sources=CreateWindowExW(0,L"BUTTON",L"códigos-fonte",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_PUSHBUTTON,0,0,0,0,w,(HMENU)103,GetModuleHandleW(nullptr),nullptr);
-      v->close=CreateWindowExW(0,L"BUTTON",L"fechar",WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_PUSHBUTTON,0,0,0,0,w,(HMENU)IDCANCEL,GetModuleHandleW(nullptr),nullptr);
+      v->sources=CreateWindowExW(0,L"BUTTON",widen(tr(str::lic_sources)).c_str(),WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_PUSHBUTTON,0,0,0,0,w,(HMENU)103,GetModuleHandleW(nullptr),nullptr);
+      v->close=CreateWindowExW(0,L"BUTTON",widen(tr(str::lic_close)).c_str(),WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_PUSHBUTTON,0,0,0,0,w,(HMENU)IDCANCEL,GetModuleHandleW(nullptr),nullptr);
       for(HWND child:{v->combo,v->text,v->sources,v->close})SendMessageW(child,WM_SETFONT,(WPARAM)v->font,TRUE);
       SendMessageW(v->text,EM_EXLIMITTEXT,0,16*1024*1024);
       SendMessageW(v->text,EM_SETBKGNDCOLOR,0,RGB(14,14,14));
       CHARFORMAT2W cf{};cf.cbSize=sizeof cf;cf.dwMask=CFM_COLOR|CFM_FACE|CFM_SIZE;cf.crTextColor=RGB(225,225,225);cf.yHeight=240;
       lstrcpyW(cf.szFaceName,L"Segoe UI");SendMessageW(v->text,EM_SETCHARFORMAT,0,(LPARAM)&cf);
-      auto add=[&](std::wstring name,std::filesystem::path path){v->docs.push_back({std::move(name),std::move(path)});};
-      add(L"Resumo e créditos",v->base/L"third_party/libmpv/LEIA-ME.txt");
-      add(L"Copyright e escopo",v->base/L"COPYRIGHT.md");
-      add(L"Licenças e componentes",v->base/L"LICENSES.md");
+      auto add=[&](std::wstring name,std::filesystem::path path,str::Id key=str::kCount){v->docs.push_back({std::move(name),std::move(path),key});};
+      add(L"",v->base/L"third_party/libmpv/README.txt",str::lic_summary);
+      add(L"",v->base/L"COPYRIGHT.md",str::lic_copyright);
+      add(L"",v->base/L"LICENSES.md",str::lic_components);
       add(L"Cue · GPLv3",v->base/L"LICENSE");
-      add(L"Autoria e licenças dos assets",v->base/L"ASSETS.md");
-      add(L"Fontes e compilação do motor",v->base/L"third_party/libmpv/SOURCES.md");
+      add(L"",v->base/L"ASSETS.md",str::lic_assets);
+      add(L"",v->base/L"third_party/libmpv/SOURCES.md",str::lic_engine);
       for(const auto* name:{L"CueOmni",L"CueClean",L"CueReadable"})add(std::wstring(name)+L" · OFL",v->base/L"licenses"/(std::wstring(name)+L"-OFL.txt"));
+      // the pixel glyphs for Chinese and other scripts (Fusion Pixel Font, converted subset)
+      add(L"Fusion Pixel Font · OFL",v->base/L"licenses"/L"FusionPixel-OFL.txt");
       auto notices=v->base/L"third_party/libmpv/notices";
       std::vector<Document> third;
       std::error_code ec;
@@ -93,7 +99,7 @@ LRESULT CALLBACK proc(HWND w,UINT message,WPARAM wp,LPARAM lp) {
       }
       std::sort(third.begin(),third.end(),[](const Document& a,const Document& b){return a.title<b.title;});
       v->docs.insert(v->docs.end(),third.begin(),third.end());
-      for(const auto& doc:v->docs)SendMessageW(v->combo,CB_ADDSTRING,0,(LPARAM)doc.title.c_str());
+      for(const auto& doc:v->docs)SendMessageW(v->combo,CB_ADDSTRING,0,(LPARAM)doc_title(doc).c_str());
       SendMessageW(v->combo,CB_SETCURSEL,0,0);display(*v);resize(w,*v);
       BOOL dark=TRUE;DwmSetWindowAttribute(w,20,&dark,sizeof dark);
       return 0;
@@ -109,9 +115,9 @@ LRESULT CALLBACK proc(HWND w,UINT message,WPARAM wp,LPARAM lp) {
     case WM_COMMAND:
       if(LOWORD(wp)==101 && HIWORD(wp)==CBN_SELCHANGE){display(*v);return 0;}
       if(LOWORD(wp)==103){
-        auto folder=v->base/L"fontes";
+        auto folder=v->base/L"sources";
         if((INT_PTR)ShellExecuteW(w,L"open",folder.c_str(),nullptr,nullptr,SW_SHOWNORMAL)<=32)
-          MessageBoxW(w,L"A pasta fontes não foi encontrada. Os códigos-fonte estão em github.com/gabccin/cue/releases.",L"Cue",MB_OK|MB_ICONINFORMATION);
+          MessageBoxW(w,widen(i18n::format(str::lic_sources_missing,{{"url","github.com/tinypeep/cue/releases"}})).c_str(),L"Cue",MB_OK|MB_ICONINFORMATION);
         return 0;
       }
       if(LOWORD(wp)==IDCANCEL){DestroyWindow(w);return 0;}
@@ -127,13 +133,27 @@ void open_licenses(HWND owner,const std::wstring& directory) {
   if(window && IsWindow(window)){ShowWindow(window,SW_RESTORE);SetForegroundWindow(window);return;}
   // Load the Windows text control only on demand; startup performs no licence I/O.
   static HMODULE rich=LoadLibraryExW(L"Msftedit.dll",nullptr,LOAD_LIBRARY_SEARCH_SYSTEM32);
-  if(!rich){MessageBoxW(owner,L"Não foi possível abrir o leitor de licenças.",L"Cue",MB_OK|MB_ICONWARNING);return;}
+  if(!rich){MessageBoxW(owner,widen(tr(str::lic_viewer_failed)).c_str(),L"Cue",MB_OK|MB_ICONWARNING);return;}
   WNDCLASSEXW wc{sizeof wc};wc.lpfnWndProc=proc;wc.hInstance=GetModuleHandleW(nullptr);wc.lpszClassName=L"tinyoffice.Cue.licenses";
   wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);wc.hIcon=LoadIconW(wc.hInstance,MAKEINTRESOURCEW(1));RegisterClassExW(&wc);
   auto owned=std::make_unique<View>();auto* v=owned.get();v->base=directory;
   RECT r{};GetWindowRect(owner,&r);
-  window=CreateWindowExW(WS_EX_CONTROLPARENT,wc.lpszClassName,L"Cue · licenças e créditos",WS_OVERLAPPEDWINDOW,
+  window=CreateWindowExW(WS_EX_CONTROLPARENT,wc.lpszClassName,widen(tr(str::lic_title)).c_str(),WS_OVERLAPPEDWINDOW,
     r.left+std::max<LONG>(0,(r.right-r.left-760)/2),r.top+std::max<LONG>(0,(r.bottom-r.top-560)/2),760,560,owner,nullptr,wc.hInstance,v);
   if(window){v->window_owns=true;owned.release();ShowWindow(window,SW_SHOW);SetForegroundWindow(window);}
+}
+// The interface language changed while the window is open: its own words follow at once.
+void relocalize_licenses() {
+  if(!window || !IsWindow(window)) return;
+  auto* v=reinterpret_cast<View*>(GetWindowLongPtrW(window,GWLP_USERDATA));
+  if(!v) return;
+  SetWindowTextW(window,widen(tr(str::lic_title)).c_str());
+  SetWindowTextW(v->sources,widen(tr(str::lic_sources)).c_str());
+  SetWindowTextW(v->close,widen(tr(str::lic_close)).c_str());
+  int sel=(int)SendMessageW(v->combo,CB_GETCURSEL,0,0);
+  SendMessageW(v->combo,CB_RESETCONTENT,0,0);
+  for(const auto& doc:v->docs)SendMessageW(v->combo,CB_ADDSTRING,0,(LPARAM)doc_title(doc).c_str());
+  SendMessageW(v->combo,CB_SETCURSEL,sel<0?0:sel,0);
+  display(*v);
 }
 bool licenses_message(MSG* m) {return window && IsWindow(window) && IsDialogMessageW(window,m);}

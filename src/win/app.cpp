@@ -32,6 +32,8 @@
 #include "../core/audio_mode.h"
 #include "../core/preview_size.h"
 #include "licenses.h"
+#include "ui_language.h"
+#include "../core/i18n.h"
 #include "../core/version.h"
 
 namespace {
@@ -77,6 +79,14 @@ const char* kBindings[][2] = {
 };
 
 COLORREF cref(Rgb c) { return RGB(c.r, c.g, c.b); }
+
+// The engine reports its failure as a catalog key (it runs before the person could change the
+// language); the words are looked up when shown, so they follow a language change.
+std::string engine_text(const std::string& err) {
+  for (str::Id id : {str::engine_missing_dll, str::engine_too_old, str::engine_failed})
+    if (err == i18n::key_name(id)) return tr(id);
+  return err.empty() ? tr(str::engine_failed) : err;
+}
 }  // namespace
 
 static HWND g_app_hwnd = nullptr;  // where the engine's window forwards its input
@@ -117,6 +127,7 @@ bool App::init(HINSTANCE inst, const std::vector<std::string>& args, int show) {
   // Loading the engine is part of opening the file, so it keeps normal priority.
   state_path_ = data_dir_ / "state.json";
   store_.load(state_path_);  // early: the window opens at its size, with the person's settings
+  apply_language(false);     // the saved choice, or Windows' display languages (read once)
   play_.in.controls_free = store_.controls_free;
   play_.in.loop = store_.loop;
   play_.in.ui_scale = store_.ui_scale;
@@ -456,7 +467,7 @@ bool App::start_engine() {
   log("engine initialize");
   int r = mpv_.api().initialize(mpv_.handle());
   if (r < 0) {
-    engine_err_ = "motor de vídeo não iniciou";
+    engine_err_ = i18n::key_name(str::engine_failed);
     log(std::string("mpv_initialize: ") + mpv_.api().error_string(r));
     mpv_.destroy();
     return false;
@@ -493,11 +504,11 @@ void App::on_engine_ready(bool ok) {
   if (engine_thread_) { CloseHandle(engine_thread_); engine_thread_ = nullptr; }
   if (closing_app_) return;
   if (!ok) {
-    if (engine_err_.empty()) engine_err_ = "motor de vídeo não iniciou";
+    if (engine_err_.empty()) engine_err_ = i18n::key_name(str::engine_failed);
     engine_failed_ = true;
     home_.cancel_leave(now());
-    home_.engine_problem = engine_err_;
-    if (!pending_open_.empty()) { pending_open_.clear(); home_.show_notice(engine_err_, now()); }
+    home_.engine_problem = engine_text(engine_err_);
+    if (!pending_open_.empty()) { pending_open_.clear(); home_.show_notice(home_.engine_problem, now()); }
     InvalidateRect(hwnd_, nullptr, FALSE);
     ensure_anim();
     return;
@@ -542,11 +553,13 @@ void App::show_update_state() {
   home_.update_progress = upd_ == Upd::Downloading && upd_pct_ >= 0 ? upd_pct_ / 100.0 : -1;
   play_.in.update_ready = known;
   switch (upd_) {
-    case Upd::Idle: play_.in.update_label = "procurar atualizações"; break;
-    case Upd::Checking: play_.in.update_label = "procurando atualizações…"; break;
-    case Upd::Available: play_.in.update_label = "atualizar para " + v; break;
-    case Upd::Downloading: play_.in.update_label = "baixando " + v + " · " + std::to_string(std::max(0, upd_pct_)) + "%"; break;
-    case Upd::Launching: play_.in.update_label = "abrindo o instalador…"; break;
+    case Upd::Idle: play_.in.update_label = tr(str::update_check); break;
+    case Upd::Checking: play_.in.update_label = tr(str::update_checking); break;
+    case Upd::Available: play_.in.update_label = i18n::format(str::update_to, {{"version", v}}); break;
+    case Upd::Downloading:
+      play_.in.update_label = i18n::format(str::update_downloading, {{"version", v}, {"percent", std::to_string(std::max(0, upd_pct_))}});
+      break;
+    case Upd::Launching: play_.in.update_label = tr(str::update_launching); break;
   }
   play_.changed(now());
   if (mode_ == Mode::Home && !onboarding_) InvalidateRect(hwnd_, nullptr, FALSE);
@@ -592,13 +605,13 @@ void App::on_update(UpdateMsg* m) {
         upd_ = skipped ? Upd::Idle : Upd::Available;
         save_state();
         if (upd_install_after_check_) { upd_install_after_check_ = false; start_update(); break; }
-        if (m->manual) say("nova versão " + short_version(m->rel.version) + " disponível");
+        if (m->manual) say(i18n::format(str::update_available, {{"version", short_version(m->rel.version)}}));
       } else {
         upd_ = Upd::Idle;
         upd_install_after_check_ = false;
         store_.update_available.clear();
         save_state();
-        if (m->manual) say(m->found ? "você já tem a versão mais recente" : "a última versão no GitHub não tem instalador");
+        if (m->manual) say(tr(m->found ? str::update_latest : str::update_no_installer));
       }
       break;
     }
@@ -615,22 +628,22 @@ void App::on_update(UpdateMsg* m) {
         PostMessageW(hwnd_, WM_CLOSE, 0, 0);  // it waits for us to close, then installs and reopens Cue
       } else {
         upd_ = Upd::Available;
-        say("não deu pra abrir o instalador");
+        say(tr(str::update_launch_failed));
       }
       break;
     case UpdateMsg::Failed:
       log("update failed: " + m->error);
-      if (upd_ == Upd::Downloading) { upd_ = Upd::Available; say("não deu pra baixar a atualização"); }
+      if (upd_ == Upd::Downloading) { upd_ = Upd::Available; say(tr(str::update_download_failed)); }
       else if (upd_ == Upd::Checking || upd_install_after_check_) {
         upd_ = upd_rel_.version.empty() ? Upd::Idle : Upd::Available;
         if (m->manual || upd_install_after_check_) {
           // say what actually happened: no release yet is not the same as no internet
           const std::string& e = m->error;
-          if (e.find("http 404") != std::string::npos) say("ainda não há versões publicadas no GitHub");
+          if (e.find("http 404") != std::string::npos) say(tr(str::update_none_published));
           else if (e.find("http 403") != std::string::npos || e.find("http 429") != std::string::npos)
-            say("o GitHub pediu uma pausa, tente daqui a pouco");
-          else if (e.find("http ") != std::string::npos) say("o GitHub não respondeu direito agora");
-          else say("sem conexão com o GitHub agora");
+            say(tr(str::update_rate_limited));
+          else if (e.find("http ") != std::string::npos) say(tr(str::update_bad_response));
+          else say(tr(str::update_offline));
         }
         upd_install_after_check_ = false;
       }
@@ -731,8 +744,8 @@ void App::drain_mpv() {
           overlay_ack = true;
         }
         if (e->reply_userdata == kReplyShot) {
-          if (e->error >= 0) { play_.toast_folder("frame salvo", now()); frame_saved_sound(); }  // with a button to its folder
-          else { last_frame_.clear(); play_.toast("não deu pra salvar o frame", nullptr, now()); }
+          if (e->error >= 0) { play_.toast_folder(tr(str::toast_frame_saved), now()); frame_saved_sound(); }  // with a button to its folder
+          else { last_frame_.clear(); play_.toast(tr(str::toast_frame_failed), nullptr, now()); }
           ensure_anim();
         }
         if (e->reply_userdata == kReplySeek) {
@@ -1077,7 +1090,7 @@ void App::on_end_file(const mpv_event_end_file* e) {
     reveal_pending_ = false;
     if (mode_ == Mode::Home) home_.cancel_leave(now());
     if (e && e->reason == MPV_END_FILE_REASON_ERROR) {
-      home_.show_notice("não deu pra abrir", now());
+      home_.show_notice(tr(str::notice_open_failed), now());
       log("could not open: " + path_);
       ensure_anim();
     }
@@ -1179,7 +1192,7 @@ void App::handle_files(const std::vector<std::string>& files) {
   if (mode_ == Mode::Play && loaded_) {
     for (auto& s : subs) mpv_.cmd({"sub-add", s, "select"});  // "CC ✓" comes from the track list
   } else {
-    home_.show_notice("abra um vídeo antes", now());
+    home_.show_notice(tr(str::notice_open_video_first), now());
     ensure_anim();
   }
 }
@@ -1371,13 +1384,13 @@ void App::run_actions() {
         double v = play_.in.sub_delay + a.v;
         mpv_.set_double_async("sub-delay", v);
         play_.in.sub_delay = v;
-        play_.toast("sub " + fmt_delay(v), nullptr, t);
+        play_.toast(i18n::format(str::toast_sub_delay, {{"delay", fmt_delay(v)}}), nullptr, t);
         break;
       }
       case PA::SubVisible:
         if (a.v > 0 && play_.in.sid == 0 && !play_.in.subs.empty()) mpv_.set_async("sid", std::to_string(play_.in.subs[0].id));
         mpv_.set_flag_async("sub-visibility", a.v > 0);
-        if (!play_.in.subs.empty() && !play_.panel_open()) play_.toast(a.v > 0 ? "legenda ligada" : "legenda desligada", nullptr, t);
+        if (!play_.in.subs.empty() && !play_.panel_open()) play_.toast(tr(a.v > 0 ? str::toast_sub_on : str::toast_sub_off), nullptr, t);
         break;
       case PA::Placement: store_.dock = play_.place; save_state(); break;
       case PA::WinMin: ShowWindow(hwnd_, SW_MINIMIZE); break;
@@ -1396,9 +1409,9 @@ void App::run_actions() {
       case PA::OpenLicenses: open_licenses(hwnd_, exe_dir()); break;
       case PA::OpenLinkedIn:
       case PA::OpenGitHub: {
-        const wchar_t* url = a.a == PA::OpenLinkedIn ? L"https://www.linkedin.com/in/gabrielbenzoni" : L"https://github.com/gabccin";
+        const wchar_t* url = a.a == PA::OpenLinkedIn ? L"https://www.linkedin.com/in/gabrielbenzoni" : L"https://github.com/tinypeep";
         if ((INT_PTR)ShellExecuteW(hwnd_, L"open", url, nullptr, nullptr, SW_SHOWNORMAL) <= 32)
-          play_.toast("não foi possível abrir o link", nullptr, t);
+          play_.toast(tr(str::toast_link_failed), nullptr, t);
         break;
       }
       case PA::Loop:
@@ -1443,6 +1456,7 @@ void App::run_actions() {
         save_state(); play_.changed(now()); play_.activity(now()); ensure_anim();
         break;
       case PA::UiScale: set_ui_scale((int)a.v); break;
+      case PA::Language: set_language_pref((int)a.v); break;
       case PA::Update:
         if (upd_ == Upd::Available) start_update();
         else check_updates(true);
@@ -1750,6 +1764,7 @@ void App::key(const std::string& k, bool shift, bool ctrl) {
     }
     if (a.a == HomeAct::ClearRecents) { store_.clear_recents(); save_state(); refresh_recents(); }
     if (a.a == HomeAct::Update) start_update();
+    if (a.a == HomeAct::Language) set_language_pref(a.index);
     ensure_anim();
     return;
   }
@@ -2159,6 +2174,48 @@ void App::refresh_ui_scale() {
   play_.resize(cw_, ch_, portrait_scale(s_, cw_, ch_, store_.ui_scale));
   if (mode_ == Mode::Play) play_.changed(now());
   ensure_anim();
+}
+
+// ── interface language ──────────────────────────────────────────────
+// Everything Cue draws is measured from the words at layout time, so a new language is applied
+// on the spot: no restart. Windows' own surfaces (title bar menu, file dialog buttons, message
+// box buttons) stay in Windows' language.
+void App::apply_language(bool relayout) {
+  i18n::Lang l = apply_ui_language(store_.language, windows_ui_languages());
+  int pref = -1;
+  i18n::Lang chosen;
+  if (i18n::parse_tag(store_.language, chosen)) pref = (int)chosen;
+  play_.in.language = home_.language = pref;
+  log(std::string("language ") + i18n::tag(l) + (pref < 0 ? " (Windows)" : " (chosen)"));
+  if (!relayout) return;
+  if (engine_failed_) home_.engine_problem = engine_text(engine_err_);
+  show_update_state();  // its labels are words too
+  if (cw_ > 0 && ch_ > 0) {
+    home_.relayout();
+    ob_.set_size(cw_, ch_, s_);
+    play_.resize(cw_, ch_, portrait_scale(s_, cw_, ch_, store_.ui_scale));
+  }
+  play_.changed(now());
+  if (mode_ == Mode::Play && loaded_) refresh_file_info();
+  relocalize_licenses();
+  // Explorer's name for Cue's file type follows, in the background like at start
+  HANDLE th = CreateThread(nullptr, 0, [](void*) -> DWORD {
+    HRESULT com = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    refresh_open_with();
+    if (SUCCEEDED(com)) CoUninitialize();
+    return 0;
+  }, nullptr, 0, nullptr);
+  if (th) CloseHandle(th);
+  InvalidateRect(hwnd_, nullptr, FALSE);
+  ensure_anim();
+}
+
+void App::set_language_pref(int lang) {
+  std::string pref = lang >= 0 && lang < i18n::kLangCount ? i18n::tag((i18n::Lang)lang) : i18n::kAuto;
+  if (pref == store_.language) return;
+  store_.language = pref;
+  save_state();  // a choice made by hand survives closing, reopening and updating
+  apply_language(true);
 }
 
 void App::set_ui_scale(int v) {
@@ -3057,6 +3114,7 @@ LRESULT App::handle(UINT m, WPARAM w, LPARAM l) {
         else if (a.a == HomeAct::WinMax) toggle_maximize();
         else if (a.a == HomeAct::WinClose) PostMessageW(hwnd_, WM_CLOSE, 0, 0);
         else if (a.a == HomeAct::Update) start_update();
+        else if (a.a == HomeAct::Language) set_language_pref(a.index);
         else if (a.a == HomeAct::SkipUpdate) {
           store_.update_skipped = upd_rel_.version;
           upd_ = Upd::Idle;

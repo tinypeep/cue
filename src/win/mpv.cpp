@@ -3,6 +3,8 @@
 #include <cstring>
 #include <array>
 
+#include "../core/i18n.h"
+
 template <class F>
 static bool sym(HMODULE m, const char* name, F& out) {
   out = reinterpret_cast<F>(reinterpret_cast<void*>(GetProcAddress(m, name)));
@@ -16,7 +18,7 @@ bool Mpv::load(const std::wstring& dir, std::string* err) {
     dll_ = LoadLibraryExW(full.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
     if (dll_) break;
   }
-  if (!dll_) { if (err) *err = "falta o libmpv-2.dll"; return false; }
+  if (!dll_) { if (err) *err = i18n::key_name(str::engine_missing_dll); return false; }
   bool ok = sym(dll_, "mpv_client_api_version", api_.client_api_version) && sym(dll_, "mpv_create", api_.create) &&
             sym(dll_, "mpv_initialize", api_.initialize) && sym(dll_, "mpv_terminate_destroy", api_.terminate_destroy) &&
             sym(dll_, "mpv_set_option_string", api_.set_option_string) &&
@@ -31,11 +33,11 @@ bool Mpv::load(const std::wstring& dir, std::string* err) {
             sym(dll_, "mpv_set_wakeup_callback", api_.set_wakeup_callback) && sym(dll_, "mpv_free", api_.free) &&
             sym(dll_, "mpv_free_node_contents", api_.free_node_contents) && sym(dll_, "mpv_hook_add", api_.hook_add) &&
             sym(dll_, "mpv_hook_continue", api_.hook_continue) && sym(dll_, "mpv_error_string", api_.error_string);
-  if (!ok) { if (err) *err = "libmpv antiga demais"; FreeLibrary(dll_); dll_ = nullptr; return false; }
+  if (!ok) { if (err) *err = i18n::key_name(str::engine_too_old); FreeLibrary(dll_); dll_ = nullptr; return false; }
   sym(dll_, "mpv_command_ret", api_.command_ret);  // optional
   // every symbol above exists since client API 1.100 (mpv 0.28); newer options fall back by name
   unsigned long v = api_.client_api_version();
-  if (v < ((1ul << 16) | 100)) { if (err) *err = "libmpv antiga demais"; return false; }
+  if (v < ((1ul << 16) | 100)) { if (err) *err = i18n::key_name(str::engine_too_old); return false; }
   return true;
 }
 
@@ -47,7 +49,7 @@ void Mpv::wakeup(void* ctx) {
 bool Mpv::create(HWND notify, UINT msg, int64_t wid, std::string* err) {
   if (!dll_) return false;
   h_ = api_.create();
-  if (!h_) { if (err) *err = "motor de vídeo não iniciou"; return false; }
+  if (!h_) { if (err) *err = i18n::key_name(str::engine_failed); return false; }
   notify_ = notify;
   msg_ = msg;
   if (wid != 0) option("wid", std::to_string(wid));

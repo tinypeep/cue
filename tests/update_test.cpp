@@ -21,7 +21,7 @@ int main() {
 
   const char* ok = R"({"tag_name":"v1.2.0","draft":false,"prerelease":false,"body":"novidades\n- a\n- b",
     "assets":[{"name":"Cue-1.2.0-codigo.zip","browser_download_url":"https://github.com/x/y/releases/download/v1.2.0/c.zip","size":10},
-              {"name":"Cue-Setup-1.2.0.exe","browser_download_url":"https://github.com/gabccin/cue/releases/download/v1.2.0/Cue-Setup-1.2.0.exe",
+              {"name":"Cue-Setup-1.2.0.exe","browser_download_url":"https://github.com/tinypeep/cue/releases/download/v1.2.0/Cue-Setup-1.2.0.exe",
                "size":31457280,"digest":"sha256:0123456789ABCDEF0123456789abcdef0123456789abcdef0123456789abcdef"}]})";
   ReleaseInfo r;
   assert(parse_release(ok, r));

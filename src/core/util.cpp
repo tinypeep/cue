@@ -1,5 +1,6 @@
 #include <cctype>
 #include "util.h"
+#include "i18n.h"
 
 #include <algorithm>
 #include <cmath>
@@ -19,10 +20,11 @@ std::string fmt_time(double sec, bool force_hours) {
 std::string fmt_delay(double sec) {
   double r = std::round(sec * 10) / 10;
   char buf[32];
-  if (std::fabs(r) < 0.05) return "0,0 s";
-  std::snprintf(buf, sizeof buf, "%s%.1f s", r > 0 ? "+" : "-", std::fabs(r));
+  if (std::fabs(r) < 0.05) r = 0;
+  std::snprintf(buf, sizeof buf, "%s%.1f s", r > 0 ? "+" : (r < 0 ? "-" : ""), std::fabs(r));
   std::string out = buf;
-  for (auto& ch : out) if (ch == '.') ch = ',';
+  char sep = tr(str::number_decimal)[0];  // "0,3 s" in Portuguese, "0.3 s" in English
+  for (auto& ch : out) if (ch == '.') ch = sep ? sep : '.';
   return out;
 }
 
@@ -62,24 +64,25 @@ SubKind sub_kind(const std::string& c) {
 }
 
 namespace {
-struct Lang { const char* codes; const char* name; };
-// Native names when the Omni Mono can draw them, Portuguese names otherwise.
-const Lang kLangs[] = {
-    {"pt,por,pob,pt-br,pt-pt,ptbr", "Português"}, {"en,eng", "English"},
-    {"es,spa,es-419,es-es", "Español"},           {"fr,fre,fra", "Français"},
-    {"de,ger,deu", "Deutsch"},                     {"it,ita", "Italiano"},
-    {"nl,dut,nld", "Nederlands"},                  {"pl,pol", "Polski"},
-    {"sv,swe", "Svenska"},                         {"no,nor,nob,nno", "Norsk"},
-    {"da,dan", "Dansk"},                           {"fi,fin", "Suomi"},
-    {"tr,tur", "Türkçe"},                          {"ca,cat", "Català"},
-    {"ro,rum,ron", "romeno"},                      {"hu,hun", "Magyar"},
-    {"cs,cze,ces", "tcheco"},                      {"ja,jpn", "japonês"},
-    {"zh,chi,zho,chs,cht", "chinês"},              {"ko,kor", "coreano"},
-    {"ru,rus", "russo"},                           {"uk,ukr", "ucraniano"},
-    {"ar,ara", "árabe"},                           {"he,heb", "hebraico"},
-    {"hi,hin", "hindi"},                           {"el,gre,ell", "grego"},
-    {"th,tha", "tailandês"},                       {"vi,vie", "vietnamita"},
-    {"id,ind", "indonésio"},                       {"ms,may,msa", "malaio"},
+// Endonyms when the name is a word of the Omni's own Latin letters (they read the same in every
+// interface language); otherwise the name in the interface language (str::lang_*).
+struct LangName { const char* codes; const char* native; str::Id key; };
+const LangName kLangs[] = {
+    {"pt,por,pob,pt-br,pt-pt,ptbr", "Português", str::kCount}, {"en,eng", "English", str::kCount},
+    {"es,spa,es-419,es-es", "Español", str::kCount},           {"fr,fre,fra", "Français", str::kCount},
+    {"de,ger,deu", "Deutsch", str::kCount},                     {"it,ita", "Italiano", str::kCount},
+    {"nl,dut,nld", "Nederlands", str::kCount},                  {"pl,pol", "Polski", str::kCount},
+    {"sv,swe", "Svenska", str::kCount},                         {"no,nor,nob,nno", "Norsk", str::kCount},
+    {"da,dan", "Dansk", str::kCount},                           {"fi,fin", "Suomi", str::kCount},
+    {"tr,tur", "Türkçe", str::kCount},                          {"ca,cat", "Català", str::kCount},
+    {"ro,rum,ron", nullptr, str::lang_ro},                      {"hu,hun", "Magyar", str::kCount},
+    {"cs,cze,ces", nullptr, str::lang_cs},                      {"ja,jpn", nullptr, str::lang_ja},
+    {"zh,chi,zho,chs,cht", nullptr, str::lang_zh},              {"ko,kor", nullptr, str::lang_ko},
+    {"ru,rus", nullptr, str::lang_ru},                          {"uk,ukr", nullptr, str::lang_uk},
+    {"ar,ara", nullptr, str::lang_ar},                          {"he,heb", nullptr, str::lang_he},
+    {"hi,hin", nullptr, str::lang_hi},                          {"el,gre,ell", nullptr, str::lang_el},
+    {"th,tha", nullptr, str::lang_th},                          {"vi,vie", nullptr, str::lang_vi},
+    {"id,ind", nullptr, str::lang_id},                          {"ms,may,msa", nullptr, str::lang_ms},
 };
 
 std::string lower(std::string s) {
@@ -95,7 +98,7 @@ std::string lang_name(const std::string& code) {
     while (st <= list.size()) {
       size_t e = list.find(',', st);
       if (e == std::string::npos) e = list.size();
-      if (list.compare(st, e - st, c) == 0) return l.name;
+      if (list.compare(st, e - st, c) == 0) return l.native ? l.native : tr(l.key);
       st = e + 1;
     }
   }
@@ -122,7 +125,7 @@ std::string track_label(const Track& t, const std::vector<Track>& all) {
   if (name.empty()) {
     int n = 1;
     for (auto& o : all) { if (o.id == t.id) break; ++n; }
-    name = "faixa " + std::to_string(n);
+    name = i18n::format(str::track_n, {{"n", std::to_string(n)}});
   } else {
     // same language twice: tell them apart without jargon
     int same = 0, idx = 0;
@@ -134,6 +137,6 @@ std::string track_label(const Track& t, const std::vector<Track>& all) {
       else name += " " + std::to_string(idx);
     }
   }
-  if (t.forced && t.type == "sub") name += " · forçada";
+  if (t.forced && t.type == "sub") name += std::string(" · ") + tr(str::track_forced);
   return name;
 }

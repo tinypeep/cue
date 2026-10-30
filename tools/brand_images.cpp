@@ -102,10 +102,10 @@ struct Doc {
     Canvas flat = blank(w, h);
     for (auto& l : layers) flat.blit(l.second, 0, 0);
     save(flat, base);
-    std::string dir = base + "-camadas";
+    std::string dir = base + "-layers";
     if (std::system(("mkdir -p " + dir).c_str())) {}
-    // files numbered bottom to top; the layer names (with spaces and accents) go in nomes.txt
-    FILE* names = std::fopen((dir + "/nomes.txt").c_str(), "wb");
+    // files numbered bottom to top; the layer names (with spaces and accents) go in layers.txt
+    FILE* names = std::fopen((dir + "/layers.txt").c_str(), "wb");
     for (size_t i = 0; i < layers.size(); ++i) {
       char n[32]; std::snprintf(n, sizeof n, "%02d", (int)(i + 1));
       save(layers[i].second, dir + "/" + n);
@@ -166,10 +166,10 @@ static void pair(Doc& d, const Character& who, const std::vector<Named>& col, in
   int total = who.w + gap + cw;
   int lx = (d.w - total) / 2, ly = (d.h - who.h) / 2;
   int rx = lx + who.w + gap, ry = (d.h - ch) / 2;
-  glow(d.add("luz ambiente"), lx + who.w / 2, ly + who.h * 11 / 20, glow_r, glow_cell, 0.85);
-  d.place("olhos", who.eyes, lx, ly);
-  d.place("balde de pipoca", who.bucket, lx, ly);
-  d.place("pipocas", who.kernels, lx, ly);
+  glow(d.add("ambient light"), lx + who.w / 2, ly + who.h * 11 / 20, glow_r, glow_cell, 0.85);
+  d.place("eyes", who.eyes, lx, ly);
+  d.place("popcorn bucket", who.bucket, lx, ly);
+  d.place("popcorn", who.kernels, lx, ly);
   place_column(d, col, rx, ry);
 }
 
@@ -178,22 +178,22 @@ int main() {
   // 1 · cover / social preview, 1280 x 640 (GitHub's 2:1)
   {
     Doc d(1280, 640);
-    d.add("fundo").clear(p.bg);
-    std::vector<Named> col = {{"nome", words("Cue", 22, p.pixel, 0)},
-                              {"frase", words("player de vídeo para Windows", 4, p.fg, 34)},
-                              {"subtítulo", words("bonito, leve e com legendas de verdade", 3, p.dim, 16)},
-                              {"ícones", Line{icons(4, 26).ink, 44}},
-                              {"assinatura", words(".tinypeep  ·  v1.0", 3, p.faint, 40)}};
+    d.add("background").clear(p.bg);
+    std::vector<Named> col = {{"name", words("Cue", 22, p.pixel, 0)},
+                              {"tagline", words("video player for Windows", 4, p.fg, 34)},
+                              {"subtitle", words("beautiful, lightweight, subtitle-first", 3, p.dim, 16)},
+                              {"icons", Line{icons(4, 26).ink, 44}},
+                              {"signature", words(".tinypeep  ·  v1.0", 3, p.faint, 40)}};
     pair(d, character(8), col, 96, 270, 16);
-    d.save_all("cue-capa");
+    d.save_all("cue-cover");
   }
   // 2 · README banner, 1280 x 320
   {
     Doc d(1280, 320);
-    d.add("fundo").clear(p.bg);
-    std::vector<Named> col = {{"nome", words("Cue", 15, p.pixel, 0)},
-                              {"frase", words("player de vídeo para Windows", 3, p.fg, 24)},
-                              {"assinatura", words(".tinypeep  ·  v1.0", 2, p.dim, 14)}};
+    d.add("background").clear(p.bg);
+    std::vector<Named> col = {{"name", words("Cue", 15, p.pixel, 0)},
+                              {"tagline", words("video player for Windows", 3, p.fg, 24)},
+                              {"signature", words(".tinypeep  ·  v1.0", 2, p.dim, 14)}};
     pair(d, character(5), col, 72, 160, 10);
     d.save_all("cue-banner");
   }
@@ -208,17 +208,17 @@ int main() {
       }
       c.fill(x, y + 3 * st, w, h - 6 * st, col);
     };
-    stepped(d.add("borda"), 16, 16, 480, 480, 12, Rgb{34, 34, 34});
-    stepped(d.add("fundo"), 28, 28, 456, 456, 12, Rgb{4, 4, 4});
+    stepped(d.add("border"), 16, 16, 480, 480, 12, Rgb{34, 34, 34});
+    stepped(d.add("background"), 28, 28, 456, 456, 12, Rgb{4, 4, 4});
     Canvas eyes = blank(512, 300);
     Face face; face.layout(256, 200, 5, 2.5); face.started = true; face.render(eyes, 1.0);
     Canvas e = trim(eyes);
     Line w = words("Cue", 12, p.pixel, 0);
     int gap = 40, h = e.h + gap + w.ink.h, y = (512 - h) / 2;
-    glow(d.add("luz ambiente"), 256, y + h / 2, 230, 16, 0.75);
-    d.place("olhos", e, 256 - e.w / 2, y);   // centred on the word under them
-    d.place("nome", w.ink, 256 - w.ink.w / 2, y + e.h + gap);
-    d.save_all("cue-icone");
+    glow(d.add("ambient light"), 256, y + h / 2, 230, 16, 0.75);
+    d.place("eyes", e, 256 - e.w / 2, y);   // centred on the word under them
+    d.place("name", w.ink, 256 - w.ink.w / 2, y + e.h + gap);
+    d.save_all("cue-icon");
   }
   std::puts("ok");
 }

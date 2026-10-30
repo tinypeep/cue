@@ -3,11 +3,14 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <memory>
+#include <mutex>
 #include <unordered_map>
 #include <type_traits>
 
 #include "assets.inc"
 #include "action_icons.inc"
+#include "fallback_glyphs.inc"
 
 static Palette g_pal;
 static bool g_hc = false;
@@ -31,6 +34,8 @@ const BitmapDef* bmp(std::string_view name) {
     // icons drawn for Cue's own menus, on the same 1-art-px grid as "check" and "clock"
     static const BitmapDef extra[] = {
         {"text-style", 9, 7, ".##......" "#..#....." "#..#.###." "####....#" "#..#.####" "#..#.#..#" "#..#..###"},
+        // the interface language: a small globe, meridian and equator
+        {"globe", 7, 7, "..###.." ".#.#.#." "#..#..#" "#######" "#..#..#" ".#.#.#." "..###.."},
     };
     for (auto& b : extra) m[b.name] = &b;
     return m;
@@ -70,14 +75,52 @@ uint32_t next_cp(std::string_view s, size_t& i) {
   return 0xFFFD;
 }
 
+// Characters drawn in the Omni's own grammar that the design-system bundle does not carry:
+// Spanish opening marks (the Omni ? and ! turned around) and no-break spaces (French puts one
+// before ? : and %). They win over the fallback table.
+static const GlyphDef kExtraGlyphs[] = {
+    {"\xc2\xbf", 5, "......................#.........#...#...#....#..#..##......."},  // inverted question mark
+    {"\xc2\xa1", 2, "........#...#.#.#.#.#..."},  // inverted exclamation mark
+    {"\xc2\xa0", 3, "...................................."},  // no-break space
+    {"\xe2\x80\xaf", 2, "........................"},  // narrow no-break space
+};
+
+// Glyphs missing from the Omni (CJK, kana, Greek, Cyrillic, extra Latin) come from
+// fallback_glyphs.inc, decoded once into the same '#' grid the Omni uses and kept.
+static const GlyphDef* fallback_glyph(uint32_t cp) {
+  static std::mutex mu;
+  static std::unordered_map<uint32_t, std::unique_ptr<std::pair<GlyphDef, std::string>>> cache;
+  std::lock_guard<std::mutex> lock(mu);
+  auto it = cache.find(cp);
+  if (it != cache.end()) return it->second ? &it->second->first : nullptr;
+  const uint32_t* end = kFallbackCp + kFallbackCount;
+  const uint32_t* at = std::lower_bound(kFallbackCp, end, cp, [](uint32_t v, uint32_t c) { return (v & 0xFFFFFF) < c; });
+  std::unique_ptr<std::pair<GlyphDef, std::string>> g;
+  if (at != end && (*at & 0xFFFFFF) == cp) {
+    int w = (int)(*at >> 24);
+    const uint16_t* rows = kFallbackRows[at - kFallbackCp];
+    g = std::make_unique<std::pair<GlyphDef, std::string>>();
+    g->second.assign((size_t)w * 12, '.');
+    for (int y = 0; y < 12; ++y)
+      for (int x = 0; x < w; ++x)
+        if (rows[y] >> x & 1) g->second[(size_t)y * w + x] = '#';
+    g->first = GlyphDef{"", w, g->second.c_str()};
+  }
+  auto& slot = cache[cp];
+  slot = std::move(g);
+  return slot ? &slot->first : nullptr;
+}
+
 static const GlyphDef* glyph(uint32_t cp) {
   static std::unordered_map<uint32_t, const GlyphDef*> map = [] {
     std::unordered_map<uint32_t, const GlyphDef*> m;
     for (auto& g : kGlyphs) { size_t i = 0; m[next_cp(g.ch, i)] = &g; }
+    for (auto& g : kExtraGlyphs) { size_t i = 0; m[next_cp(g.ch, i)] = &g; }
     return m;
   }();
   auto it = map.find(cp);
-  return it == map.end() ? nullptr : it->second;
+  if (it != map.end()) return it->second;
+  return cp >= 0xA0 ? fallback_glyph(cp) : nullptr;
 }
 bool has_glyph(uint32_t cp) { return glyph(cp) != nullptr; }
 
@@ -341,4 +384,52 @@ std::string fit_middle(std::string_view name, int max_w, double s) {
     tw += cw;
   }
   return head + "…" + extra + tail;
+}
+
+// ── wrapping ────────────────────────────────────────────────────────
+static bool breaks_around(uint32_t c) {  // ideographs and kana stand alone: a line may break beside them
+  return (c >= 0x3040 && c <= 0x30FF) || (c >= 0x3400 && c <= 0x4DBF) || (c >= 0x4E00 && c <= 0x9FFF) ||
+         (c >= 0xF900 && c <= 0xFAFF);
+}
+static bool closing_mark(uint32_t c) {  // stays with what comes before it
+  switch (c) {
+    case 0x3001: case 0x3002: case 0xFF0C: case 0xFF0E: case 0xFF1A: case 0xFF1B: case 0xFF1F: case 0xFF01:
+    case 0xFF09: case 0x300D: case 0x300F: case 0x201D: case 0x2019: case 0x2026: case 0x00BB: case 0xFF05:
+    case ',': case '.': case ':': case ';': case '?': case '!': case ')': case '%': case 0x00A0: case 0x202F:
+      return true;
+  }
+  return false;
+}
+static bool opening_mark(uint32_t c) {  // stays with what comes after it
+  return c == 0xFF08 || c == 0x300C || c == 0x300E || c == 0x201C || c == 0x2018 || c == 0x00AB || c == '(' ||
+         c == 0x00BF || c == 0x00A1;
+}
+
+std::vector<std::string> wrap_lines(std::string_view t, int max_w, double s) {
+  // units: a run that must stay together, and whether a space separated it from the previous one
+  struct Unit { std::string text; bool space_before; };
+  std::vector<Unit> units;
+  bool pending_space = false;
+  uint32_t prev = 0;
+  for (size_t i = 0; i < t.size();) {
+    size_t st = i;
+    uint32_t c = next_cp(t, i);
+    std::string_view ch = t.substr(st, i - st);
+    if (c == ' ') { pending_space = true; prev = c; continue; }
+    bool start_new = units.empty() || pending_space ||
+                     ((breaks_around(c) || breaks_around(prev)) && !closing_mark(c) && !opening_mark(prev));
+    if (start_new) units.push_back({std::string(ch), pending_space && !units.empty()});
+    else units.back().text += ch;
+    pending_space = false;
+    prev = c;
+  }
+  std::vector<std::string> lines;
+  std::string line;
+  for (auto& u : units) {
+    std::string cand = line.empty() ? u.text : line + (u.space_before ? " " : "") + u.text;
+    if (!line.empty() && text_w(cand, s) > max_w) { lines.push_back(line); line = u.text; }
+    else line = cand;
+  }
+  if (!line.empty()) lines.push_back(line);
+  return lines;
 }

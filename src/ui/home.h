@@ -15,14 +15,16 @@ struct HomeRow {
   double progress = -1;  // 0..1 when in progress
 };
 
-enum class HomeAct { None, OpenDialog, OpenRecent, ClearRecents, EggSeen, WinMin, WinMax, WinClose, Update, SkipUpdate };
+enum class HomeAct { None, OpenDialog, OpenRecent, ClearRecents, EggSeen, WinMin, WinMax, WinClose, Update, SkipUpdate,
+                     Language };  // Language: index -1 automatic, else i18n::Lang
 struct HomeAction { HomeAct a = HomeAct::None; int index = -1; };
 
 struct HomeView {
   int w = 0, h = 0; double s = 2;
   std::vector<HomeRow> rows;
   std::string engine_problem;  // shown instead of the micro-instruction
-  std::string notice;          // short-lived ("não deu pra abrir")
+  std::string notice;          // short-lived ("could not open")
+  int language = -1;           // the saved interface language (-1: follow Windows), checked in the menu
   double notice_until = 0;
   int eggs_seen = 0;
   // a newer version on GitHub: a quiet line in the bottom-left corner
@@ -60,11 +62,19 @@ struct HomeView {
   void set_hover_row(int i, double now);
   // empty background: the window can be dragged from here (and snapped by Windows)
   bool is_background(int x, int y) const;
+  void relayout() { layout(); }  // the words changed (another interface language)
 
  private:
-  enum : int { kOpen = 100, kDots = 101, kMenuClear = 102, kUpdate = 103, kUpdateSkip = 104 };
+  // the ··· menu next to Recentes: "idioma ›" and "limpar recentes"; idioma opens the six choices
+  enum : int { kOpen = 100, kDots = 101, kMenuClear = 102, kUpdate = 103, kUpdateSkip = 104, kMenuLang = 105,
+               kLangOpt = 106 /* ..111: automatic, then each i18n::Lang */, kMenuPad = 112, kHitIds = 13 };
   int hover_ = -1, focus_ = -1;
-  bool kb_ = false, menu_ = false, drag_ = false;
+  bool kb_ = false, menu_ = false, menu_lang_ = false, drag_ = false;
+  std::vector<int> menu_ids_;
+  std::vector<Rect> r_menu_items_;
+  void layout_menu();
+  std::string menu_label(int id) const;
+  void open_menu(bool lang);
   int mx_ = -1, my_ = -1;
   int tx_ = -100000, ty_ = -100000;
   double track_moved_ = -10;

@@ -4,6 +4,7 @@
 #include <string>
 #include "../src/ui/play.h"
 #include "../src/core/sub_style.h"
+#include "../src/core/i18n.h"
 
 static Canvas load_frame(int W, int H, const SubStyle& st) {
   std::string cmd = "python3 tools/preview_frame.py " + std::to_string(W) + " " + std::to_string(H) +
@@ -73,7 +74,7 @@ void preview_play(const std::string& out, int s) {
   shot(pv, now, out + "/play-speed.png");
   pv.key("esc", false, false, now);
   // frame saved, with the folder button hovered; the back arrow in the corner
-  pv.toast_folder("frame salvo", now);
+  pv.toast_folder(tr(str::toast_frame_saved), now);
   for (int i = 0; i < 20; ++i) { now += 1/60.0; pv.tick(now, 1/60.0); }
   pv.set_hover_for_preview(W / 2, H / 2, now);
   pv.set_hover_for_preview(W / 2 + 37 * s, 22 * s, now);

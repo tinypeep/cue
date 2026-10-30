@@ -3,22 +3,18 @@
 #include <algorithm>
 #include <cmath>
 
+#include "../core/i18n.h"
 #include "../core/ui_scale.h"
 
 namespace {
-const char* kSizeNames[4] = {"pequena", "média", "grande", "maior"};
-const char* kIntroHeading = "oi, sou o Cue";
-const char* kAmbHeading = "iluminação dinâmica";
-const char* kAmbLine = "a janela brilha com as cores do vídeo";
-const char* kSizeHeading = "tamanho da interface";
-const char* kNextHeading = "vem mais coisa por aí";
+const str::Id kSizeNames[4] = {str::size_small, str::size_medium, str::size_large, str::size_larger};
 
 // What is coming, ripening like the popcorn of the first screen.
-struct Upcoming { const char* title; const char* tag; const char* line; int icon; };
+struct Upcoming { str::Id title, tag, line; int icon; };
 const Upcoming kUpcoming[3] = {
-    {"controle pelo celular", "estoura na próxima build", "o celular vira controle pela rede. o sofá agradece.", 0},
-    {"transmissão sem fio", "ainda na panela", "do Cue direto pra TV, sem caçar cabo.", 1},
-    {"macOS e Linux", "ainda é milho", "o Cue quer conhecer outros sistemas.", 2},
+    {str::ob_up1_title, str::ob_up1_tag, str::ob_up1_line, 0},
+    {str::ob_up2_title, str::ob_up2_tag, str::ob_up2_line, 1},
+    {str::ob_up3_title, str::ob_up3_tag, str::ob_up3_line, 2},
 };
 constexpr int kItemTextW = 300;  // art px for the words of a row
 constexpr int kIconGap = 14;     // between the icon and the words
@@ -120,26 +116,11 @@ std::string first_cps(const std::string& s, int n) {
   return s.substr(0, i);
 }
 double ease_k(double t) { return ease_out(clamp01(t)); }
+// the toggle's label crossfades between "on" and "off": room for the longer of the two
+int toggle_label_w(double s) { return std::max(text_w(tr(str::ob_on), s), text_w(tr(str::ob_off), s)); }
 }  // namespace
 
-std::vector<std::string> wrap_text(const std::string& t, int max_w, double s) {
-  std::vector<std::string> lines;
-  std::string line, word;
-  auto flush_word = [&] {
-    if (word.empty()) return;
-    std::string cand = line.empty() ? word : line + " " + word;
-    if (!line.empty() && text_w(cand, s) > max_w) { lines.push_back(line); line = word; }
-    else line = cand;
-    word.clear();
-  };
-  for (char ch : t) {
-    if (ch == ' ') flush_word();
-    else word += ch;
-  }
-  flush_word();
-  if (!line.empty()) lines.push_back(line);
-  return lines;
-}
+std::vector<std::string> wrap_text(const std::string& t, int max_w, double s) { return wrap_lines(t, max_w, s); }
 
 // The same number of lines, but as even as possible: no lonely last word.
 static std::vector<std::string> wrap_balanced(const std::string& t, int max_w, double s) {
@@ -168,6 +149,9 @@ void OnboardingView::set_size(int w_, int h_, double s_) {
   s = std::max(ui_s, std::min(std::max(1.0, fit), ui_s * 1.5));
   chrome.s = ui_s;  // the window buttons stay exactly where the home has them
   layout();
+  // a small window at a large size (or longer words): rather a half step smaller than words
+  // under the footer
+  while (overflow_ && s > 1) { s = std::max(1.0, s - 0.5); layout(); }
   if (first) { pos_.snap(page_); dot_.snap(page_); }
   place_face(0, !face_placed_);
 }
@@ -184,10 +168,10 @@ void OnboardingView::layout() {
   // footer: secondary on the left, page dots in the middle, primary on the right
   for (int p = 0; p < kPages; ++p) {
     Lay& L = L_[p];
-    std::string nl = p == kPages - 1 ? "começar" : "continuar";
+    std::string nl = tr(p == kPages - 1 ? str::ob_start : str::ob_continue);
     double nw = text_w(nl, 1) + 9 + 22;
     L.next = R(ox + CW - nw, foot_y, nw, 16);
-    std::string bl = p == 0 ? "pular" : "voltar";
+    std::string bl = tr(p == 0 ? str::ob_skip : str::ob_back);
     double bw = text_w(bl, 1) + 16;
     L.back = R(ox, foot_y, bw, 16);
     L.dots.clear();
@@ -218,7 +202,8 @@ void OnboardingView::layout() {
   // 1 · ambient light: the demo window glowing, heading, text, the toggle
   {
     Lay& L = L_[1];
-    double lines = 1;
+    // the line under the heading may wrap in longer languages: the toggle moves down with it
+    double lines = (double)std::max<size_t>(1, wrap_text(tr(str::ob_ambient_line), (int)(CW * 0.86 * s), s).size());
     double fixed = 24 + 4 + 13 * lines + 16 + 16;
     // demo (54 K tall) + room for its light above (12 K) and below (22 K): 88 K in all
     K_ = std::clamp(std::min((AH - fixed) / 88.0, CW * 0.42 / 96.0), 0.5, 2.2);
@@ -230,7 +215,7 @@ void OnboardingView::layout() {
     L.heading = R(ox, ty, CW, 24);
     L.text_y = (int)std::lround((ty + 28) * s);
     double tgy = ty + 28 + 13 * lines + 16;
-    double tw = 28 + 8 + text_w("desligada", 1);
+    double tw = 28 + 8 + toggle_label_w(1);
     L.toggle = R(std::round(W / 2 - tw / 2), tgy, 28, 16);
   }
 
@@ -238,7 +223,7 @@ void OnboardingView::layout() {
   {
     Lay& L = L_[2];
     double segw = 8;
-    for (auto* n : kSizeNames) segw += text_w(n, 1) + 16;
+    for (auto n : kSizeNames) segw += text_w(tr(n), 1) + 16;
     double fixed = 26 + 22 + 24 + 14 + 16;
     double y = top + std::max(0.0, (AH - fixed) / 2) + 6;
     // the sample is drawn at the real interface scale: its size in this page's art px varies
@@ -251,8 +236,8 @@ void OnboardingView::layout() {
     double sy = ty + 24 + 14;
     L.segs.clear();
     double sx = std::round(W / 2 - segw / 2) + 4;
-    for (auto* n : kSizeNames) {
-      double sw = text_w(n, 1) + 16;
+    for (auto n : kSizeNames) {
+      double sw = text_w(tr(n), 1) + 16;
       L.segs.push_back(R(sx, sy, sw, 16));
       sx += sw;
     }
@@ -266,16 +251,25 @@ void OnboardingView::layout() {
     Lay& L = L_[3];
     int ic = icon_cell(s);
     double icon_w = kIconCols * ic / s, icon_h = kIconRows * ic / s;
-    double rw = std::min(CW, icon_w + kIconGap + kItemTextW);
-    L.items.clear(); L.item_lines.clear();
-    // every row the same height (the tallest), so the list reads as one even column
-    double rh = icon_h;
-    for (auto& it : kUpcoming) {
-      int n = (int)wrap_text(it.line, (int)std::lround((rw - icon_w - kIconGap) * s), s).size();
-      L.item_lines.push_back(n);
-      rh = std::max(rh, (double)kTitleH + kLineH * n);
+    // the words get 300 px of art; a longer language that would push the list into the footer
+    // gets a wider column (fewer wrapped lines) before anything else gives way
+    double rw = 0, rh = 0, total = 0;
+    for (int words : {kItemTextW, 360, 420, 500}) {
+      rw = std::min(CW, icon_w + kIconGap + words);
+      L.items.clear(); L.item_lines.clear();
+      // every row the same height (the tallest), so the list reads as one even column
+      rh = icon_h;
+      for (auto& it : kUpcoming) {
+        int words_w = (int)std::lround((rw - icon_w - kIconGap) * s);
+        int n = (int)wrap_text(tr(it.line), words_w, s).size();
+        // the ripeness tag rides beside the title, or on its own line when both do not fit
+        if (text_w(tr(it.title), s) + (int)std::lround(8 * s) + text_w(tr(it.tag), s) + (int)std::lround(12 * s) > words_w) n += 1;
+        L.item_lines.push_back(n);
+        rh = std::max(rh, (double)kTitleH + kLineH * n);
+      }
+      total = 24 + 18 + 3 * rh + 2 * kRowGap;
+      if (total <= AH || rw >= CW) break;
     }
-    double total = 24 + 18 + 3 * rh + 2 * kRowGap;
     double y = top + std::max(0.0, (AH - total) / 2);
     L.heading = R(ox, y, CW, 24);
     y += 24 + 18;
@@ -285,10 +279,12 @@ void OnboardingView::layout() {
   // The footer (back, page dots, continue) is never covered: content that would reach it
   // moves up, as far as the top margin allows.
   const int limit = (int)std::lround(bottom * s);
+  overflow_ = false;
   auto lift = [&](Lay& L, int content_bottom) {
     int over = content_bottom - limit;
     if (over <= 0) return;
     int room = std::max(0, (int)std::lround(L.heading.y - top * s) - 1);
+    if (over > room) overflow_ = true;  // even lifted, it would touch the footer
     int d = std::min(over, room);
     L.heading.y -= d; L.text_y -= d; L.toggle.y -= d; L.demo.y -= d; L.dock.y -= d;
     L.bucket_y -= d; L.face_y -= d;
@@ -485,7 +481,7 @@ bool OnboardingView::tick(double now, double dt) {
     double v = hover_step(hov_[id], act == id, dt);
     if (v != hov_[id]) { hov_[id] = v; moving = true; }
   }
-  double typed_end = kIntroType + cps(kIntroHeading) * kCharDur + 0.9;
+  double typed_end = kIntroType + cps(tr(str::ob_intro)) * kCharDur + 0.9;
   if (t < typed_end) moving = true;
   if (finish_t0_ > 0 && now - finish_t0_ < 0.6) moving = true;
   if (now - toggle_t_ < 1.3 || now - scale_t_ < 0.7) moving = true;
@@ -509,7 +505,7 @@ int OnboardingView::hit(int x, int y) const {
     if (L.dots[i].contains(x, y)) return kDot0 + i;
   if (page_ == 1 && L.toggle.grow(3 * s).contains(x, y)) return kToggle;
   if (page_ == 1) {  // the label next to the toggle flips it too
-    Rect lab{L.toggle.r(), L.toggle.y, (int)(8 * s) + text_w("desligada", s), L.toggle.h};
+    Rect lab{L.toggle.r(), L.toggle.y, (int)(8 * s) + toggle_label_w(s), L.toggle.h};
     if (lab.contains(x, y)) return kToggle;
   }
   if (page_ == 2)
@@ -843,7 +839,7 @@ void OnboardingView::render_page(Canvas& c, int pg, double ox, double a, double 
       double ka = k.to_mouth ? 1.0 : std::min(1.0, (k.life - (now - k.t0)) / 0.3);
       draw_kernel(c, kx, ky, L.bucket_cell, k.spin ^ ((int)((now - k.t0) / 0.09) & 1), a * std::max(0.0, ka));
     }
-    std::string head = kIntroHeading;
+    std::string head = tr(str::ob_intro);
     int n = cps(head);
     int shown = reduce_motion() ? n : std::clamp((int)std::floor((t - kIntroType) / kCharDur) + 1, 0, n);
     std::string part = first_cps(head, shown);
@@ -859,24 +855,24 @@ void OnboardingView::render_page(Canvas& c, int pg, double ox, double a, double 
              (int)std::lround(hs * 7), p.dim, a);
   } else if (pg == 1) {
     draw_demo(c, L.demo, ox, a, now, 1);
-    center_text(kAmbHeading, L.heading.y, 2 * s, p.pixel, a);
-    paragraph(kAmbLine, L.text_y, p.dim, a);
-    Rect tr = L.toggle;
-    tr.x += (int)std::lround(ox);
-    draw_toggle(c, tr, a);
+    center_text(tr(str::ob_ambient_title), L.heading.y, 2 * s, p.pixel, a);
+    paragraph(tr(str::ob_ambient_line), L.text_y, p.dim, a);
+    Rect tgl = L.toggle;
+    tgl.x += (int)std::lround(ox);
+    draw_toggle(c, tgl, a);
     double kc = clamp01(knob_.x);
-    int lx = tr.r() + (int)std::lround(8 * s), ly = tr.y + (int)std::lround(3 * s);
+    int lx = tgl.r() + (int)std::lround(8 * s), ly = tgl.y + (int)std::lround(3 * s);
     // the label crossfades with the knob
-    text(c, "ligada", lx, ly, s, p.fg, a * kc);
-    text(c, "desligada", lx, ly, s, mix(p.dim, p.fg, hov(kToggle)), a * (1 - kc));
+    text(c, tr(str::ob_on), lx, ly, s, p.fg, a * kc);
+    text(c, tr(str::ob_off), lx, ly, s, mix(p.dim, p.fg, hov(kToggle)), a * (1 - kc));
   } else if (pg == 3) {
-    center_text(kNextHeading, L.heading.y, 2 * s, p.pixel, a);
+    center_text(tr(str::ob_next_title), L.heading.y, 2 * s, p.pixel, a);
     draw_upcoming(c, ox, a, now);
   } else {
     Rect dr = L.dock;
     dr.x += (int)std::lround(ox);
     draw_dock_sample(c, dr, a, now);
-    center_text(kSizeHeading, L.heading.y, 2 * s, p.pixel, a);
+    center_text(tr(str::ob_size_title), L.heading.y, 2 * s, p.pixel, a);
     // the selector: a sliding highlight behind the chosen size
     Rect hl{(int)std::lround(seg_x_.x + ox), L.segs[0].y, (int)std::lround(seg_w_.x), L.segs[0].h};
     c.cornered(hl, (int)s, p.press, a);
@@ -886,14 +882,14 @@ void OnboardingView::render_page(Canvas& c, int pg, double ox, double a, double 
       r.x += (int)std::lround(ox);
       double hv = hov(kSeg0 + i);
       if (i != sel && hv > 0) c.cornered(r, (int)s, p.hover, a * hv);
-      int tw = text_w(kSizeNames[i], s);
-      text(c, kSizeNames[i], r.x + (r.w - tw) / 2, r.y + (int)std::lround(3 * s), s,
+      int tw = text_w(tr(kSizeNames[i]), s);
+      text(c, tr(kSizeNames[i]), r.x + (r.w - tw) / 2, r.y + (int)std::lround(3 * s), s,
            i == sel ? p.pixel : mix(p.dim, p.fg, hv), a);
     }
   }
   // footer buttons belong to the page (they crossfade with it, but do not slide)
-  draw_button(c, L.back, pg == 0 ? "pular" : "voltar", false, hov(pg == 0 ? kSkip : kBack), a, false);
-  draw_button(c, L.next, pg == kPages - 1 ? "começar" : "continuar", true, hov(kNext), a, true);
+  draw_button(c, L.back, tr(pg == 0 ? str::ob_skip : str::ob_back), false, hov(pg == 0 ? kSkip : kBack), a, false);
+  draw_button(c, L.next, tr(pg == kPages - 1 ? str::ob_start : str::ob_continue), true, hov(kNext), a, true);
 }
 
 void OnboardingView::draw_upcoming(Canvas& c, double ox, double a, double now) {
@@ -947,22 +943,25 @@ void OnboardingView::draw_upcoming(Canvas& c, double ox, double a, double now) {
     int block = (int)std::lround((kTitleH + kLineH * n - 3) * s);
     int tx = r.x + (int)std::lround((kIconCols * ic / s + kIconGap) * s);
     int ty = r.y + (r.h - block) / 2 + (int)std::lround(3 * s);
-    int tw = text(c, it.title, tx, ty, s, next ? p.pixel : p.fg, ra);
+    int tw = text(c, tr(it.title), tx, ty, s, next ? p.pixel : p.fg, ra);
     // the tag is a small button-sized pill: 16 art px tall, text 3 px from its top (room for descenders)
     int gx = tx + tw + (int)std::lround(8 * s);
-    int gw = text_w(it.tag, s) + (int)std::lround(12 * s), gh = (int)std::lround(16 * s);
-    Rect tag{gx, ty - (int)std::lround(3 * s), gw, gh};
+    int gw = text_w(tr(it.tag), s) + (int)std::lround(12 * s), gh = (int)std::lround(16 * s);
+    int gy = ty - (int)std::lround(3 * s);
+    if (gx + gw > r.r()) { gx = tx; gy += (int)std::lround(kLineH * s); }  // no room beside the title: under it
+    Rect tag{gx, gy, gw, gh};
+    int tag_ty = gy + (int)std::lround(3 * s);
     int pad = (int)std::lround(6 * s);
     if (next) {
       c.cornered(tag, (int)s, p.fg, ra);
-      text(c, it.tag, gx + pad, ty, s, p.bg, ra);
+      text(c, tr(it.tag), gx + pad, tag_ty, s, p.bg, ra);
     } else {
       c.cornered(tag, (int)s, p.faint, ra * 0.55);
       c.cornered(tag.inset((int)std::max(1.0, std::round(s))), (int)s, p.bg, ra);
-      text(c, it.tag, gx + pad, ty, s, p.dim, ra);
+      text(c, tr(it.tag), gx + pad, tag_ty, s, p.dim, ra);
     }
-    int ly = ty + (int)std::lround(kTitleH * s);
-    for (auto& line : wrap_text(it.line, r.r() - tx, s)) { text(c, line, tx, ly, s, p.dim, ra * (next ? 1.0 : 0.85)); ly += (int)std::lround(kLineH * s); }
+    int ly = tag_ty + (int)std::lround(kTitleH * s);
+    for (auto& line : wrap_text(tr(it.line), r.r() - tx, s)) { text(c, line, tx, ly, s, p.dim, ra * (next ? 1.0 : 0.85)); ly += (int)std::lround(kLineH * s); }
   }
 }
 
@@ -996,7 +995,7 @@ void OnboardingView::render(Canvas& c, double now) {
   };
   for (int pg = 0; pg < kPages; ++pg) render_page(c, pg, (pg - pos_.x) * 56 * s, alpha_of(pg) * fade, now, 0);
   double t = now - t0_;
-  double intro_in = reduce_motion() ? 1.0 : ease_k((t - kIntroType - cps(kIntroHeading) * kCharDur - 0.2) / 0.4);
+  double intro_in = reduce_motion() ? 1.0 : ease_k((t - kIntroType - cps(tr(str::ob_intro)) * kCharDur - 0.2) / 0.4);
   for (int pg = 0; pg < kPages; ++pg) {
     double d = pg - pos_.x;
     if (std::fabs(d) >= 1) continue;

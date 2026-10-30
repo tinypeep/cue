@@ -28,13 +28,17 @@ build/Cue/Cue.exe: $(OBJ)
 	$(CXX) $(OBJ) -o $@ $(LDFLAGS) $(LIBS)
 	cp assets/fonts/*.ttf build/Cue/fonts/
 	mkdir -p build/Cue/licenses && cp assets/fonts/*.txt build/Cue/licenses/
+	cp third_party/fusion-pixel-font/OFL.txt build/Cue/licenses/FusionPixel-OFL.txt
 	cp docs/LICENSES.md build/Cue/LICENSES.md
+	cp docs/ASSETS.md build/Cue/ASSETS.md
+	mkdir -p build/Cue/sources && cp res/sources-README.txt build/Cue/sources/README.txt
 	cp LICENSE COPYRIGHT.md build/Cue/
-	cp -r third_party build/Cue/
+	mkdir -p build/Cue/third_party && cp -r third_party/libmpv build/Cue/third_party/
 
 # ── installer ──────────────────────────────────────────────────────
 # make setup: build/Cue must hold libmpv-2.dll (tools/fetch-libmpv.ps1 or the 1.0 package)
-SETUP_SRC = installer/setup.cpp installer/setup_ui.cpp src/ui/gfx.cpp src/ui/face.cpp src/core/release.cpp src/core/json.cpp
+SETUP_SRC = installer/setup.cpp installer/setup_ui.cpp src/ui/gfx.cpp src/ui/face.cpp src/core/release.cpp src/core/json.cpp \
+            src/core/i18n.cpp src/win/ui_language.cpp
 SETUP_OBJ = $(patsubst %.cpp,build/setup/obj/%.o,$(SETUP_SRC)) build/setup/obj/LzmaDec.o build/setup/obj/setup_res.o
 SETUP_LIBS = -ldwmapi -lole32 -lshell32 -luuid -lshcore -lgdi32 -luser32 -ladvapi32
 
@@ -59,6 +63,11 @@ setup: build/Cue/Cue.exe build/setup/stub.exe
 clean:
 	rm -rf build
 
-.PHONY: all clean setup
+# ── translations ───────────────────────────────────────────────────
+# i18n/*.json -> src/core/strings.h + src/core/i18n_catalog.inc (checked in, like assets.inc)
+i18n:
+	python3 tools/gen_i18n.py
+
+.PHONY: all clean setup i18n
 
 -include $(OBJ:.o=.d) $(SETUP_OBJ:.o=.d)

@@ -1,6 +1,6 @@
 // First run: four short screens before the home.
 //   0  "oi, sou o Cue"      the character celebrates with a bucket of popcorn
-//   1  iluminação dinâmica  what the ambient light does, with a pixel toggle
+//   1  dynamic lighting  what the ambient light does, with a pixel toggle
 //   2  tamanho da interface the four sizes, applied live to this very screen
 //   3  vem mais coisa       what is coming, ripening like popcorn (milho, panela, estoura)
 // Drawn by the same pixel renderer as the home, into the same canvas.
@@ -83,6 +83,7 @@ struct OnboardingView {
 
   // layout (physical px), recomputed by layout()
   double K_ = 1;  // illustration unit, art px per design px
+  bool overflow_ = false;  // layout(): some page would reach the footer even lifted
   struct Lay {
     Rect next, back, toggle, demo, dock, heading;
     std::vector<Rect> segs, dots;

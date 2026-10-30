@@ -1,46 +1,30 @@
-# Licenças — Cue 1.0
+# Licenses · Cue 1.0
 
-O código próprio do Cue usa GPL-3.0-or-later. LICENSE contém o texto integral;
-COPYRIGHT.md identifica a autoria e delimita os componentes de terceiros.
+Cue's own code uses **GPL-3.0-or-later**. The full terms are in `LICENSE`; [COPYRIGHT.md](../COPYRIGHT.md) identifies authorship and third-party boundaries. Software is provided without warranty under the applicable terms.
 
-## Motor
+## Playback engine
 
-A DLL desta versão foi compilada a partir de fontes arquivadas, sem as partes
-GPL-only do mpv e sem habilitar GPL/nonfree no FFmpeg. A distribuição combinada
-é oferecida sob LGPL-3.0-or-later, selecionando versões posteriores permitidas
-pelas licenças LGPL para compatibilidade com os componentes Apache-2.0.
-As licenças individuais e avisos permanecem em third_party/libmpv/notices/.
-FreeType é usado sob FTL e FastFloat sob MIT.
+The distributed `libmpv-2.dll` was built from archived sources, excluding mpv's GPL-only parts and without enabling FFmpeg GPL/nonfree options. The combined engine distribution uses **LGPL-3.0-or-later**, selecting permitted later LGPL versions for Apache-2.0 compatibility. Individual component licenses/notices remain in `third_party/libmpv/notices/`; FreeType uses FTL and FastFloat uses MIT. The old nonfree-marked `mpv.dll` is not included.
 
-As fontes correspondentes aos 16 componentes, com versões e SHA256, acompanham
-**Cue-1.0-Engine-Source.zip** (build 1.1.4 do motor), publicado na página da versão no
-GitHub, ao lado do instalador e do código do Cue (Source code, gerado pelo GitHub).
-Veja third_party/libmpv/SOURCES.md e manifest.json.
-A DLL continua substituível. Em **… → sobre o Cue → licenças**, o app abre o
-leitor de avisos e textos completos de licença. A antiga mpv.dll marcada nonfree não está incluída.
+Corresponding sources for all 16 components, versions, SHA256 hashes, notices, and build recipes are provided in **Cue-1.0-Engine-Source.zip** (engine build 1.1.4), beside the installer and GitHub-generated Cue source archive on the [v1.0 release page](https://github.com/tinypeep/cue/releases/tag/v1.0). See [SOURCES.md](../third_party/libmpv/SOURCES.md) and `third_party/libmpv/manifest.json`.
 
-## Fontes do aplicativo e identidade visual
+Keep the DLL replaceable with API-compatible modified versions. Preserve notices and source access when redistributing. The installed `sources/README.txt` links to the release; the in-app license reader provides full texts and a source-folder button.
 
-- Cue Clean: Inter 500, The Inter Project Authors; SIL OFL 1.1, avisos incluídos.
-- Cue Readable: Atkinson Hyperlegible 400, Braille Institute of America;
-  SIL OFL 1.1, avisos incluídos.
-- Cue Omni: criada pelo Claude para o projeto, conforme confirmado pelo autor;
-  SIL OFL 1.1, com texto e metadados de licença incluídos.
-- SVGs, glifos e sprites próprios Omni: criados pelo Claude para o projeto,
-  conforme confirmado pelo autor; GPL-3.0-or-later. Ver docs/ASSETS.md.
+## Fonts and visual assets
 
-As fontes OFL permanecem sob OFL; a GPL do código não substitui essas licenças.
-Esta revisão não conclui sobre originalidade integral, patentes de codecs ou
-registros de marca. A disponibilização dos ZIPs precisa preservar os avisos
-incluídos e as condições das licenças aplicáveis.
+| Component | Attribution / license |
+|---|---|
+| Cue Clean (Inter 500) | The Inter Project Authors; SIL OFL 1.1 |
+| Cue Readable (Atkinson Hyperlegible 400) | Braille Institute of America; SIL OFL 1.1 |
+| Cue Omni | Created with Claude for the project, as declared by the author; SIL OFL 1.1 |
+| Custom Omni SVGs, glyphs, sprites | Same declared origin; GPL-3.0-or-later |
+| Fusion Pixel fallback table | Fusion Pixel Font 10px (zh_hans), 2024.05.12; Copyright (c) 2022 TakWolf; SIL OFL 1.1; Reserved Font Name “Fusion Pixel” |
 
-Na versão 1.0, os códigos-fonte correspondentes ficam na página da versão
-(https://github.com/gabccin/cue/releases/tag/v1.0). A pasta instalada traz fontes/LEIA-ME.txt com esse endereço, e o
-botão códigos-fonte do leitor abre essa pasta.
+OFL fonts remain under OFL; Cue's GPL does not replace their terms. Notices are included. Fusion Pixel's source license is in `third_party/fusion-pixel-font/OFL.txt` (`licenses/FusionPixel-OFL.txt` in the Windows package); the pixel table is not distributed as a font under the reserved name. See [asset provenance](ASSETS.md) and [language glyphs](LANGUAGES.md).
 
-## Instalador
+## Installer
 
-- `installer/lzma/` — decodificador LZMA do LZMA SDK (Igor Pavlov), domínio público. Usado só
-  pelo `Cue-Setup.exe` para descompactar o pacote; não faz parte do `Cue.exe`.
-- O instalador e o empacotamento (`installer/`, `tools/make_setup.py`) seguem a licença do
-  código do Cue (GPL-3.0-or-later).
+- `installer/lzma/`: Igor Pavlov's LZMA SDK decoder, public domain; used only by the installer.
+- Installer and packaging code (`installer/`, `tools/make_setup.py`): GPL-3.0-or-later.
+
+This record does not establish complete asset originality, codec patent coverage, or trademark rights. Preserve all applicable notices and conditions.

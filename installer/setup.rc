@@ -1,3 +1,4 @@
+#pragma code_page(65001)
 #include <windows.h>
 #include "../src/core/version.h"
 1 ICON "../res/cue.ico"
@@ -20,9 +21,50 @@ BEGIN
       VALUE "FileVersion", CUE_VERSION
       VALUE "ProductVersion", CUE_VERSION
     END
+    BLOCK "040904B0"
+    BEGIN
+      VALUE "CompanyName", ".tinypeep"
+      VALUE "FileDescription", "Cue installer"
+      VALUE "ProductName", "Cue"
+      VALUE "InternalName", "Cue-Setup"
+      VALUE "OriginalFilename", "Cue-Setup.exe"
+      VALUE "FileVersion", CUE_VERSION
+      VALUE "ProductVersion", CUE_VERSION
+    END
+    BLOCK "0C0A04B0"
+    BEGIN
+      VALUE "CompanyName", ".tinypeep"
+      VALUE "FileDescription", "Instalador de Cue"
+      VALUE "ProductName", "Cue"
+      VALUE "InternalName", "Cue-Setup"
+      VALUE "OriginalFilename", "Cue-Setup.exe"
+      VALUE "FileVersion", CUE_VERSION
+      VALUE "ProductVersion", CUE_VERSION
+    END
+    BLOCK "040C04B0"
+    BEGIN
+      VALUE "CompanyName", ".tinypeep"
+      VALUE "FileDescription", "Programme d'installation de Cue"
+      VALUE "ProductName", "Cue"
+      VALUE "InternalName", "Cue-Setup"
+      VALUE "OriginalFilename", "Cue-Setup.exe"
+      VALUE "FileVersion", CUE_VERSION
+      VALUE "ProductVersion", CUE_VERSION
+    END
+    BLOCK "080404B0"
+    BEGIN
+      VALUE "CompanyName", ".tinypeep"
+      VALUE "FileDescription", "Cue 安装程序"
+      VALUE "ProductName", "Cue"
+      VALUE "InternalName", "Cue-Setup"
+      VALUE "OriginalFilename", "Cue-Setup.exe"
+      VALUE "FileVersion", CUE_VERSION
+      VALUE "ProductVersion", CUE_VERSION
+    END
   END
   BLOCK "VarFileInfo"
   BEGIN
-    VALUE "Translation", 0x416, 1200
+    // the description in each interface language Cue speaks (Explorer picks the one it shows)
+    VALUE "Translation", 0x416, 1200, 0x409, 1200, 0xC0A, 1200, 0x40C, 1200, 0x804, 1200
   END
 END

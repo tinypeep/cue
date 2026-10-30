@@ -41,9 +41,10 @@ struct PlayInput {
   double accent_k = 0;        // 0 = neutral, 1 = full accent
   InfoFields file_info;
   // updates: "" when there is nothing to say; otherwise what the row should read
-  std::string update_label;    // "procurar atualizações", "atualizar para 1.2", "baixando 42%"
+  std::string update_label;    // "check for updates", "update to 1.2", "downloading 42%"
   bool update_ready = false;   // a newer version is known: the More menu shows it too
   bool loop = false;           // repeat the file forever (music videos, loops)
+  int language = -1;           // interface language as saved: -1 automatic (follow Windows), else i18n::Lang
   bool ended = false;          // stopped on the last frame (the controls stay in view)
   uint64_t file_info_revision = 0;
 };
@@ -52,7 +53,8 @@ enum class PA {
   TogglePause, SeekRel, SeekAbs, SeekAbsExact, Volume, ToggleMute, Fullscreen, SelectSub, SelectAudio,
   AddSubFile, OpenFile, CloseVideo, Style, StyleLive, StyleDefault, SubDelay, SubVisible, Placement, SubLift,
   WinMin, WinMax, WinClose, WinDragBegin, WinDragEnd, Preview, Speed, SaveFrame, UiScale, Ambient, AmbientStrength,
-  OpenFrameFolder, OpenLinkedIn, OpenGitHub, OpenLicenses, FileInfo, ControlsFree, Update, Loop, SubEdit
+  OpenFrameFolder, OpenLinkedIn, OpenGitHub, OpenLicenses, FileInfo, ControlsFree, Update, Loop, SubEdit,
+  Language  // v: -1 automatic, else i18n::Lang
 };
 struct PlayAction { PA a; double v = 0; int64_t id = 0; };
 
@@ -92,7 +94,7 @@ class PlayView {
   void wheel(int dir, double now);
   void key(const std::string& k, bool shift, bool ctrl, double now);
   void toast(const std::string& text, const char* icon, double now, bool icon_after = false);
-  // "frame salvo ✓ | pasta": stays a little longer, and its folder button opens where the frame went
+  // "frame saved ✓ | folder": stays a little longer, and its folder button opens where the frame went
   void toast_folder(const std::string& text, double now);
   void activity(double now);
   double last_activity() const { return last_activity_; }
@@ -141,14 +143,15 @@ class PlayView {
 
  private:
   enum Btn { B_NONE = 0, B_VOL, B_VOLBAR, B_REW, B_PLAY, B_FWD, B_CC, B_AUDIO, B_FS, B_MORE, B_TIMELINE, B_DOCKBG, B_SPEED, B_TIME, B_LOOP, B_COUNT };
-  enum class Panel { None, CC, Style, Audio, More, Speed, Context, About, FileInfo };
+  enum class Panel { None, CC, Style, Audio, More, Speed, Context, About, FileInfo, Language };
   enum class RK { Header, Option, Action, Submenu, Slider, Fonts, Stepper, Segmented, Hint, Separator, Links, Toggle,
                   SpeedBar, Chips, Brand, Credit, Profile, Info, CloseHeader };
   enum RowId {
     R_NONE, R_SUB_TOGGLE, R_SUB_TRACK, R_ADD_SUB, R_STYLE, R_DELAY, R_BACK, R_FONTS, R_SIZE, R_TEXT, R_BG, R_OUTLINE, R_LINEGAP, R_TRACK, R_POS,
     R_ASS, R_LINKS, R_AUDIO_TRACK, R_OPEN, R_CLOSE, R_SPEED, R_SPEED_OPT, R_BACK_MORE, R_UISCALE, R_AMBIENT,
     R_FRAME, R_FRAME_CLEAN, R_FS_ROW, R_AUDIO_ROW, R_AMBIENT_STR, R_SPEED_VALUE, R_SPEED_BAR, R_SPEED_CHIPS,
-    R_ABOUT, R_LINKEDIN, R_GITHUB, R_LICENSES, R_FILE_INFO, R_DISMISS, R_CONTROLS_FREE, R_UPDATE
+    R_ABOUT, R_LINKEDIN, R_GITHUB, R_LICENSES, R_FILE_INFO, R_DISMISS, R_CONTROLS_FREE, R_UPDATE,
+    R_LANGUAGE, R_LANG_OPT
   };
   struct Row {
     RK k;
@@ -191,6 +194,8 @@ class PlayView {
   size_t layout_audio_count_ = 0;
   uint64_t dock_revision_ = 0;
   std::string panel_sig_;
+  int info_label_w_ = 68;    // "about file": the label column fits the longest label (art px)
+  bool about_compact_ = false, about_retry_ = false;  // "about Cue" in a window shorter than the card
   Spring morph_{26, 1.0, 0.01};  // 0 = play, 1 = pause
   // moving the subtitle: the video pauses and turns grey, the controls step aside (0..1)
   Spring edit_ = Spring::rd(0.26, 1.0, 0.004);

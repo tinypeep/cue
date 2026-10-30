@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <string>
+#include "../src/core/i18n.h"
 
 #include "../src/ui/onboarding.h"
 #include "../src/core/ui_scale.h"
@@ -29,6 +30,8 @@ void save_canvas(const Canvas& c, const std::string& name) {
 }
 
 int main(int argc, char** argv) {
+  // CUE_LANG=en|es|fr|zh-Hans picks the interface language (Portuguese by default)
+  { i18n::Lang l = i18n::Lang::PtBR; if (const char* e = std::getenv("CUE_LANG")) i18n::parse_tag(e, l); i18n::set_language(l); }
   std::string out = argc > 1 ? argv[1] : "out";
   double s = argc > 2 ? std::atof(argv[2]) : 2;
   bool frames = argc > 3 && std::string(argv[3]) == "frames";

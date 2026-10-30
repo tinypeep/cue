@@ -1,3 +1,4 @@
+#include "../src/core/i18n.h"
 #include "../src/core/media_info.h"
 #include "../src/ui/play.h"
 #include <cassert>
@@ -10,6 +11,7 @@ static std::string value(const InfoFields& fields,const std::string& name) {
 }
 static void settle(PlayView& p,double& t) {for(int i=0;i<45;++i){t+=1./60;p.tick(t,1./60);}}
 int main() {
+  i18n::set_language(i18n::Lang::PtBR);  // these checks pin the Portuguese reference wording
   MediaDetails info;info.name="vídeo de exemplo.mp4";info.bytes=1250000000;info.duration=125;
   info.container="mov,mp4,m4a,3gp,3g2,mj2";info.width=1920;info.height=1080;info.fps=29.97002997;
   info.video_codec="h264";info.audio_codec="aac";info.channels=2;info.sample_rate=44100;
