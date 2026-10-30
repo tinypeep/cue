@@ -17,10 +17,14 @@ enum class DialogKind { Video, Subtitle };
 std::vector<std::string> open_file_dialog(HWND owner, DialogKind kind);
 std::vector<std::string> clipboard_files(HWND owner);
 void show_in_folder(const std::wstring& file);  // Explorer opens its folder with the file selected (never blocks)
+// the remote's shared folders: pick one, name one the way Explorer does ("Vídeos"), and the
+// usual places (Videos, Downloads, Desktop) wherever this person keeps them
+std::string pick_folder_dialog(HWND owner);
+std::string folder_display_name(const std::string& path);
+std::vector<std::string> default_media_folders();  // Videos, Downloads, Desktop ("" when unknown)
 bool register_open_with(std::string* err);  // HKCU only, never steals defaults
 void refresh_open_with();  // refresh stale name/path once; no writes when already current
 
-int dpi_scale(UINT dpi);  // Omni art-px: 2 at 100%, 3 at 150%, 4 at 200%
 // The art-px scale actually used: DPI first, then the window decides the in-between cases.
 // Choices: -1 small, 0 default, 2 medium (half step), 1 large.
 // ui_scale lives in core/ui_scale.h so all DPI/size combinations are testable.

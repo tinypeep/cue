@@ -167,8 +167,8 @@ static void check_welcome(int W, int H, double s) {
   expect(L1.toggle.b() <= L1.next.y, "welcome 2 toggle above the footer");
   auto& L2 = ob.L_[2];
   for (size_t i = 0; i < L2.segs.size(); ++i) expect(inside(L2.segs[i], win), "welcome 3 size " + std::to_string(i));
-  str::Id sizes[4] = {str::size_small, str::size_medium, str::size_large, str::size_larger};
-  for (int i = 0; i < 4; ++i) expect(text_w(tr(sizes[i]), ob.s) <= L2.segs[i].w, "welcome 3 size word");
+  str::Id sizes[kUiSizes] = {str::size_small, str::size_medium, str::size_large, str::size_larger};
+  for (int i = 0; i < kUiSizes; ++i) expect(text_w(tr(sizes[i]), ob.s) <= L2.segs[i].w, "welcome 3 size word");
   auto& L3 = ob.L_[3];
   for (auto& r : L3.items) { expect(inside(r, win), "welcome 4 row " + R(r)); expect(r.b() <= L3.next.y, "welcome 4 row above footer"); }
 }

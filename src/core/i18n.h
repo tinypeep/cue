@@ -53,7 +53,6 @@ std::string decimal(double v, int places);
 // For tests and tools.
 const char* key_name(str::Id id);
 const char* raw(Lang l, str::Id id, bool one_form = false);  // nullptr when not translated
-bool is_plural(str::Id id);
 // The fallback rule itself: the language's own text, else English, else the key's name.
 inline const char* pick(const char* own, const char* english, const char* key) {
   return own && *own ? own : (english && *english ? english : key);

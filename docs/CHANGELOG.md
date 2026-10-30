@@ -1,8 +1,28 @@
 # Changelog
 
+## 1.1
+
+The phone remote, and more.
+
+### Highlights
+
+- **Phone remote.** Open **… → remote control** (or **··· → remote control** on the home screen) and scan the QR code: your phone becomes a remote in its browser, nothing to install. A throwback click wheel moves through the film with a preview of where it will land; the center switches it to volume. Subtitles (on/off, timing, size, position), audio track and a sleep timer are in its menu. Browse your Videos and Downloads (or any folder you add) as a grid with thumbnails, and series move on to the next episode on their own. Phones that paired once reconnect by themselves.
+- **Multiple audio tracks.** Recordings with separate tracks (like OBS: game, microphone and voice chat) can play every track at once, mixed at their own levels. Cue does it on its own when the tracks are clearly parts of one recording; anywhere else, the audio menu's **multiple tracks** lets you tick the ones you want. Remembered per file.
+- **Subtitles back to default.** If a subtitle style or position gets out of hand, **CC → restore default** brings yours back in one click, and a second click undoes it.
+- **Always on top.** A pin beside the window buttons (or **Ctrl+T**) keeps Cue above other windows while you work.
+
+### Fixes and improvements
+
+- A short **what's new** screen after updating, and a **what's new** line on the home until you close it.
+- Interface sizes reworked: four even steps that always look different from each other, following Windows' scale up to 5K and 8K screens. **Ctrl + mouse wheel** changes the size, like **Ctrl +** / **Ctrl −**.
+- The control bar lands exactly where its corner marks show when you drag it (a short drag no longer snaps back to the default place).
+- Changing audio tracks keeps you at the same moment of the film, with a black-and-white transition while the sound switches; subtitles always come back afterwards.
+- The pairing screen opens with its own animation and a soft sound; the film waits behind it, paused and in black and white.
+- Lighter when idle: with the remote on and no phone connected, Cue does almost no extra work.
+
 ## 1.0
 
-First public release. Earlier 1.1.x numbers were internal/beta builds.
+First public release. The 1.1.x beta numbers below were internal builds before it; they are older than 1.1.
 
 - Five languages across the app, installer, and uninstaller: Brazilian Portuguese, English, Spanish, French, and Simplified Chinese. Automatic Windows display-language matching, saved manual selection, live switching, and pixel fallback glyphs.
 - Native installer, shortcuts, Windows uninstall integration, and GitHub update checks every 15 days with SHA-256 download verification.

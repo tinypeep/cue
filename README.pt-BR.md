@@ -10,16 +10,17 @@ Um player de vídeo e áudio gratuito e de código aberto para Windows. Leve, lo
 
 ## Feito para assistir
 
-- Interface pixelada com dois estilos de controles e quatro tamanhos.
+- Interface pixelada com dois estilos de controles e quatro tamanhos que acompanham a janela e o DPI da tela, até 8K.
 - Legendas com ajustes de fonte, tamanho, posição e sincronia.
 - Iluminação ambiente que acompanha as cores da cena.
 - Reprodução de áudio com uma waveform pixelada reativa.
 - Janela única, posições salvas e prévias na timeline.
 - Cinco idiomas, com seleção automática pelo Windows ou escolha manual.
+- Controle remoto no celular com uma rodinha de clique das antigas: pareia com QR code, sem instalar app.
 
 ## Comece aqui
 
-Baixe `Cue-1.0-Setup.exe` na [última release](https://github.com/tinypeep/cue/releases/latest) e execute. **Windows x64.** Não exige administrador.
+Baixe `Cue-1.1-Setup.exe` na [última release](https://github.com/tinypeep/cue/releases/latest) e execute. **Windows x64.** Não exige administrador.
 
 Abra um arquivo, arraste para o Cue ou use **Abrir com** no Explorador de Arquivos.
 
@@ -47,4 +48,4 @@ Testes portáveis: `bash tools/test.sh`. Reprodução e interações nativas pre
 
 O código do Cue usa **GPL-3.0-or-later**. Fontes e componentes de terceiros mantêm suas próprias licenças. Veja [LICENSE](LICENSE), [autoria](COPYRIGHT.md) e [licenças dos componentes](docs/LICENSES.md).
 
-As fontes correspondentes ao motor estão em `Cue-1.0-Engine-Source.zip`, na [página da versão](https://github.com/tinypeep/cue/releases/tag/v1.0).
+As fontes correspondentes ao motor estão em `Cue-1.1-Engine-Source.zip`, na [página da versão](https://github.com/tinypeep/cue/releases/tag/v1.1).

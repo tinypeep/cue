@@ -67,7 +67,8 @@ bool SettingsStore::parse(const std::string& text) {
   default_style = style_from(pf["style"], SubStyle{});
   volume = std::clamp(pf["volume"].num(100), 0.0, kVolMax);
   muted = pf["muted"].boolean(false);
-  ui_scale = std::clamp((int)pf["ui_scale"].num(2), -1, 2);
+  ui_scale = std::clamp((int)pf["ui_scale"].num(2), -1, 3);
+  if (ui_scale == 1) ui_scale = 3;  // the old 1.5x "larger" (and 1.1's "huge") became the 1.25x larger
   if (schema < 4 && ui_scale == 0) ui_scale = -1; // migrate the former default once
   if (schema < 5 && ui_scale == -1) ui_scale = 2; // 1.0: médio became the default, small is a choice
   controls_free = pf["controls_free"].boolean(false);
@@ -79,7 +80,19 @@ bool SettingsStore::parse(const std::string& text) {
   slang = pf["slang"].str();
   alang = pf["alang"].str();
   onboarded = pf["onboarded"].boolean(false);
+  news_seen = pf["news_seen"].str();
+  news_closed = pf["news_closed"].str();
   language = i18n::normalize_pref(pf["language"].str(i18n::kAuto));  // missing or unknown: follow Windows
+  const JVal& rm = pf["remote"];
+  remote_on = rm["on"].boolean(false);
+  remote_sound = rm["sound"].boolean(true);
+  remote_folders.clear();
+  remote_folders_set = rm["folders"].t == JVal::Arr;
+  for (auto& f : rm["folders"].a)
+    if (!f["path"].str().empty() && remote_folders.size() < 16) remote_folders.push_back({f["path"].str(), f["on"].boolean(true)});
+  remote_tokens.clear();
+  for (auto& t : rm["tokens"].a)
+    if (t.str().size() == 32 && remote_tokens.size() < 8) remote_tokens.push_back(t.str());
   const JVal& up = ss["update"];
   update_checked = (int64_t)up["checked"].num(0);
   update_available = up["available"].str();
@@ -157,7 +170,18 @@ bool SettingsStore::save(const std::filesystem::path& path) const {
   o += std::string("    \"controls_free\": ") + (controls_free ? "true" : "false") + ",\n";
   o += std::string("    \"loop\": ") + (loop ? "true" : "false") + ",\n";
   o += std::string("    \"onboarded\": ") + (onboarded ? "true" : "false") + ",\n";
+  o += "    \"news_seen\": " + json_quote(news_seen) + ", \"news_closed\": " + json_quote(news_closed) + ",\n";
   o += "    \"language\": " + json_quote(i18n::normalize_pref(language)) + ",\n";
+  o += std::string("    \"remote\": {\"on\": ") + (remote_on ? "true" : "false") + ", \"sound\": " + (remote_sound ? "true" : "false");
+  if (remote_folders_set) {
+    o += ", \"folders\": [";
+    for (size_t i = 0; i < remote_folders.size(); ++i)
+      o += (i ? ", " : "") + std::string("{\"path\": ") + json_quote(remote_folders[i].path) + ", \"on\": " + (remote_folders[i].on ? "true" : "false") + "}";
+    o += "]";
+  }
+  o += ", \"tokens\": [";
+  for (size_t i = 0; i < remote_tokens.size(); ++i) o += (i ? ", " : "") + json_quote(remote_tokens[i]);
+  o += "]},\n";
   o += "    \"slang\": " + json_quote(slang) + ", \"alang\": " + json_quote(alang) + "\n  },\n";
   // session
   o += "  \"session\": {\n";

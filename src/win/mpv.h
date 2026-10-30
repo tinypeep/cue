@@ -52,6 +52,7 @@ struct MpvApi {
   int (*get_property_async)(mpv_handle*, uint64_t, const char*, mpv_format);
   char* (*get_property_string)(mpv_handle*, const char*);
   int (*command)(mpv_handle*, const char**);
+  int (*command_string)(mpv_handle*, const char*);
   int (*command_async)(mpv_handle*, uint64_t, const char**);
   int (*observe_property)(mpv_handle*, uint64_t, const char*, mpv_format);
   mpv_event* (*wait_event)(mpv_handle*, double);
@@ -76,12 +77,12 @@ class Mpv {
 
   void option(const char* k, const std::string& v);
   bool set(const char* k, const std::string& v);  // sync, returns success
-  bool set_any(const std::vector<std::string>& names, const std::string& v);
   void set_async(const char* k, const std::string& v);
   void set_double_async(const char* k, double v);
   void set_flag_async(const char* k, bool v);
   int cmd(std::initializer_list<std::string> args, uint64_t reply = 0);  // < 0: not queued (no reply will come)
   int cmd_vec(const std::vector<std::string>& args, uint64_t reply = 0);
+  bool cmd_batch(const std::vector<std::vector<std::string>>& commands);
   double get_double(const char* k, double def = 0);
   std::string get_string(const char* k);
   void observe(const char* k, mpv_format f, uint64_t id);

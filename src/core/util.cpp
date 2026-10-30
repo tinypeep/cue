@@ -49,11 +49,6 @@ bool is_subtitle_path(std::string_view p) {
   return false;
 }
 
-bool is_media_path(std::string_view p) {
-  // Anything that is not a subtitle is offered to the engine; it decides.
-  return !p.empty() && !is_subtitle_path(p);
-}
-
 SubKind sub_kind(const std::string& c) {
   if (c.empty()) return SubKind::None;
   if (c == "ass" || c == "ssa") return SubKind::Ass;

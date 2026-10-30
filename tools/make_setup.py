@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Builds Cue-<version>-Setup.exe: the setup stub + the app folder, LZMA-compressed.
 
-    python3 tools/make_setup.py build/Cue build/setup/stub.exe dist/Cue-1.1.0-Setup.exe
+    python3 tools/make_setup.py build/Cue build/setup/stub.exe dist/Cue-1.1-Setup.exe
 
 The app folder must already hold libmpv-2.dll. The large source archives in sources/ are not
 packed into the installer: they are published next to it on the GitHub release (GPL 6(d)),

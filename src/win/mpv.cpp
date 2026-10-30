@@ -4,6 +4,7 @@
 #include <array>
 
 #include "../core/i18n.h"
+#include "../core/json.h"
 
 template <class F>
 static bool sym(HMODULE m, const char* name, F& out) {
@@ -28,6 +29,7 @@ bool Mpv::load(const std::wstring& dir, std::string* err) {
             sym(dll_, "mpv_get_property", api_.get_property) &&
             sym(dll_, "mpv_get_property_async", api_.get_property_async) &&
             sym(dll_, "mpv_get_property_string", api_.get_property_string) && sym(dll_, "mpv_command", api_.command) &&
+            sym(dll_, "mpv_command_string", api_.command_string) &&
             sym(dll_, "mpv_command_async", api_.command_async) &&
             sym(dll_, "mpv_observe_property", api_.observe_property) && sym(dll_, "mpv_wait_event", api_.wait_event) &&
             sym(dll_, "mpv_set_wakeup_callback", api_.set_wakeup_callback) && sym(dll_, "mpv_free", api_.free) &&
@@ -65,12 +67,6 @@ void Mpv::option(const char* k, const std::string& v) { if (h_) api_.set_option_
 
 bool Mpv::set(const char* k, const std::string& v) { return h_ && api_.set_property_string(h_, k, v.c_str()) >= 0; }
 
-bool Mpv::set_any(const std::vector<std::string>& names, const std::string& v) {
-  for (auto& n : names)
-    if (set(n.c_str(), v)) return true;
-  return false;
-}
-
 void Mpv::set_async(const char* k, const std::string& v) {
   if (!h_) return;
   const char* s = v.c_str();
@@ -98,6 +94,20 @@ int Mpv::cmd(std::initializer_list<std::string> args, uint64_t reply) {
   size_t i = 0;
   for (const auto& arg : args) pointers[i++] = arg.c_str();
   return api_.command_async(h_, reply, pointers.data());
+}
+
+// A semicolon command list is executed under the engine's core lock. Separate
+// async property writes let playback run between graph rebuild and exact seek.
+// These internal commands do not wait for decoding or playback-restart.
+bool Mpv::cmd_batch(const std::vector<std::vector<std::string>>& commands) {
+  if (!h_) return false;
+  std::string text;
+  for (const auto& command : commands) {
+    if (!text.empty()) text += "; ";
+    text += "no-osd raw";
+    for (const auto& arg : command) text += " " + json_quote(arg);
+  }
+  return !text.empty() && api_.command_string(h_, text.c_str()) >= 0;
 }
 
 double Mpv::get_double(const char* k, double def) {

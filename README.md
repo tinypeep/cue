@@ -10,16 +10,17 @@ A free, open-source video and audio player for Windows. Lightweight, local, and 
 
 ## Made for watching
 
-- Minimal pixel interface with two control styles and four sizes.
+- Minimal pixel interface with two control styles and four sizes that follow the window and the screen's DPI, up to 8K.
 - Subtitles with font, size, position, and timing controls.
 - Dynamic ambient lighting that follows the scene.
 - Audio-only playback with a reactive pixel waveform.
 - One window, saved playback positions, and timeline previews.
 - Five languages, selected automatically from Windows or changed in the app.
+- A phone remote with a throwback click wheel: pair with a QR code, no app to install.
 
 ## Get started
 
-Download `Cue-1.0-Setup.exe` from the [latest release](https://github.com/tinypeep/cue/releases/latest) and run it. **Windows x64.** No administrator privileges required.
+Download `Cue-1.1-Setup.exe` from the [latest release](https://github.com/tinypeep/cue/releases/latest) and run it. **Windows x64.** No administrator privileges required.
 
 Open a file, drag it onto Cue, or use **Open with** in File Explorer.
 
@@ -47,4 +48,4 @@ Portable tests: `bash tools/test.sh`. Playback and native interactions require W
 
 Cue's code is **GPL-3.0-or-later**. Fonts and third-party components retain their own licenses. See [LICENSE](LICENSE), [copyright](COPYRIGHT.md), and [component licenses](docs/LICENSES.md).
 
-Corresponding playback engine sources are provided as `Cue-1.0-Engine-Source.zip` on the [release page](https://github.com/tinypeep/cue/releases/tag/v1.0).
+Corresponding playback engine sources are provided as `Cue-1.1-Engine-Source.zip` on the [release page](https://github.com/tinypeep/cue/releases/tag/v1.1).

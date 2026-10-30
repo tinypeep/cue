@@ -36,6 +36,15 @@ const BitmapDef* bmp(std::string_view name) {
         {"text-style", 9, 7, ".##......" "#..#....." "#..#.###." "####....#" "#..#.####" "#..#.#..#" "#..#..###"},
         // the interface language: a small globe, meridian and equator
         {"globe", 7, 7, "..###.." ".#.#.#." "#..#..#" "#######" "#..#..#" ".#.#.#." "..###.."},
+        // the phone remote: a small phone, its home button a gap at the bottom
+        {"phone", 5, 8, "#####" "#...#" "#...#" "#...#" "#...#" "#...#" "##.##" "#####"},
+        // several audio tracks at once: three faders of a little mixer, each at its own level
+        // a choice among several (tick boxes): empty, and ticked
+        {"box-off", 7, 7, "#######" "#.....#" "#.....#" "#.....#" "#.....#" "#.....#" "#######"},
+        {"box-on", 7, 7, "#######" "#.....#" "#....##" "##..#.#" "#.##..#" "#.....#" "#######"},
+        // back to how it was: an arrow going round, anticlockwise (drawn mirrored, it is "undo")
+        {"reset", 7, 7, "###.##." "##....#" "#.#...#" "......#" "#.....#" ".#...#." "..###.."},
+        {"mixer", 9, 7, ".#..#..#." ".#.###.#." ".#..#..#." ".#..#.###" "###.#..#." ".#..#..#." ".#..#..#."},
     };
     for (auto& b : extra) m[b.name] = &b;
     return m;

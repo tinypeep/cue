@@ -7,7 +7,7 @@ rc /nologo /I res /fo build\obj\cue.res res\cue.rc || exit /b 1
 cl /nologo /std:c++20 /O2 /GL /Gy /Gw /EHsc /utf-8 /W4 /wd4100 /DUNICODE /D_UNICODE /DWIN32_LEAN_AND_MEAN /D_WIN32_WINNT=0x0A00 /DNOMINMAX ^
   /Fobuild\obj\ /Febuild\Cue\Cue.exe ^
   src\core\*.cpp src\ui\*.cpp src\win\*.cpp build\obj\cue.res ^
-  /link /LTCG /OPT:REF /OPT:ICF /SUBSYSTEM:WINDOWS /MANIFEST:NO dwmapi.lib ole32.lib shell32.lib uuid.lib shcore.lib user32.lib gdi32.lib advapi32.lib winmm.lib windowscodecs.lib winhttp.lib bcrypt.lib || exit /b 1
+  /link /LTCG /OPT:REF /OPT:ICF /SUBSYSTEM:WINDOWS /MANIFEST:NO dwmapi.lib ole32.lib shell32.lib uuid.lib shcore.lib user32.lib gdi32.lib advapi32.lib winmm.lib windowscodecs.lib winhttp.lib bcrypt.lib ws2_32.lib iphlpapi.lib || exit /b 1
 copy /y assets\fonts\*.ttf build\Cue\fonts\ >nul
 if not exist build\Cue\licenses mkdir build\Cue\licenses
 copy /y assets\fonts\*.txt build\Cue\licenses\ >nul

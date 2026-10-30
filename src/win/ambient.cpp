@@ -192,6 +192,11 @@ void Ambient::build_lut() {
   }
 }
 
+void Ambient::set_topmost(bool on) {
+  for (auto& s : st_)
+    if (s.wnd) SetWindowPos(s.wnd, on ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+}
+
 void Ambient::place(HWND owner, bool show) {
   HDWP dw = BeginDeferWindowPos(4);
   for (auto& s : st_) {

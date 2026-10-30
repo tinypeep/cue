@@ -15,8 +15,8 @@ struct HomeRow {
   double progress = -1;  // 0..1 when in progress
 };
 
-enum class HomeAct { None, OpenDialog, OpenRecent, ClearRecents, EggSeen, WinMin, WinMax, WinClose, Update, SkipUpdate,
-                     Language };  // Language: index -1 automatic, else i18n::Lang
+enum class HomeAct { None, OpenDialog, OpenRecent, ClearRecents, EggSeen, WinMin, WinMax, WinClose, WinPin, Update, SkipUpdate,
+                     Language, Remote, News, NewsClose };  // Language: index -1 automatic, else i18n::Lang
 struct HomeAction { HomeAct a = HomeAct::None; int index = -1; };
 
 struct HomeView {
@@ -31,6 +31,7 @@ struct HomeView {
   std::string update_version;   // "" = nothing to offer
   double update_progress = -1;  // 0..1 while downloading
   bool update_busy = false;     // checking / downloading / starting the installer
+  bool news = false;            // "what's new" at the bottom until it is closed (once per version)
 
   Face face;
   WindowChrome chrome;
@@ -65,9 +66,10 @@ struct HomeView {
   void relayout() { layout(); }  // the words changed (another interface language)
 
  private:
-  // the ··· menu next to Recentes: "idioma ›" and "limpar recentes"; idioma opens the six choices
+  // the ··· menu next to Recentes: "idioma ›", "controle remoto" and "limpar recentes"; idioma opens the six choices
   enum : int { kOpen = 100, kDots = 101, kMenuClear = 102, kUpdate = 103, kUpdateSkip = 104, kMenuLang = 105,
-               kLangOpt = 106 /* ..111: automatic, then each i18n::Lang */, kMenuPad = 112, kHitIds = 13 };
+               kLangOpt = 106 /* ..111: automatic, then each i18n::Lang */, kMenuPad = 112, kMenuRemote = 113, kNews = 114,
+               kNewsClose = 115, kHitIds = 16 };
   int hover_ = -1, focus_ = -1;
   bool kb_ = false, menu_ = false, menu_lang_ = false, drag_ = false;
   std::vector<int> menu_ids_;
@@ -85,7 +87,7 @@ struct HomeView {
   struct Spot { double x, y, at; int size; };
   std::vector<Spot> spots_;
 
-  Rect r_open_, r_title_, r_dots_, r_menu_, r_list_, r_update_, r_update_skip_;
+  Rect r_open_, r_title_, r_dots_, r_menu_, r_list_, r_update_, r_update_skip_, r_news_, r_news_close_;
   void layout_update();
   std::vector<Rect> r_rows_;
 

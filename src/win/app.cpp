@@ -142,6 +142,12 @@ bool App::init(HINSTANCE inst, const std::vector<std::string>& args, int show) {
   // the welcome comes on a plain first start; opened straight into a file, it waits for next time
   onboarding_ = !store_.onboarded && pending_open_.empty();
   for (auto& a : args) if (a == "--welcome") onboarding_ = pending_open_.empty();
+  // what's new, once per version, for people who already knew Cue; a first start gets the
+  // welcome instead (it tells the same story), so that version counts as seen
+  if (!store_.onboarded) store_.news_seen = store_.news_closed = CUE_VERSION;
+  home_.news = compare_versions(CUE_VERSION, store_.news_closed) > 0;  // the line at the bottom, until closed
+  news_due_ = store_.onboarded && !onboarding_ && pending_open_.empty() && compare_versions(CUE_VERSION, store_.news_seen) > 0;
+  for (auto& a : args) if (a == "--news") news_due_ = !onboarding_ && pending_open_.empty();
   ob_.ambient = store_.ambient;
   ob_.ui_scale = store_.ui_scale;
   // a version found on an earlier run is offered right away; the details come with the next check
@@ -251,6 +257,26 @@ bool App::init(HINSTANCE inst, const std::vector<std::string>& args, int show) {
     swallow_next_ = false;
   };
   RegisterDragDrop(hwnd_, drop_);
+  scene_.create(inst);
+  scene_.on_action = [this](RemoteAction a) { remote_scene_action(a); };
+  scene_.on_closed = [this]() {
+    remote_.set_pairing(false, "");
+    gray_ = gray_target_ = 0;
+    if (gray_sent_ != 0 && mpv_ok_) { mpv_.set_double_async("saturation", 0); gray_sent_ = 0; }
+    ensure_anim();
+  };
+  scene_.on_tick = [this](double t) { scene_gray(t); };
+  scene_.on_leaving = [this]() {
+    gray_target_ = 0;  // colour comes back with the exit
+    if (scene_paused_ && mode_ == Mode::Play && loaded_ && play_.in.paused) request_pause(false);
+    scene_paused_ = false;
+  };
+  news_host_.create(inst);
+  news_host_.on_action = [this](SceneAct a) {
+    news_host_.close(news_host_.now());
+    if (a.a == (int)NewsAct::Try) open_remote_scene();
+  };
+  news_host_.on_closed = [this]() { ensure_anim(); };
 
   // everything the engine needs, copied while nobody else is using it; then it may go on
   engine_cfg_.wid = (int64_t)(intptr_t)video_;
@@ -273,6 +299,9 @@ bool App::init(HINSTANCE inst, const std::vector<std::string>& args, int show) {
   else on_engine_ready(start_engine());
   if (!pending_open_.empty()) { home_.leave(now(), false); ensure_anim(); }
   refresh_recents();
+  // the phone remote, when it was left on: shortly after the start, never in its way
+  if (store_.remote_on) SetTimer(hwnd_, T_REMOTE_START, 1500, nullptr);
+  if (news_due_) SetTimer(hwnd_, T_NEWS, 450, nullptr);  // after the home has settled in
   return true;
 }
 
@@ -537,6 +566,25 @@ void App::start_maintenance() {
 }
 
 // ── updates ─────────────────────────────────────────────────────────
+// Always on top: for a film in a corner while working. For this session only (a window that
+// stays above everything should never come back by surprise on the next start).
+void App::toggle_pin() {
+  pinned_ = !pinned_;
+  SetWindowPos(hwnd_, pinned_ ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+  ambient_.set_topmost(pinned_);
+  ambient_.follow(hwnd_);
+  home_.chrome.pinned = play_.chrome.pinned = ob_.chrome.pinned = pinned_;
+  say(tr(pinned_ ? str::win_pinned : str::win_unpinned));
+  play_.changed(now());
+  ensure_anim();
+}
+
+// The size, named, where the person is looking (the shortcuts change it without a menu).
+void App::say_ui_size() {
+  static const str::Id names[kUiSizes] = {str::size_small, str::size_medium, str::size_large, str::size_larger};
+  say(i18n::format(str::size_now, {{"size", tr(names[ui_size_index(store_.ui_scale)])}}));
+}
+
 void App::say(const std::string& text) {
   double t = now();
   if (mode_ == Mode::Play) play_.toast(text, nullptr, t);
@@ -759,6 +807,7 @@ void App::drain_mpv() {
         }
         break;
       case MPV_EVENT_PLAYBACK_RESTART:
+        audio_switch_restart();
         if(!media_geometry_.shape().valid()) request_video_geometry();
         if (loaded_ && !first_frame_) {
           log("first video frame (open " + std::to_string((int)((now() - open_started_) * 1000)) + "ms)");
@@ -793,13 +842,15 @@ void App::on_property(uint64_t id, const mpv_event_property* p) {
   auto str = [&]() { return (p->format == MPV_FORMAT_STRING && p->data && *(char**)p->data) ? std::string(*(char**)p->data) : std::string(); };
   PlayInput& in = play_.in;
   switch (id) {
-    case O_PAUSE: if (!pause_pending_) in.paused = flag(false); if (in.paused) save_position(); break;
+    case O_PAUSE: if (!pause_pending_ && !audio_switch_.stage) in.paused = flag(false); if (in.paused) save_position(); break;
     case O_OSDW: case O_OSDH:
       if (p->format == MPV_FORMAT_INT64 && p->data) (id==O_OSDW?osd_w_:osd_h_)=(int)*(int64_t*)p->data;
       break;
     case O_TIME:
+      if (audio_switch_.stage && audio_switch_.stage < 5) break;
       in.time = dbl(in.time);
       last_time_ = in.time;
+      if (what_until_ >= 0 && in.time >= what_until_ + 0.4) end_what(true);
       // A replacement can coalesce playback-restart notifications. A valid
       // advancing media clock after loading also releases the warmup gate.
       if (loaded_ && !first_frame_ && !in.paused && now() - loaded_at_ > 1.2 &&
@@ -822,16 +873,25 @@ void App::on_property(uint64_t id, const mpv_event_property* p) {
     case O_SUBVIS:
       if (snap_.subs_hidden) break;  // the snap hid them for a moment; the person's choice stands
       in.sub_visible = flag(true);
+      if (what_until_ >= 0 || now() - what_restored_at_ < 1.5) break;  // shown for a moment by the remote: not a choice
       if (loaded_ && now() - loaded_at_ > 1.0) if (RecentItem* r = store_.find(path_)) { r->sub_visible = in.sub_visible; save_state(); }
       break;
     case O_SID:
     case O_AID: {
       std::string v = str();
       int64_t idv = (v.empty() || v == "no") ? 0 : std::atoll(v.c_str());
+      // while tracks play together the engine reports none selected: aid keeps the last single
+      // track, the one to return to when the mix ends; the "no" of a forced reselection is not a
+      // choice either (it must never be remembered as "no audio" for the file)
+      if (id == O_AID && (amix_ || (aid_reselect_ && idv != aid_reselect_))) break;
+      if (id == O_AID) aid_reselect_ = 0;
+      if (id == O_SID && sid_reselect_ && idv != sid_reselect_) break;  // the refresh's passing "no"
+      if (id == O_SID) sid_reselect_ = 0;
       (id == O_SID ? in.sid : in.aid) = idv;
       // a choice made by hand (not the engine's pick at load) is remembered for the file,
       // and its language becomes the preferred one for the next files
-      if (loaded_ && tracks_applied_ && now() - loaded_at_ > 1.0) {
+      // (audio is never chosen "off" by hand: a "no" is the engine losing its device, not a choice)
+      if (loaded_ && tracks_applied_ && !amix_ && !(id == O_AID && idv == 0) && now() - loaded_at_ > 1.0 && what_until_ < 0 && now() - what_restored_at_ > 1.5) {
         if (RecentItem* r = store_.find(path_)) {
           std::string lang;
           for (auto& t : id == O_SID ? in.subs : in.audios) if (t.id == idv) lang = t.lang;
@@ -900,6 +960,10 @@ void App::on_property(uint64_t id, const mpv_event_property* p) {
         store_.set_position(path_, 0, in.dur);
         save_state();
         play_.activity(now());
+        // the remote's sleep timer said "at the end of this episode"; else, with a phone in
+        // hand, the next episode follows
+        if (remote_timer_ == -1) { remote_timer_ = 0; say(tr(str::remote_goodnight)); }
+        else if (remote_.clients() > 0 && !next_ep_.empty() && !store_.loop) SetTimer(hwnd_, T_NEXT, 2500, nullptr);
       }
       eof_ = e;
       if (play_.in.ended != (e && loaded_)) { play_.in.ended = e && loaded_; play_.changed(now()); ensure_anim(); }
@@ -913,6 +977,32 @@ void App::on_property(uint64_t id, const mpv_event_property* p) {
 void App::apply_media_tracks() {
   tracks_applied_ = true;
   const RecentItem* r = store_.find(path_);
+  // all the tracks together: when chosen for this file before, or when the file is plainly a
+  // recording in parts and nothing was chosen for it yet (said once, changed in the audio menu)
+  if (play_.in.audios.size() >= 2) {
+    if (r && r->aid == -2) {
+      // remembered as "-2" with the track ids in aid_lang ("" = all of them)
+      std::vector<int64_t> ids;
+      for (size_t i = 0; i < r->aid_lang.size();) {
+        size_t e = r->aid_lang.find(',', i);
+        if (e == std::string::npos) e = r->aid_lang.size();
+        int64_t id = std::atoll(r->aid_lang.substr(i, e - i).c_str());
+        for (auto& t : play_.in.audios) if (t.id == id) ids.push_back(id);
+        i = e + 1;
+      }
+      if (r->aid_lang.empty() || ids.size() >= 2) {
+        set_audio_mix(r->aid_lang.empty() ? all_audio_ids() : ids, false);
+        pick_subs_only(r);
+        return;
+      }
+    }
+    if ((!r || r->aid < 0) && looks_like_multitrack_recording(play_.in.audios)) {
+      set_audio_mix(all_audio_ids(), false);
+      say(i18n::format(str::audio_mixed, {{"n", std::to_string(play_.in.audios.size())}}));
+      if (r) { pick_subs_only(r); }
+      return;
+    }
+  }
   if (!r) return;
   auto pick = [&](const std::vector<Track>& v, int64_t want, const std::string& lang, const char* prop) {
     if (want < 0) return;
@@ -921,7 +1011,199 @@ void App::apply_media_tracks() {
       if (t.id == want && t.lang == lang) { mpv_.set_async(prop, std::to_string(want)); return; }
   };
   pick(play_.in.subs, r->sid, r->sid_lang, "sid");
-  if (!audio_only_) pick(play_.in.audios, r->aid, r->aid_lang, "aid");
+  if (!audio_only_ && r->aid > 0) pick(play_.in.audios, r->aid, r->aid_lang, "aid");  // never "no audio" from memory
+}
+
+void App::pick_subs_only(const RecentItem* r) {
+  if (r->sid == 0) mpv_.set_async("sid", "no");
+  else if (r->sid > 0)
+    for (auto& t : play_.in.subs)
+      if (t.id == r->sid && t.lang == r->sid_lang) { mpv_.set_async("sid", std::to_string(r->sid)); break; }
+}
+
+// One track, heard on its own. Coming out of a mix the engine may still think this track is the
+// selected one (its aid never changed while the tracks were mixed), and choosing it again would
+// do nothing: no decoder, no sound. So it is let go first, then chosen.
+void App::select_audio(int64_t id) {
+  if (id <= 0) return;
+  bool was_mix = amix_;
+  if (was_mix || audio_switch_.stage || (audio_only_ && waveform_active_)) {
+    std::string graph = audio_only_ && waveform_active_ ? audio_waveform_graph(id) : "";
+    if (!change_audio_graph(graph, id)) return;
+    aid_reselect_ = id;
+  } else {
+    if (play_.in.aid == id) return;
+    mpv_.set_async("aid", std::to_string(id));
+  }
+  amix_ = play_.in.amix = false;
+  play_.in.amix_ids.clear();
+  play_.in.aid = id;
+  // the engine may report no change at all (same track before and after the mix): the file
+  // remembers this choice here, not from that event
+  if (was_mix)
+    if (RecentItem* r = store_.find(path_)) {
+      r->aid = id;
+      r->aid_lang.clear();
+      for (auto& t : play_.in.audios) if (t.id == id) r->aid_lang = t.lang;
+      save_state();
+    }
+  play_.changed(now());
+  remote_publish();
+}
+
+// Rebuilding the graph flushes demux/decoder state. A seek in the same command
+// list can be consumed by that flush and land at the NEXT keyframe. Wait for the
+// rebuild to restart, THEN seek, keeping the picture covered until that seek ends.
+bool App::change_audio_graph(const std::string& graph, int64_t single_track) {
+  if (!loaded_ || eof_)
+    return mpv_.cmd_batch(audio_switch_commands(graph, single_track));
+  if (fullscreen_transition_) settle_fullscreen_motion();
+  auto& a = audio_switch_;
+  if (!a.stage || a.stage == 5) {
+    a.position = mpv_.get_double("time-pos", play_.in.time);
+    a.paused = pause_pending_ ? pause_target_ : play_.in.paused;
+    a.stage = 1; a.at = now(); a.retries = 0;
+    mpv_.set("pause", "yes");
+    snap_subtitles(true);
+  }
+  a.graph = graph; a.track = single_track; a.dirty = true;
+  if (IsIconic(hwnd_)) {
+    a.dirty = false; a.stage = 3; a.at = now();
+    mpv_.cmd_batch(audio_switch_commands(a.graph, a.track));
+  }
+  ensure_anim();
+  return true;
+}
+
+void App::cancel_audio_switch() {
+  if (!audio_switch_.stage) return;
+  bool paused = audio_switch_.paused;
+  audio_switch_ = {};
+  end_snap();
+  if (mpv_ok_) mpv_.set("pause", paused ? "yes" : "no");
+}
+
+// The picture while the sound changes language: it drains to black and white and breaks into
+// big pixels, which then shuffle (like letters turning over) while the engine rebuilds and finds
+// its place again; then the pixels settle, smaller and smaller, and the colour comes back last.
+// The shuffle also hides the moment the engine shows a frame from further on.
+namespace {
+constexpr double kSwitchOut = 0.16, kSwitchIn = 0.32, kSwitchDim = 0.32;
+double snap_px(double amount, int height);  // the mosaic's block size (defined with the fullscreen motion)
+}
+
+bool App::step_audio_switch(double t) {
+  auto& a = audio_switch_;
+  if (!a.stage) return false;
+  bool rm = reduce_motion();
+  auto shuffle = [&] {
+    // two coarse block sizes taking turns, a dozen times a second
+    int beat = (int)std::floor((t - a.at) / 0.085);
+    set_snap(kSwitchDim, snap_px(beat % 2 ? 0.84 : 1.0, ch_), 1.0);
+  };
+  if (a.stage == 1) {
+    double k = rm ? 1.0 : clamp01((t - a.at) / kSwitchOut);
+    set_snap(kSwitchDim * k, snap_px(0.3 + 0.7 * k * k, ch_), smoothstep(0.0, 0.7, k));
+    if (k >= 1) { a.stage = 2; a.at = t; }
+  } else if (a.stage == 2 && t - a.at < .05) {
+    shuffle();
+  } else if (a.stage == 2 && t - a.at >= .05) {
+    // Give the shader's black picture a couple of presentation frames first.
+    a.dirty = false; a.stage = 3; a.at = t;
+    if (!mpv_.cmd_batch(audio_switch_commands(a.graph, a.track))) {
+      cancel_audio_switch();
+      return false;
+    }
+  } else if ((a.stage == 3 || a.stage == 4) && t - a.at > 4) {
+    // A failed decoder must not leave the picture scrambled indefinitely.
+    cancel_audio_switch();
+    return false;
+  } else if (a.stage == 3 || a.stage == 4) {
+    if (!rm) shuffle();
+  } else if (a.stage == 5) {
+    double k = rm ? 1.0 : clamp01((t - a.at) / kSwitchIn);
+    double blocks = 1 - ease_out(k);
+    set_snap(kSwitchDim * (1 - ease_out(clamp01(k * 1.4))), snap_px(blocks, ch_), 1 - smoothstep(0.5, 1.0, k));
+    if (k >= 1) {
+      a.stage = 0;
+      end_snap();
+      // the person's choice, said once more: whatever the engine went through, a subtitle that
+      // is on in the menu is on on screen
+      if (play_.in.sid > 0 && play_.in.sub_visible) mpv_.set_flag_async("sub-visibility", true);
+      return false;
+    }
+  }
+  return true;
+}
+
+// After the audio graph is rebuilt and the engine has jumped back, the subtitle that was on
+// screen can be lost (its line began before the place the engine came back to, and is not read
+// again): the track still says "on", nothing shows. Letting go of the track and taking it again
+// makes the engine read the current line anew. Its passing "no" is not the person's choice.
+void App::refresh_subtitles() {
+  int64_t sid = play_.in.sid;
+  if (sid <= 0 || !mpv_ok_) return;
+  sid_reselect_ = sid;
+  mpv_.cmd_batch({{"set", "sid", "no"}, {"set", "sid", std::to_string(sid)}});
+}
+
+void App::audio_switch_restart() {
+  auto& a = audio_switch_;
+  if (a.stage != 3 && a.stage != 4) return;
+  if (a.dirty) { a.stage = 2; a.at = now(); return; }
+  double pos = mpv_.get_double("time-pos", -1);
+  if (a.stage == 3 || (std::fabs(pos - a.position) > .075 && a.retries < 3)) {
+    a.stage = 4; a.at = now(); ++a.retries;
+    mpv_.cmd({"seek", std::to_string(a.position), "absolute+exact"});
+    return;
+  }
+  a.stage = 5; a.at = now();
+  play_.in.time = last_time_ = pos;
+  refresh_subtitles();
+  mpv_.set("pause", a.paused ? "yes" : "no");
+  if (IsIconic(hwnd_)) { a.stage = 0; end_snap(); }
+  ensure_anim();
+}
+
+std::vector<int64_t> App::all_audio_ids() const {
+  std::vector<int64_t> ids;
+  for (auto& t : play_.in.audios) ids.push_back(t.id);
+  return ids;
+}
+
+// Several tracks at once. The engine rebuilds its audio for each change, so an unchanged set
+// is never sent again; the panel, the phone and the saved choice follow the same list.
+void App::set_audio_mix(std::vector<int64_t> ids, bool remember) {
+  std::sort(ids.begin(), ids.end());
+  ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
+  if (ids.size() < 2) return;
+  if (!amix_ || ids != play_.in.amix_ids) {
+    std::string g = audio_mix_graph(ids, audio_only_ && waveform_active_);
+    if (g.empty()) return;
+    if (!change_audio_graph(g, 0)) return;
+  }
+  amix_ = play_.in.amix = true;
+  play_.in.amix_ids = ids;
+  if (remember)
+    if (RecentItem* r = store_.find(path_)) {
+      r->aid = -2;
+      r->aid_lang.clear();
+      if (ids.size() < play_.in.audios.size())
+        for (size_t i = 0; i < ids.size(); ++i) r->aid_lang += (i ? "," : "") + std::to_string(ids[i]);
+      save_state();
+    }
+  play_.changed(now());
+  remote_publish();
+}
+
+// The mix is this file's: the next one starts plain (and finds its own tracks).
+void App::clear_audio_mix() {
+  cancel_audio_switch();
+  aid_reselect_ = 0;
+  if (!amix_) return;
+  amix_ = play_.in.amix = false;
+  play_.in.amix_ids.clear();
+  if (mpv_ok_) mpv_.set("lavfi-complex", "");
 }
 
 void App::configure_audio_mode() {
@@ -1047,6 +1329,9 @@ void App::on_file_loaded() {
   pending_subs_.clear();
   apply_style();
   save_state();
+  end_what(false);
+  find_next_episode();
+  remote_publish();
   if (!audio_only_) SetTimer(hwnd_, T_THUMB, (UINT)(PlaybackWarmup::kAtmosphereDelay * 1000), nullptr);
   else KillTimer(hwnd_, T_THUMB);
   ensure_anim();
@@ -1145,8 +1430,30 @@ void App::save_now(bool synchronous) {
   if (!store_.save(state_path_)) log("could not save state");
 }
 
+// ── what's new ──────────────────────────────────────────────────────
+void App::show_news(bool asked) {
+  if (asked) news_due_ = true;
+  // only over a calm home: a file on its way, the welcome or the pairing scene come first
+  if (!news_due_ || news_host_.visible() || mode_ != Mode::Home || onboarding_ || !pending_open_.empty() || scene_.visible() || IsIconic(hwnd_)) return;
+  news_due_ = false;
+  store_.news_seen = CUE_VERSION;
+  save_state();
+  news_.version = CUE_VERSION_SHORT;
+  news_host_.show(&news_, hwnd_, s_, news_host_.now());
+  log("news");
+}
+
+// Closed by hand: it comes back only with the next version.
+void App::close_news_line() {
+  home_.news = false;
+  store_.news_closed = CUE_VERSION;
+  save_state();
+}
+
 // ── opening ─────────────────────────────────────────────────────────
 void App::open(const std::string& path, std::vector<std::string> subs) {
+  news_due_ = false;
+  if (news_host_.visible()) news_host_.close(news_host_.now());
   settle_fullscreen_motion();  // a fullscreen movement in progress lands at once
   thumb_stop();
   reset_atmosphere();
@@ -1181,6 +1488,7 @@ void App::open(const std::string& path, std::vector<std::string> subs) {
   log("open requested");
   observed_path_.clear();
   pending_subs_ = std::move(subs);
+  clear_audio_mix();
   mpv_.cmd({"loadfile", path, "replace"});
 }
 
@@ -1199,6 +1507,9 @@ void App::handle_files(const std::vector<std::string>& files) {
 
 void App::go_home() {
   thumb_stop();
+  clear_audio_mix();
+  end_what(false);
+  next_ep_.clear();
   background_warmup_.reset();
   reveal_pending_ = false;
   home_.enter(now());
@@ -1315,6 +1626,10 @@ void App::apply_style(bool live) {
 
 // ── actions from the playback UI ────────────────────────────────────
 void App::request_pause(bool paused) {
+  if (audio_switch_.stage && audio_switch_.stage < 5) {
+    audio_switch_.paused = paused; play_.in.paused = paused;
+    return;
+  }
   pause_target_=paused; pause_pending_=true;
   if(pause_request_ < (1ull<<32)) pause_request_=1ull<<32;
   ++pause_request_; int flag=paused;
@@ -1338,12 +1653,13 @@ void App::run_actions() {
           request_pause(a.v>0);
         }
         break;
-      case PA::SeekRel: mpv_.cmd({"seek", std::to_string(a.v), "relative"}); break;
+      case PA::SeekRel: cancel_audio_switch(); mpv_.cmd({"seek", std::to_string(a.v), "relative"}); break;
       case PA::SeekAbs:
+        cancel_audio_switch();
         if (seek_in_flight_) seek_pending_ = a.v;  // one seek in flight: scrubbing never queues up
         else { seek_in_flight_ = true; mpv_.cmd({"seek", std::to_string(a.v), "absolute+keyframes"}, kReplySeek); }
         break;
-      case PA::SeekAbsExact: seek_pending_ = -1; mpv_.cmd({"seek", std::to_string(a.v), "absolute+exact"}); break;
+      case PA::SeekAbsExact: cancel_audio_switch(); seek_pending_ = -1; mpv_.cmd({"seek", std::to_string(a.v), "absolute+exact"}); break;
       case PA::Volume: mpv_.set_double_async("volume", a.v); play_.in.volume = a.v; break;
       case PA::ToggleMute: mpv_.cmd({"cycle", "mute"}); break;
       case PA::Fullscreen: toggle_fullscreen(); break;
@@ -1355,12 +1671,18 @@ void App::run_actions() {
           mpv_.set_flag_async("sub-visibility", true);
         }
         break;
-      case PA::SelectAudio:
-        if (audio_only_ && waveform_active_ && a.id > 0)
-          mpv_.set_async("lavfi-complex", audio_waveform_graph(a.id));
-        mpv_.set_async("aid", std::to_string(a.id));
-        play_.in.aid = a.id;
+      case PA::SelectAudio: select_audio(a.id); play_.announce_audio(t); break;
+      case PA::AudioMix: {
+        // a.id: the chosen tracks as a mask of their places in the list (0: every track)
+        std::vector<int64_t> ids;
+        uint64_t mask = (uint64_t)a.id;
+        for (size_t i = 0; i < play_.in.audios.size() && i < 64; ++i)
+          if (!mask || (mask >> i & 1)) ids.push_back(play_.in.audios[i].id);
+        set_audio_mix(ids, true);
+        play_.announce_audio(t);
+        play_.changed(t);
         break;
+      }
       case PA::AddSubFile: {
         auto f = open_file_dialog(hwnd_, DialogKind::Subtitle);
         for (auto& s : f) mpv_.cmd({"sub-add", s, "select"});
@@ -1394,6 +1716,7 @@ void App::run_actions() {
         break;
       case PA::Placement: store_.dock = play_.place; save_state(); break;
       case PA::WinMin: ShowWindow(hwnd_, SW_MINIMIZE); break;
+      case PA::WinPin: toggle_pin(); break;
       case PA::WinMax: toggle_maximize(); break;
       case PA::WinClose: PostMessageW(hwnd_, WM_CLOSE, 0, 0); break;
       case PA::WinDragBegin: begin_window_drag(); break;
@@ -1457,6 +1780,7 @@ void App::run_actions() {
         break;
       case PA::UiScale: set_ui_scale((int)a.v); break;
       case PA::Language: set_language_pref((int)a.v); break;
+      case PA::Remote: open_remote_scene(); break;
       case PA::Update:
         if (upd_ == Upd::Available) start_update();
         else check_updates(true);
@@ -1633,6 +1957,7 @@ void App::frame() {
   last_tick_ = t;
   bool moving = geom_.on;
   moving |= step_fullscreen_transition(t);
+  moving |= step_audio_switch(t);
   moving |= step_sub_fx(t, dt);
   step_geom(t);
   if (mode_ == Mode::Home && onboarding_) {
@@ -1746,9 +2071,11 @@ void App::key(const std::string& k, bool shift, bool ctrl) {
     return;
   }
   if (ctrl && k == "v") { handle_files(clipboard_files(hwnd_)); return; }
+  if (ctrl && k == "t") { toggle_pin(); return; }  // always on top, like Windows' own Win+Ctrl+T
   // interface size, anywhere: ctrl + / ctrl - / ctrl 0
   if (ctrl && (k == "plus" || k == "minus" || k == "zero")) {
     set_ui_scale(k == "zero" ? kDefaultUiSize : next_ui_size(store_.ui_scale, k == "plus" ? 1 : -1));
+    say_ui_size();
     return;
   }
   if (mode_ == Mode::Home && onboarding_) {
@@ -1765,6 +2092,9 @@ void App::key(const std::string& k, bool shift, bool ctrl) {
     if (a.a == HomeAct::ClearRecents) { store_.clear_recents(); save_state(); refresh_recents(); }
     if (a.a == HomeAct::Update) start_update();
     if (a.a == HomeAct::Language) set_language_pref(a.index);
+    if (a.a == HomeAct::Remote) open_remote_scene();
+    if (a.a == HomeAct::News) show_news(true);
+    if (a.a == HomeAct::NewsClose) close_news_line();
     ensure_anim();
     return;
   }
@@ -1774,7 +2104,7 @@ void App::key(const std::string& k, bool shift, bool ctrl) {
 }
 
 void App::toggle_fullscreen() {
-  if (fullscreen_transition_ || mode_ != Mode::Play) return;
+  if (fullscreen_transition_ || audio_switch_.stage || mode_ != Mode::Play) return;
   begin_fullscreen_motion();
 }
 
@@ -2077,6 +2407,7 @@ void App::thumb_store(std::vector<uint32_t>&& px, int w, int h) {
     img.w = size.w; img.h = size.h; img.px = std::move(small);
   }
   thumb_cache_[k] = std::move(img);
+  if (remote_peek_want_ >= 0) remote_peek_send();
   // the frame the cursor is waiting for: show it now
   if (background_ready() && thumb_want_ >= 0 && thumb_key(thumb_want_) == k) {
     thumb_want_ = -1;
@@ -2122,6 +2453,8 @@ void App::thumb_stop() {
   thumb_order_.clear();
   thumb_order_pos_ = 0;
   thumb_shown_ = INT_MIN;
+  remote_peek_want_ = -1;
+  remote_peek_sent_ = INT_MIN;
   preview_.reset(); // errors and replies from the old file must not disable its replacement
   play_.set_thumb({}, 0, 0, -1);
   thumb_want_ = thumb_seek_t_ = -1;
@@ -2154,6 +2487,7 @@ void App::on_onboarding(ObAction a) {
       log("welcome done");
       break;
     case ObAct::WinMin: ShowWindow(hwnd_, SW_MINIMIZE); break;
+    case ObAct::WinPin: toggle_pin(); break;
     case ObAct::WinMax: toggle_maximize(); break;
     case ObAct::WinClose: PostMessageW(hwnd_, WM_CLOSE, 0, 0); break;
   }
@@ -2198,6 +2532,9 @@ void App::apply_language(bool relayout) {
   play_.changed(now());
   if (mode_ == Mode::Play && loaded_) refresh_file_info();
   relocalize_licenses();
+  if (remote_.running()) remote_boot();
+  if (scene_.visible()) scene_.view.set_size(scene_.view.w, scene_.view.h, scene_.view.s);  // new words, next frame
+  if (news_host_.visible()) news_.set_size(news_.w, news_.h, news_.ui_s);
   // Explorer's name for Cue's file type follows, in the background like at start
   HANDLE th = CreateThread(nullptr, 0, [](void*) -> DWORD {
     HRESULT com = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
@@ -2219,7 +2556,8 @@ void App::set_language_pref(int lang) {
 }
 
 void App::set_ui_scale(int v) {
-  v = std::clamp(v, -1, 2);
+  v = std::clamp(v, -1, 3);
+  if (v == 1) v = 3;
   if (onboarding_ && v != ob_.ui_scale) ob_.set_scale_choice(v, now());  // ctrl +/- on the welcome
   store_.ui_scale = v;
   play_.in.ui_scale = v;
@@ -2666,6 +3004,7 @@ void App::quit_now() {
   if (mpv_ok_) release_video_window();  // focus and mouse leave the engine's window first, as before
   ShowWindow(hwnd_, SW_HIDE);  // gone from the screen and the taskbar now
   ambient_.destroy();
+  remote_.stop(false);
   if (mpv_ok_) mpv_.set_flag_async("pause", true);  // silence at once (the engine may take a moment to end)
   save_position();
   save_now(true);
@@ -2746,7 +3085,20 @@ LRESULT CALLBACK App::videoproc(HWND h, UINT m, WPARAM w, LPARAM l) {
       case WM_LBUTTONDBLCLK: SetCapture(h); self->mouse_button(0, true, GET_X_LPARAM(l), GET_Y_LPARAM(l)); return 0;
       case WM_LBUTTONUP: ReleaseCapture(); self->mouse_button(0, false, GET_X_LPARAM(l), GET_Y_LPARAM(l)); return 0;
       case WM_RBUTTONUP: self->mouse_button(1, true, GET_X_LPARAM(l), GET_Y_LPARAM(l)); return 0;
-      case WM_MOUSEWHEEL: self->play_.wheel(GET_WHEEL_DELTA_WPARAM(w) > 0 ? 1 : -1, self->now()); self->run_actions(); self->ensure_anim(); return 0;
+      case WM_MOUSEWHEEL:
+        // ctrl + wheel: the interface size, one notch a step (a trackpad's small deltas add up)
+        if (GET_KEYSTATE_WPARAM(w) & MK_CONTROL) {
+          self->size_wheel_ += GET_WHEEL_DELTA_WPARAM(w);
+          if (std::abs(self->size_wheel_) >= WHEEL_DELTA) {
+            int dir = self->size_wheel_ > 0 ? 1 : -1;
+            self->size_wheel_ = 0;
+            int next = next_ui_size(self->store_.ui_scale, dir);
+            if (next != self->store_.ui_scale) self->set_ui_scale(next);
+            self->say_ui_size();
+          }
+          return 0;
+        }
+        self->play_.wheel(GET_WHEEL_DELTA_WPARAM(w) > 0 ? 1 : -1, self->now()); self->run_actions(); self->ensure_anim(); return 0;
     }
   }
   return DefWindowProcW(h, m, w, l);
@@ -2854,6 +3206,7 @@ LRESULT App::handle(UINT m, WPARAM w, LPARAM l) {
       return HTCLIENT;
     }
     case WM_APP_MPV: drain_mpv(); return 0;
+    case WM_APP_REMOTE: remote_events(); return 0;
     case WM_APP_UPDATE: {
       auto* um = reinterpret_cast<UpdateMsg*>(l);
       if (um && !closing_app_) on_update(um);
@@ -2929,6 +3282,8 @@ LRESULT App::handle(UINT m, WPARAM w, LPARAM l) {
     }
     case WM_WINDOWPOSCHANGED:
       ambient_.follow(hwnd_, in_sizemove_);  // move existing pixels; defer expensive shape rebuilds
+      scene_.follow(hwnd_, s_);
+      news_host_.follow(hwnd_, s_);
       break;
     case WM_GETMINMAXINFO: {
       auto* mm = reinterpret_cast<MINMAXINFO*>(l);
@@ -2998,6 +3353,14 @@ LRESULT App::handle(UINT m, WPARAM w, LPARAM l) {
         } else SetTimer(hwnd_, T_MAINTENANCE, 500, nullptr);
       }
       else if (w == T_GEOM) decide_window();
+      else if (w == T_REMOTE) remote_tick();
+      else if (w == T_REMOTE_START) { KillTimer(hwnd_, T_REMOTE_START); remote_start(); }
+      else if (w == T_NEWS) { KillTimer(hwnd_, T_NEWS); show_news(); }
+      else if (w == T_NEXT) {
+        // the episode ended with a phone in hand: the next one, after a breath
+        KillTimer(hwnd_, T_NEXT);
+        if (eof_ && mode_ == Mode::Play && !next_ep_.empty() && remote_.clients() > 0) open(next_ep_);
+      }
       else if (w == T_PREFETCH) { KillTimer(hwnd_, T_PREFETCH); thumb_next(); }
       else if (w == T_FINE) {
         KillTimer(hwnd_, T_FINE);
@@ -3111,10 +3474,14 @@ LRESULT App::handle(UINT m, WPARAM w, LPARAM l) {
         else if (a.a == HomeAct::ClearRecents) { store_.clear_recents(); save_state(); refresh_recents(); }
         else if (a.a == HomeAct::EggSeen) { store_.eggs_seen = home_.eggs_seen; save_state(); }
         else if (a.a == HomeAct::WinMin) ShowWindow(hwnd_, SW_MINIMIZE);
+        else if (a.a == HomeAct::WinPin) toggle_pin();
         else if (a.a == HomeAct::WinMax) toggle_maximize();
         else if (a.a == HomeAct::WinClose) PostMessageW(hwnd_, WM_CLOSE, 0, 0);
         else if (a.a == HomeAct::Update) start_update();
         else if (a.a == HomeAct::Language) set_language_pref(a.index);
+        else if (a.a == HomeAct::Remote) open_remote_scene();
+        else if (a.a == HomeAct::News) show_news(true);
+        else if (a.a == HomeAct::NewsClose) close_news_line();
         else if (a.a == HomeAct::SkipUpdate) {
           store_.update_skipped = upd_rel_.version;
           upd_ = Upd::Idle;

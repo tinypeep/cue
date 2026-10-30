@@ -22,6 +22,8 @@ struct PlayInput {
   bool muted = false;
   std::vector<Track> subs, audios;
   int64_t sid = 0, aid = 0;  // 0 = none
+  bool amix = false;          // several audio tracks at once (aid is then the last single one)
+  std::vector<int64_t> amix_ids;  // the tracks playing together (2 or more while amix)
   bool sub_visible = true;
   double sub_delay = 0;
   SubStyle style, default_style;
@@ -50,11 +52,12 @@ struct PlayInput {
 };
 
 enum class PA {
-  TogglePause, SeekRel, SeekAbs, SeekAbsExact, Volume, ToggleMute, Fullscreen, SelectSub, SelectAudio,
+  TogglePause, SeekRel, SeekAbs, SeekAbsExact, Volume, ToggleMute, Fullscreen, SelectSub, SelectAudio, AudioMix,
   AddSubFile, OpenFile, CloseVideo, Style, StyleLive, StyleDefault, SubDelay, SubVisible, Placement, SubLift,
-  WinMin, WinMax, WinClose, WinDragBegin, WinDragEnd, Preview, Speed, SaveFrame, UiScale, Ambient, AmbientStrength,
+  WinMin, WinMax, WinClose, WinPin, WinDragBegin, WinDragEnd, Preview, Speed, SaveFrame, UiScale, Ambient, AmbientStrength,
   OpenFrameFolder, OpenLinkedIn, OpenGitHub, OpenLicenses, FileInfo, ControlsFree, Update, Loop, SubEdit,
-  Language  // v: -1 automatic, else i18n::Lang
+  Language,  // v: -1 automatic, else i18n::Lang
+  Remote     // the phone remote's pairing scene
 };
 struct PlayAction { PA a; double v = 0; int64_t id = 0; };
 
@@ -96,11 +99,16 @@ class PlayView {
   void toast(const std::string& text, const char* icon, double now, bool icon_after = false);
   // "frame saved ✓ | folder": stays a little longer, and its folder button opens where the frame went
   void toast_folder(const std::string& text, double now);
+  // the sound changed language: its name turns over letter by letter, like a departures board
+  void announce_audio(double now);
   void activity(double now);
   double last_activity() const { return last_activity_; }
   uint64_t dock_signature() const { return dock_revision_; }
   int cursor_kind() const;  // 0 arrow, 1 link, 2 open hand (subtitle), 3 closed hand (dragging it)
   void flash(const std::string& text, double now);  // tiny centred feedback ("+15", "1.25×")
+  // the phone remote drives the same actions as the dock (and shows the same feedback)
+  void remote_toggle_pause(double now) { activate(B_PLAY, now); }
+  void remote_act(PA a, double v = 0, int64_t id = 0) { act(a, v, id); }
   void flash_pause(bool paused, double now);
   // timeline preview: a small frame near the hovered time (BGRA, opaque)
   void set_thumb(const std::vector<uint32_t>& px, int w, int h, double t);
@@ -143,15 +151,15 @@ class PlayView {
 
  private:
   enum Btn { B_NONE = 0, B_VOL, B_VOLBAR, B_REW, B_PLAY, B_FWD, B_CC, B_AUDIO, B_FS, B_MORE, B_TIMELINE, B_DOCKBG, B_SPEED, B_TIME, B_LOOP, B_COUNT };
-  enum class Panel { None, CC, Style, Audio, More, Speed, Context, About, FileInfo, Language };
+  enum class Panel { None, CC, Style, Audio, AudioMix, More, Speed, Context, About, FileInfo, Language };
   enum class RK { Header, Option, Action, Submenu, Slider, Fonts, Stepper, Segmented, Hint, Separator, Links, Toggle,
                   SpeedBar, Chips, Brand, Credit, Profile, Info, CloseHeader };
   enum RowId {
-    R_NONE, R_SUB_TOGGLE, R_SUB_TRACK, R_ADD_SUB, R_STYLE, R_DELAY, R_BACK, R_FONTS, R_SIZE, R_TEXT, R_BG, R_OUTLINE, R_LINEGAP, R_TRACK, R_POS,
-    R_ASS, R_LINKS, R_AUDIO_TRACK, R_OPEN, R_CLOSE, R_SPEED, R_SPEED_OPT, R_BACK_MORE, R_UISCALE, R_AMBIENT,
+    R_NONE, R_SUB_TOGGLE, R_SUB_TRACK, R_ADD_SUB, R_STYLE, R_DELAY, R_BACK, R_FONTS, R_SIZE, R_TEXT, R_BG, R_OUTLINE, R_LINEGAP, R_TRACK,
+    R_ASS, R_LINKS, R_AUDIO_TRACK, R_AUDIO_MIX, R_AUDIO_MIX_TRACK, R_AUDIO_MIX_ALL, R_BACK_AUDIO, R_STYLE_RESET, R_OPEN, R_CLOSE, R_SPEED, R_SPEED_OPT, R_BACK_MORE, R_UISCALE, R_AMBIENT,
     R_FRAME, R_FRAME_CLEAN, R_FS_ROW, R_AUDIO_ROW, R_AMBIENT_STR, R_SPEED_VALUE, R_SPEED_BAR, R_SPEED_CHIPS,
     R_ABOUT, R_LINKEDIN, R_GITHUB, R_LICENSES, R_FILE_INFO, R_DISMISS, R_CONTROLS_FREE, R_UPDATE,
-    R_LANGUAGE, R_LANG_OPT
+    R_LANGUAGE, R_LANG_OPT, R_REMOTE
   };
   struct Row {
     RK k;
@@ -242,6 +250,14 @@ class PlayView {
   std::string shown_time_;
   int shown_tl_px_ = -1;
   bool drag_pending_ = false, dragging_dock_ = false;
+  // the subtitle's way back: to the person's default (or Cue's), and once more to undo it
+  SubStyle undo_style_, undo_target_;
+  bool undo_ok_ = false, resetting_ = false;
+  bool style_customized() const { return in.style != in.default_style || in.style != SubStyle{}; }
+  void reset_style(double now);
+  static constexpr double kSnap = 28;  // art px: a dock place pulls, and catches it when dropped
+  int ghost_ = -1, ghost_drawn_ = -2;  // the place the dock would land in (-1: none)
+  void update_ghost();
   int grab_x_ = 0, grab_y_ = 0, down_x_ = 0, down_y_ = 0;
   bool scrubbing_ = false, vol_drag_ = false;
   double scrub_t_ = 0;
@@ -278,6 +294,7 @@ class PlayView {
   const char* toast_icon_ = nullptr;
   bool toast_icon_after_ = false;
   double toast_t0_ = -10;
+  double flap_t0_ = -10;  // the toast's letters are turning over (announce_audio)
   bool toast_dirty_ = false;
   Canvas toast_base_;
   double toast_hold_ = 1.1;      // seconds at full opacity

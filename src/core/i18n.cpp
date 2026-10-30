@@ -169,7 +169,6 @@ const char* raw(Lang l, str::Id id, bool one_form) {
   if (id >= str::kCount) return nullptr;
   return one_form ? kOne[(int)l][id] : kOther[(int)l][id];
 }
-bool is_plural(str::Id id) { return id < str::kCount && kPluralKey[id]; }
 
 std::vector<Issue> audit() {
   std::vector<Issue> out;

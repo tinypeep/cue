@@ -85,6 +85,60 @@ std::vector<std::string> open_file_dialog(HWND owner, DialogKind kind) {
   return out;
 }
 
+std::string pick_folder_dialog(HWND owner) {
+  std::string out;
+  IFileOpenDialog* dlg = nullptr;
+  if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dlg)))) return out;
+  DWORD opts = 0;
+  dlg->GetOptions(&opts);
+  dlg->SetOptions(opts | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST);
+  dlg->SetTitle(widen(tr(str::remote_add_folder)).c_str());
+  if (SUCCEEDED(dlg->Show(owner))) {
+    IShellItem* item = nullptr;
+    if (SUCCEEDED(dlg->GetResult(&item))) {
+      PWSTR path = nullptr;
+      if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &path))) {
+        out = narrow(path);
+        CoTaskMemFree(path);
+      }
+      item->Release();
+    }
+  }
+  dlg->Release();
+  return out;
+}
+
+std::string folder_display_name(const std::string& path) {
+  std::string out;
+  IShellItem* item = nullptr;
+  if (SUCCEEDED(SHCreateItemFromParsingName(widen(path).c_str(), nullptr, IID_PPV_ARGS(&item)))) {
+    PWSTR name = nullptr;
+    if (SUCCEEDED(item->GetDisplayName(SIGDN_NORMALDISPLAY, &name))) {
+      out = narrow(name);
+      CoTaskMemFree(name);
+    }
+    item->Release();
+  }
+  if (out.empty()) {
+    size_t k = path.find_last_of("\\/", path.size() > 1 ? path.size() - 2 : 0);
+    out = k == std::string::npos ? path : path.substr(k + 1);
+    while (!out.empty() && (out.back() == '\\' || out.back() == '/')) out.pop_back();
+    if (out.empty()) out = path;
+  }
+  return out;
+}
+
+std::vector<std::string> default_media_folders() {
+  std::vector<std::string> out;
+  for (const KNOWNFOLDERID* id : {&FOLDERID_Videos, &FOLDERID_Downloads, &FOLDERID_Desktop}) {
+    PWSTR p = nullptr;
+    if (SUCCEEDED(SHGetKnownFolderPath(*id, KF_FLAG_DEFAULT, nullptr, &p)) && p) out.push_back(narrow(p));
+    else out.push_back("");
+    if (p) CoTaskMemFree(p);
+  }
+  return out;
+}
+
 void show_in_folder(const std::wstring& file) {
   // talking to Explorer can take a moment: on its own thread, so the video never waits
   auto* path = new std::wstring(file);
@@ -235,10 +289,6 @@ void refresh_open_with() {
   register_open_with(nullptr);
 }
 
-int dpi_scale(UINT dpi) {
-  int s = (int)std::floor(dpi * 2.0 / 96.0 + 0.25);
-  return s < 2 ? 2 : (s > 8 ? 8 : s);
-}
 
 // Pixel art is only crisp at whole multiples (every art pixel the same number of screen
 // pixels), so the scale is always an integer and never interpolated:
