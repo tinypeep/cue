@@ -21,7 +21,8 @@ class Ambient {
   // zones clockwise from the top-left corner (see FrameColors); light 0..1 per zone
   // strength 0..1 scales the whole halo (no repaint: only the strips' opacity changes)
   bool update(HWND owner, const Rgb* zones, const double* light, bool visible, double strength, double dt, bool defer_geometry = false);
-  void follow(HWND owner, bool defer_geometry = false);  // move cached pixels during interaction
+  void follow(HWND owner, bool defer_geometry = false);
+  void set_topmost(bool on);  // the glow stays just under its window, on top or not  // move cached pixels during interaction
   bool active() const { return alpha_ > 0.001 || want_; }
 
  private:

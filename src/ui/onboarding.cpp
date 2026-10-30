@@ -7,7 +7,7 @@
 #include "../core/ui_scale.h"
 
 namespace {
-const str::Id kSizeNames[4] = {str::size_small, str::size_medium, str::size_large, str::size_larger};
+const str::Id kSizeNames[kUiSizes] = {str::size_small, str::size_medium, str::size_large, str::size_larger};
 
 // What is coming, ripening like the popcorn of the first screen.
 struct Upcoming { str::Id title, tag, line; int icon; };
@@ -219,7 +219,7 @@ void OnboardingView::layout() {
     L.toggle = R(std::round(W / 2 - tw / 2), tgy, 28, 16);
   }
 
-  // 2 · interface size: a sample of the real controls, heading, text, the four sizes
+  // 2 · interface size: a sample of the real controls, heading, text, the five sizes
   {
     Lay& L = L_[2];
     double segw = 8;
@@ -241,7 +241,7 @@ void OnboardingView::layout() {
       L.segs.push_back(R(sx, sy, sw, 16));
       sx += sw;
     }
-    const Rect& sel = L.segs[std::clamp(scale_index(), 0, 3)];
+    const Rect& sel = L.segs[std::clamp(scale_index(), 0, kUiSizes - 1)];
     seg_x_.snap(sel.x);
     seg_w_.snap(sel.w);
   }
@@ -348,7 +348,7 @@ void OnboardingView::set_ambient(bool on, double now) {
 void OnboardingView::set_scale_choice(int id, double now) {
   ui_scale = id;
   if (L_[2].segs.size() == 4) {
-    const Rect& sel = L_[2].segs[std::clamp(scale_index(), 0, 3)];
+    const Rect& sel = L_[2].segs[std::clamp(scale_index(), 0, kUiSizes - 1)];
     seg_x_.target = sel.x;
     seg_w_.target = sel.w;
   }
@@ -522,14 +522,14 @@ bool OnboardingView::is_background(int x, int y) const {
 std::vector<int> OnboardingView::focus_order() const {
   std::vector<int> o;
   if (page_ == 1) o.push_back(kToggle);
-  if (page_ == 2) o.push_back(kSeg0 + std::clamp(scale_index(), 0, 3));
+  if (page_ == 2) o.push_back(kSeg0 + std::clamp(scale_index(), 0, kUiSizes - 1));
   o.push_back(page_ == 0 ? kSkip : kBack);
   o.push_back(kNext);
   return o;
 }
 
 ObAction OnboardingView::pick_scale(int index, double now) {
-  int id = ui_size_choice(std::clamp(index, 0, 3));
+  int id = ui_size_choice(std::clamp(index, 0, kUiSizes - 1));
   if (id == ui_scale) return {};
   set_scale_choice(id, now);
   return {ObAct::UiScale, id};
@@ -548,7 +548,7 @@ ObAction OnboardingView::activate(int id, double now) {
       set_ambient(on, now);
       return {ObAct::Ambient, on ? 1 : 0};
     }
-    case kSeg0: case kSeg1: case kSeg2: case kSeg3: return pick_scale(id - kSeg0, now);
+    case kSeg0: case kSeg1: case kSeg2: case kSeg3: case kSeg4: return pick_scale(id - kSeg0, now);
     case kDot0: case kDot1: case kDot2: case kDot3: go(id - kDot0, now); return {};
     default: return {};
   }
@@ -577,6 +577,7 @@ ObAction OnboardingView::mouse_down(int x, int y, double now) {
     case WindowChrome::Min: return {ObAct::WinMin, 0};
     case WindowChrome::Max: return {ObAct::WinMax, 0};
     case WindowChrome::Close: return {ObAct::WinClose, 0};
+    case WindowChrome::Pin: return {ObAct::WinPin, 0};
     default: break;
   }
   if (face.bounds().contains(x, y) && finish_t0_ < 0) {  // a poke: it hops and smiles
@@ -602,13 +603,13 @@ ObAction OnboardingView::key(const std::string& k, bool shift, double now) {
   }
   if (page_ == 2 && (k == "left" || k == "right")) {
     kb_ = true;
-    focus_ = kSeg0 + std::clamp(scale_index() + (k == "right" ? 1 : -1), 0, 3);
+    focus_ = kSeg0 + std::clamp(scale_index() + (k == "right" ? 1 : -1), 0, kUiSizes - 1);
     return pick_scale(focus_ - kSeg0, now);
   }
   if (k == "space" && page_ == 1 && (!kb_ || focus_ == kToggle || focus_ == kNone)) return activate(kToggle, now);
   if (k == "enter" || k == "space") {
     // enter on a choice confirms it and moves on; on a button it presses that button
-    bool choice = focus_ == kToggle || (focus_ >= kSeg0 && focus_ <= kSeg3);
+    bool choice = focus_ == kToggle || (focus_ >= kSeg0 && focus_ <= kSeg4);
     if (kb_ && focus_ != kNone && !(k == "enter" && choice)) return activate(focus_, now);
     return activate(kNext, now);
   }
@@ -876,8 +877,8 @@ void OnboardingView::render_page(Canvas& c, int pg, double ox, double a, double 
     // the selector: a sliding highlight behind the chosen size
     Rect hl{(int)std::lround(seg_x_.x + ox), L.segs[0].y, (int)std::lround(seg_w_.x), L.segs[0].h};
     c.cornered(hl, (int)s, p.press, a);
-    int sel = std::clamp(scale_index(), 0, 3);
-    for (int i = 0; i < 4; ++i) {
+    int sel = std::clamp(scale_index(), 0, kUiSizes - 1);
+    for (int i = 0; i < kUiSizes; ++i) {
       Rect r = L.segs[i];
       r.x += (int)std::lround(ox);
       double hv = hov(kSeg0 + i);

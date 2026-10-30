@@ -27,6 +27,8 @@ struct SettingsStore {
   bool resume = true;        // continue where a file was left
   std::string slang, alang;  // last subtitle / audio language picked by hand
   bool onboarded = false;     // the first-run welcome was seen (or skipped)
+  std::string news_seen;      // the last version whose "saiu do forno" was shown ("" before 1.1)
+  std::string news_closed;    // the last version whose "what's new" line was closed on the home
   // interface language: "auto" follows Windows' display languages at every start; a tag
   // ("pt-BR", "en", "es", "fr", "zh-Hans") is the person's own choice and stays until changed.
   // Independent of slang/alang (subtitle and audio tracks).
@@ -35,6 +37,12 @@ struct SettingsStore {
   // and a version the person chose to skip
   int64_t update_checked = 0;
   std::string update_available, update_skipped;
+  // the phone remote: on (its server starts with Cue), the pairing sound, the folders the phone
+  // may open, and the phones that paired (tokens; the oldest is forgotten past remote::kMaxTokens)
+  struct RemoteFolder { std::string path; bool on = true; };
+  bool remote_on = false, remote_sound = true, remote_folders_set = false;
+  std::vector<RemoteFolder> remote_folders;
+  std::vector<std::string> remote_tokens;
 
   // ── session ────────────────────────────────────────────────────
   DockPlace dock;

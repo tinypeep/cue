@@ -53,8 +53,8 @@ int main() {
   // ── the choice is saved, survives a restart and an update ──────
   auto path = std::filesystem::temp_directory_path() / "cue-i18n-test.json";
   for (std::string pref : {"auto", "pt-BR", "en", "es", "fr", "zh-Hans"}) {
-    Store a; a.language = pref; a.ui_scale = 1; CHECK(a.save(path));
-    Store b; CHECK(b.load(path)); CHECK(b.language == pref); CHECK(b.ui_scale == 1);
+    Store a; a.language = pref; a.ui_scale = 3; CHECK(a.save(path));
+    Store b; CHECK(b.load(path)); CHECK(b.language == pref); CHECK(b.ui_scale == 3);
     // the next start resolves from it before Windows is consulted
     Lang want; bool manual = i18n::parse_tag(pref, want);
     CHECK(i18n::resolve(b.language, {"de-DE", "zh-TW"}) == (manual ? want : Lang::En));

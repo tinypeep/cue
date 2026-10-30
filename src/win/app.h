@@ -25,6 +25,10 @@
 #include "platform.h"
 #include "vsync.h"
 #include "updater.h"
+#include "remote_server.h"
+#include "remote_scene.h"
+#include "overlay.h"
+#include "../ui/news_view.h"
 
 class App {
  public:
@@ -33,8 +37,8 @@ class App {
 
  private:
   enum class Mode { Home, Play };
-  enum : UINT { WM_APP_MPV = WM_APP + 1, WM_APP_ENGINE = WM_APP + 2, WM_APP_RECENTS = WM_APP + 3, WM_APP_THUMB = WM_APP + 4, WM_APP_MOUSE = WM_APP + 5, WM_APP_OPEN_FILES = WM_APP + 6, WM_APP_LEFT_DOWN = WM_APP + 7, WM_APP_LEFT_UP = WM_APP + 8, WM_APP_RIGHT_UP = WM_APP + 9, WM_APP_VSYNC = WM_APP + 10, WM_APP_UPDATE = WM_APP + 11 };
-  enum : UINT_PTR { T_ANIM = 1, T_POLL = 2, T_WAKE = 3, T_SAVE = 4, T_THUMB = 5, T_PERSIST = 6, T_GEOM = 7, T_PREFETCH = 8, T_FINE = 9, T_MAINTENANCE = 10 };
+  enum : UINT { WM_APP_MPV = WM_APP + 1, WM_APP_ENGINE = WM_APP + 2, WM_APP_RECENTS = WM_APP + 3, WM_APP_THUMB = WM_APP + 4, WM_APP_MOUSE = WM_APP + 5, WM_APP_OPEN_FILES = WM_APP + 6, WM_APP_LEFT_DOWN = WM_APP + 7, WM_APP_LEFT_UP = WM_APP + 8, WM_APP_RIGHT_UP = WM_APP + 9, WM_APP_VSYNC = WM_APP + 10, WM_APP_UPDATE = WM_APP + 11, WM_APP_REMOTE = WM_APP + 12 };
+  enum : UINT_PTR { T_ANIM = 1, T_POLL = 2, T_WAKE = 3, T_SAVE = 4, T_THUMB = 5, T_PERSIST = 6, T_GEOM = 7, T_PREFETCH = 8, T_FINE = 9, T_MAINTENANCE = 10, T_REMOTE = 11, T_REMOTE_START = 12, T_NEXT = 13, T_NEWS = 14 };
 
   HINSTANCE inst_ = nullptr;
   HWND hwnd_ = nullptr, video_ = nullptr;
@@ -294,6 +298,76 @@ class App {
   void apply_theme_frame();
   void apply_window_corners(bool force = false);
   void key(const std::string& k, bool shift, bool ctrl);
+  // the phone remote (src/win/remote_server, src/ui/remote_view)
+  RemoteServer remote_;
+  RemoteScene scene_;
+  std::string remote_code_;
+  int remote_timer_ = 0;               // 0 off, -1 the end of this episode, else minutes
+  double remote_timer_end_ = 0;
+  double what_until_ = -1;             // "what did they say?": subtitles shown until here
+  int64_t what_sid_ = 0;               // ... then given back as they were
+  bool what_vis_ = true;
+  double what_restored_at_ = -10;      // its own echo is not the person's choice
+  std::string next_ep_;                // the next file of this series, or ""
+  double remote_toast_at_ = -1000;
+  int remote_ticks_ = 0;
+  bool remote_start();
+  void remote_stop(bool tell_phones);
+  void remote_tick();
+  void remote_publish();
+  void remote_events();
+  void remote_command(const remote::Command& c);
+  bool remote_path_ok(const std::string& path) const;
+  void remote_boot();
+  void remote_roots();
+  void remote_progress();
+  void remote_default_folders();
+  std::vector<RemoteChip> remote_chips() const;
+  void open_remote_scene();
+  // every audio track at once (a recording in parts: game, microphone, voice chat)
+  bool amix_ = false;
+  void set_audio_mix(std::vector<int64_t> ids, bool remember);
+  std::vector<int64_t> all_audio_ids() const;
+  void select_audio(int64_t id);
+  bool change_audio_graph(const std::string& graph, int64_t single_track);
+  struct AudioSwitch {
+    int stage = 0, retries = 0;
+    double at = 0, position = 0;
+    bool paused = false, dirty = false;
+    std::string graph;
+    int64_t track = 0;
+  } audio_switch_;
+  bool step_audio_switch(double t);
+  void audio_switch_restart();
+  void cancel_audio_switch();
+  int64_t sid_reselect_ = 0;  // a subtitle track taken again after an audio change
+  void refresh_subtitles();
+  int64_t aid_reselect_ = 0;  // a track being chosen again after a mix (its passing "no" is ignored)
+  void clear_audio_mix();
+  void pick_subs_only(const RecentItem* r);
+  int size_wheel_ = 0;  // ctrl + wheel, summed until a notch
+  bool pinned_ = false;  // always on top (this session)
+  void toggle_pin();
+  void say_ui_size();
+  // while the pairing scene is up the film waits, in black and white
+  bool scene_paused_ = false;
+  double gray_ = 0, gray_target_ = 0, gray_last_ = -1;
+  int gray_sent_ = 0;
+  void scene_gray(double t);
+  std::vector<std::string> remote_devices_;  // phones connected now, by name
+  double remote_peek_want_ = -1;              // a phone's wheel points here (its preview)
+  int remote_peek_sent_ = INT_MIN;
+  void remote_peek(double t);
+  void remote_peek_send();
+  // "saiu do forno": once, after an update, over the home
+  Overlay news_host_;
+  NewsView news_;
+  bool news_due_ = false;
+  void show_news(bool asked = false);
+  void close_news_line();
+  void remote_scene_action(RemoteAction a);
+  void find_next_episode();
+  void end_what(bool restore);
   void mouse_button(int which, bool down, int x, int y);  // coordinates at the event, in Play mode
   POINT cursor_client() const;
   void log(const std::string& msg);

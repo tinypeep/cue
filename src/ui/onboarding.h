@@ -13,7 +13,7 @@
 #include "face.h"
 #include "gfx.h"
 
-enum class ObAct { None, Ambient, UiScale, Finish, WinMin, WinMax, WinClose };
+enum class ObAct { None, Ambient, UiScale, Finish, WinMin, WinMax, WinClose, WinPin };
 struct ObAction { ObAct a = ObAct::None; int v = 0; };
 
 struct OnboardingView {
@@ -50,7 +50,7 @@ struct OnboardingView {
   void set_scale_choice(int id, double now);
 
  private:
-  enum Hit { kNone = -1, kNext = 1, kBack, kSkip, kToggle, kSeg0, kSeg1, kSeg2, kSeg3, kDot0, kDot1, kDot2, kDot3 };
+  enum Hit { kNone = -1, kNext = 1, kBack, kSkip, kToggle, kSeg0, kSeg1, kSeg2, kSeg3, kSeg4, kDot0, kDot1, kDot2, kDot3 };
   int page_ = 0;
   double t0_ = -1;
   Spring pos_ = Spring::rd(0.52, 0.88, 0.002);        // page position (0..2), slides between screens

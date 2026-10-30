@@ -61,6 +61,7 @@ void HomeView::layout() {
 std::string HomeView::menu_label(int id) const {
   if (id == kMenuLang) return tr(str::more_language);
   if (id == kMenuClear) return tr(str::home_clear_recents);
+  if (id == kMenuRemote) return tr(str::remote_title);
   if (id == kLangOpt) return tr(str::language_auto);
   if (id > kLangOpt && id <= kLangOpt + i18n::kLangCount) return i18n::native_name((i18n::Lang)(id - kLangOpt - 1));
   return "";
@@ -74,6 +75,7 @@ void HomeView::layout_menu() {
     for (int i = 0; i <= i18n::kLangCount; ++i) menu_ids_.push_back(kLangOpt + i);
   } else {
     menu_ids_.push_back(kMenuLang);
+    menu_ids_.push_back(kMenuRemote);
     if (!rows.empty()) menu_ids_.push_back(kMenuClear);
   }
   int words = 0;
@@ -94,13 +96,21 @@ void HomeView::open_menu(bool lang) {
 }
 
 void HomeView::layout_update() {
-  r_update_ = r_update_skip_ = {};
-  if (update_version.empty()) return;
+  r_update_ = r_update_skip_ = r_news_ = r_news_close_ = {};
   const int H = h / s;
-  std::string label = i18n::format(str::home_update_offer, {{"version", update_version}});
-  int tw = 11 + 6 + text_w(label, 1);
-  r_update_ = {10 * s, (H - 24) * s, (tw + 10) * s, 16 * s};
-  r_update_skip_ = {r_update_.r() + 2 * s, r_update_.y, 14 * s, 16 * s};
+  int x = 10;
+  if (!update_version.empty()) {
+    std::string label = i18n::format(str::home_update_offer, {{"version", update_version}});
+    int tw = 11 + 6 + text_w(label, 1);
+    r_update_ = {x * s, (H - 24) * s, (tw + 10) * s, 16 * s};
+    r_update_skip_ = {r_update_.r() + 2 * s, r_update_.y, 14 * s, 16 * s};
+    x += tw + 10 + 2 + 14 + 10;
+  }
+  if (news) {
+    int tw = 11 + 6 + text_w(tr(str::home_news), 1);
+    r_news_ = {x * s, (H - 24) * s, (tw + 10) * s, 16 * s};
+    r_news_close_ = {r_news_.r() + 2 * s, r_news_.y, 14 * s, 16 * s};
+  }
 }
 
 int HomeView::hit(int x, int y) const {
@@ -112,6 +122,10 @@ int HomeView::hit(int x, int y) const {
   if (!update_version.empty() && !update_busy) {
     if (r_update_.contains(x, y)) return kUpdate;
     if (r_update_skip_.contains(x, y)) return kUpdateSkip;
+  }
+  if (news) {
+    if (r_news_.contains(x, y)) return kNews;
+    if (r_news_close_.contains(x, y)) return kNewsClose;
   }
   if (r_dots_.contains(x, y)) return kDots;
   for (int i = 0; i < (int)r_rows_.size(); ++i)
@@ -189,19 +203,23 @@ HomeAction HomeView::mouse_down(int x, int y, double now) {
     case WindowChrome::Min: return {HomeAct::WinMin, -1};
     case WindowChrome::Max: return {HomeAct::WinMax, -1};
     case WindowChrome::Close: return {HomeAct::WinClose, -1};
+    case WindowChrome::Pin: return {HomeAct::WinPin, -1};
     default: break;
   }
   int hh = hit(x, y);
-  bool in_menu = hh == kMenuPad || hh == kMenuClear || hh == kMenuLang || (hh >= kLangOpt && hh <= kLangOpt + i18n::kLangCount);
+  bool in_menu = hh == kMenuPad || hh == kMenuClear || hh == kMenuLang || hh == kMenuRemote || (hh >= kLangOpt && hh <= kLangOpt + i18n::kLangCount);
   if (menu_ && !in_menu && hh != kDots) { menu_ = false; return {}; }
   if (hh == kMenuPad) return {};
   if (hh == kMenuClear) { menu_ = false; return {HomeAct::ClearRecents, -1}; }
+  if (hh == kMenuRemote) { menu_ = false; return {HomeAct::Remote, -1}; }
   if (hh == kMenuLang) { open_menu(true); return {}; }
   if (hh >= kLangOpt && hh <= kLangOpt + i18n::kLangCount) return {HomeAct::Language, hh - kLangOpt - 1};
   if (hh == kDots) { if (menu_) menu_ = false; else open_menu(false); return {}; }
   if (hh == kOpen) return {HomeAct::OpenDialog, -1};
   if (hh == kUpdate) return {HomeAct::Update, -1};
   if (hh == kUpdateSkip) return {HomeAct::SkipUpdate, -1};
+  if (hh == kNews) return {HomeAct::News, -1};
+  if (hh == kNewsClose) return {HomeAct::NewsClose, -1};
   if (hh >= 0 && hh < (int)rows.size()) return {HomeAct::OpenRecent, hh};
   if (face.bounds().contains(x, y)) {
     clicks_.push_back(now);
@@ -222,6 +240,7 @@ HomeAction HomeView::key(const std::string& k, bool shift, double now) {
   order.push_back(kDots);
   if (menu_) for (int id : menu_ids_) order.push_back(id);
   if (!update_version.empty() && !update_busy) order.push_back(kUpdate);
+  if (news) { order.push_back(kNews); order.push_back(kNewsClose); }
   auto idx = [&] { auto it = std::find(order.begin(), order.end(), focus_); return it == order.end() ? -1 : (int)(it - order.begin()); };
   if (k == "tab") {
     kb_ = true;
@@ -238,8 +257,11 @@ HomeAction HomeView::key(const std::string& k, bool shift, double now) {
   } else if (k == "enter" || (k == "space" && kb_)) {
     if (focus_ == kOpen) return {HomeAct::OpenDialog, -1};
     if (focus_ == kUpdate) return {HomeAct::Update, -1};
+    if (focus_ == kNews) return {HomeAct::News, -1};
+    if (focus_ == kNewsClose) { focus_ = -1; return {HomeAct::NewsClose, -1}; }
     if (focus_ == kDots) { if (menu_) menu_ = false; else open_menu(false); }
     else if (focus_ == kMenuClear) { menu_ = false; focus_ = -1; return {HomeAct::ClearRecents, -1}; }
+    else if (focus_ == kMenuRemote) { menu_ = false; focus_ = -1; return {HomeAct::Remote, -1}; }
     else if (focus_ == kMenuLang) open_menu(true);
     else if (focus_ >= kLangOpt && focus_ <= kLangOpt + i18n::kLangCount) return {HomeAct::Language, focus_ - kLangOpt - 1};
     else if (focus_ >= 0 && focus_ < (int)rows.size()) return {HomeAct::OpenRecent, focus_};
@@ -602,6 +624,27 @@ void HomeView::render(Canvas& c, double now) {
         if (hs > 0) c.cornered(r_update_skip_, s, p.hover, hs);
         c.bitmap(bmp("x-small"), r_update_skip_.x + 5 * s, r_update_skip_.y + 6 * s, s, mix(p.faint, p.fg, hs));
       }
+    }
+  }
+
+  // what's new: the same quiet line, a little spark that twinkles now and then
+  if (news) {
+    layout_update();
+    double ha = hov(kNews);
+    std::string label = tr(str::home_news);
+    Rect r = r_news_;
+    if (ha > 0) c.cornered(r, s, p.hover, ha);
+    int x = r.x + 5 * s, y = r.y + 3 * s;
+    bool twinkle = !reduce_motion() && std::fmod(now, 3.2) < 0.18;
+    static const char* kSpark = "..#.." "..#.." "##.##" "..#.." "..#..";
+    static const char* kSpark2 = "....." "..#.." ".###." "..#.." ".....";
+    c.cells(twinkle ? kSpark2 : kSpark, 5, 5, x + 3 * s, y + 3 * s, s, mix(p.fg, p.pixel, std::max(ha, twinkle ? 1.0 : 0.0)));
+    text(c, label, x + 17 * s, y, s, mix(p.fg, p.pixel, ha));
+    double hs = hov(kNewsClose);
+    bool show = hs > 0 || r_news_.grow(4 * s).contains(mx_, my_) || r_news_close_.contains(mx_, my_) || (kb_ && (focus_ == kNews || focus_ == kNewsClose));
+    if (show) {
+      if (hs > 0) c.cornered(r_news_close_, s, p.hover, hs);
+      c.bitmap(bmp("x-small"), r_news_close_.x + 5 * s, r_news_close_.y + 6 * s, s, mix(p.faint, p.fg, hs));
     }
   }
 

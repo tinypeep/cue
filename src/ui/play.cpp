@@ -2,6 +2,7 @@
 #include "../core/version.h"
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <cstdlib>
 
@@ -437,6 +438,11 @@ void PlayView::build_rows() {
       R(RK::Separator, R_NONE);
       // every action row shares one icon column, so the labels line up
       R(RK::Submenu, R_STYLE, tr(str::cc_style))->icon = "text-style";
+      bool undo = undo_ok_ && in.style == undo_target_;
+      if (undo || style_customized()) {  // the one way back: only when there is somewhere to go back from
+        Row* back = R(RK::Action, R_STYLE_RESET, tr(undo ? str::style_undo : str::style_restore));
+        back->icon = undo ? "reset-undo" : "reset";
+      }
       Row* d = R(RK::Stepper, R_DELAY, tr(str::cc_sync));
       d->right = fmt_delay(in.sub_delay);
       d->icon = "clock";
@@ -480,20 +486,42 @@ void PlayView::build_rows() {
       r->enabled = in.style.bg_op == 0;
       r->right = !r->enabled ? "-" : (in.style.outline == 0 ? std::string(tr(str::style_outline_none)) : std::to_string(in.style.outline));
     }
-    if (caps.position) R(RK::Hint, R_POS, tr(str::style_drag_hint));
     if (in.kind == SubKind::Bitmap) R(RK::Hint, R_NONE, tr(str::style_bitmap));
     else if (in.kind == SubKind::Ass && in.style.ass_mode == 0) R(RK::Hint, R_NONE, tr(str::style_from_file));
     // always present, so the panel never changes height under the cursor
     SubStyle factory;
     Row* r = R(RK::Links, R_LINKS);
-    r->segs = {tr(str::style_set_default), tr(str::style_reset)};  // part 0 saves, part 1 resets
-    r->seg = (in.style != in.default_style ? 1 : 0) | (in.style != factory ? 2 : 0);  // enabled bits
+    r->segs = {tr(str::style_set_default)};  // saves; the way back lives in the subtitles menu (one place)
+    r->seg = in.style != in.default_style ? 1 : 0;  // enabled bit
+    (void)factory;
   } else if (panel_ == Panel::Audio) {
     for (auto& t : in.audios) {
       Row* r = R(RK::Option, R_AUDIO_TRACK, track_label(t, in.audios));
       r->track = t.id;
-      r->checked = in.aid == t.id;
+      r->checked = !in.amix && in.aid == t.id;
     }
+    // a recording in parts (game, microphone, voice chat): several tracks at once, chosen inside
+    R(RK::Separator, R_NONE);
+    Row* mix = R(RK::Submenu, R_AUDIO_MIX, tr(str::audio_mix_some));
+    mix->icon = "mixer";
+    mix->checked = in.amix;
+    if (in.amix) mix->right = i18n::format(str::audio_mix_count, {{"n", std::to_string(in.amix_ids.size())}, {"total", std::to_string(in.audios.size())}});
+  } else if (panel_ == Panel::AudioMix) {
+    R(RK::Header, R_BACK_AUDIO, tr(str::audio_mix_some));
+    auto on = [&](int64_t id) {
+      if (!in.amix) return id == in.aid;
+      return std::find(in.amix_ids.begin(), in.amix_ids.end(), id) != in.amix_ids.end();
+    };
+    for (auto& t : in.audios) {
+      Row* r = R(RK::Option, R_AUDIO_MIX_TRACK, track_label(t, in.audios));
+      r->track = t.id;
+      r->checked = on(t.id);
+      r->icon = r->checked ? "box-on" : "box-off";
+    }
+    R(RK::Separator, R_NONE);
+    Row* all = R(RK::Option, R_AUDIO_MIX_ALL, tr(str::audio_mix_all));
+    all->checked = in.amix && in.amix_ids.size() == in.audios.size();
+    all->icon = all->checked ? "box-on" : "box-off";
   } else if (panel_ == Panel::More) {
 
     Row* open = R(RK::Action, R_OPEN, tr(str::more_open));
@@ -522,6 +550,7 @@ void PlayView::build_rows() {
     appearance->seg = in.controls_free ? 1 : 0;
     R(RK::Separator, R_NONE);
     if (in.update_ready && !in.update_label.empty()) R(RK::Action, R_UPDATE, in.update_label)->icon = "cue:open-file";
+    R(RK::Submenu, R_REMOTE, tr(str::remote_title))->icon = "phone";
     R(RK::Submenu, R_ABOUT, tr(str::more_about))->icon = "cue:about-cue";
   } else if (panel_ == Panel::Language) {
     // each language is written in itself, so a wrong pick is easy to undo
@@ -599,7 +628,7 @@ void PlayView::layout_rows() {
         break;
       case RK::Stepper: need = (r.icon ? 25 : 8) + text_w(r.label, 1) + 14 + 7 + text_w("+0.0s", 1) + 7 + 7 + 8; break;
       case RK::Fonts: need = 3 * 46 + 8; break;
-      case RK::Segmented: { int sw = 8; for (auto& sg : r.segs) sw += text_w(sg, 1) + 14; need = sw; break; }
+      case RK::Segmented: { int pad = r.segs.size() > 4 ? 8 : 14, sw = 8; for (auto& sg : r.segs) sw += text_w(sg, 1) + pad; need = sw; break; }  // five sizes: tighter cells
       case RK::Links: { int lw = 8; for (auto& sg : r.segs) lw += text_w(sg, 1) + 14; need = lw; break; }
       case RK::Slider: need = slider_label_w() + 110 + (icon_grid() ? 17 : 0); break;
       case RK::SpeedBar: need = 4 + 13 + 4 + 90 + 4 + 13 + 4; break;
@@ -619,12 +648,11 @@ void PlayView::layout_rows() {
   }
   if (panel_ == Panel::FileInfo) W = std::max(150, std::min(264, (int)(w_ / s) - 16));
   pw_ = W * s;
-  double y = 4 * s;
-  for (auto& r : rows_) {
+  int air = 3;  // a section starts: a little air above its name
+  auto row_h = [&](const Row& r, int breath) {
     int rh = r.k == RK::Separator ? 5 : (r.k == RK::Fonts ? 17 : (r.k == RK::Links ? 15 : (r.k == RK::Slider ? 17 : kRowH)));
-    // menus breathe when the window has room (the same rhythm in ···, CC and audio)
-    if (panel_ == Panel::More || panel_ == Panel::CC || panel_ == Panel::Audio || panel_ == Panel::Language) rh += h_ / s_ < 230 ? 0 : 5;
-    if (r.k == RK::Hint && panel_ == Panel::More) rh += 3;  // a section starts: a little air above its name
+    rh += breath;
+    if (r.k == RK::Hint && panel_ == Panel::More) rh += air;
     if (r.k == RK::SpeedBar) rh = 17;
     if (r.k == RK::Chips) rh = 18;
     if (r.k == RK::Brand) rh = about_compact_ ? 38 : 46;
@@ -632,6 +660,21 @@ void PlayView::layout_rows() {
     if (r.k == RK::Profile) rh = about_compact_ ? 14 : 20;
     if (r.k == RK::Info) rh = 13;
     if (r.k == RK::CloseHeader) rh = 18;
+    return rh;
+  };
+  // menus breathe when the window has room (the same rhythm in ···, CC and audio), but only as
+  // much as still lets the whole menu fit
+  int breath = (panel_ == Panel::More || panel_ == Panel::CC || panel_ == Panel::Audio || panel_ == Panel::AudioMix || panel_ == Panel::Language) && h_ / s_ >= 230 ? 5 : 0;
+  auto fits = [&] {
+    int total = 8;
+    for (auto& r : rows_) total += row_h(r, breath);
+    return total * s <= h_ - 12 * s;
+  };
+  while (breath > 0 && !fits()) --breath;
+  if (!fits()) air = 0;  // the smallest window at the largest size: the sections close up
+  double y = 4 * s;
+  for (auto& r : rows_) {
+    int rh = row_h(r, breath);
     r.r = {2 * s, y, pw_ - 4 * s, rh * s};
     r.parts.clear();
     int x0 = r.r.x, x1 = r.r.r();
@@ -646,6 +689,8 @@ void PlayView::layout_rows() {
       int mxx = vx - 3 * s - 9 * s;
       r.parts.push_back({mxx, r.r.y, 9 * s, r.r.h});
       r.parts.push_back({px, r.r.y, 9 * s, r.r.h});
+    } else if (r.k == RK::Header && r.icon) {
+      r.parts.push_back({x1 - 16 * s, r.r.y, 16 * s, r.r.h});  // its own small button
     } else if (r.k == RK::Fonts) {
       int cw = (r.r.w - 4 * s) / 3 / s * s;
       for (int i = 0; i < 3; ++i) r.parts.push_back({x0 + 2 * s + i * cw, r.r.y + s, cw, r.r.h - 2 * s});
@@ -811,9 +856,18 @@ void PlayView::render_panel() {
         if (!r.right.empty()) text(c, r.right, r.r.r() - 6 * s - text_w(r.right, s), ty, s, p.fg);
         break;
       case RK::Header: {
-        if (ha > 0) c.cornered(r.r, s, p.hover, ha);
-        action_icon(c, "cue:return", {r.r.x + 3 * s, r.r.y, 12 * s, r.r.h}, s, mix(p.dim, p.fg, ha));
+        bool on_btn = hot && ppart_ == 0 && !r.parts.empty();
+        if (ha > 0 && !on_btn) c.cornered(r.r, s, p.hover, ha);
+        action_icon(c, "cue:return", {r.r.x + 3 * s, r.r.y, 12 * s, r.r.h}, s, mix(p.dim, p.fg, on_btn ? 0 : ha));
         text(c, r.label, r.r.x + 23 * s, ty, s, p.fg);
+        if (r.icon && !r.parts.empty()) {
+          const Rect& b = r.parts[0];
+          if (on_btn && r.enabled) c.cornered(b, s, p.hover);
+          bool undo = std::string_view(r.icon) == "reset-undo";
+          const BitmapDef* bm = bmp("reset");
+          c.bitmap(bm, b.x + (b.w - bm->w * s) / 2, b.y + (b.h - bm->h * s) / 2 / s * s, s,
+                   !r.enabled ? p.faint : on_btn ? p.fg : p.dim, 1.0, undo);
+        }
         break;
       }
       case RK::Toggle: {
@@ -834,8 +888,11 @@ void PlayView::render_panel() {
       case RK::Option: case RK::Action: case RK::Submenu: {
         if (ha > 0) c.cornered(r.r, s, p.hover, ha);
         Rgb on_col = r.enabled ? p.fg : p.dim;
-        if (r.checked) action_icon(c, "check", {r.r.x + 3 * s, r.r.y, 12 * s, r.r.h}, s, r.enabled ? p.fg : p.faint);
-        if (r.icon) action_icon(c, r.icon, {r.r.x + 3 * s, r.r.y, 12 * s, r.r.h}, s, mix(p.dim, p.fg, ha));
+        if (r.checked && !r.icon) action_icon(c, "check", {r.r.x + 3 * s, r.r.y, 12 * s, r.r.h}, s, r.enabled ? p.fg : p.faint);
+        if (r.icon && std::string_view(r.icon) == "reset-undo") {
+          const BitmapDef* bm = bmp("reset");
+          c.bitmap(bm, r.r.x + 3 * s + (12 * s - bm->w * s) / 2, r.r.y + (r.r.h - bm->h * s) / 2 / s * s, s, mix(p.dim, p.fg, ha), 1.0, true);
+        } else if (r.icon) action_icon(c, r.icon, {r.r.x + 3 * s, r.r.y, 12 * s, r.r.h}, s, r.checked ? p.fg : mix(p.dim, p.fg, ha));
         text(c, r.label, r.r.x + 23 * s, ty, s,
              r.checked ? on_col : mix(r.enabled ? p.dim : p.faint, p.fg, ha));
         if (!r.right.empty())
@@ -1005,7 +1062,34 @@ int PlayView::hit_panel(int x, int y, int* part) const {
   return -2;  // inside the panel, on padding
 }
 
+// One step back to a readable subtitle: the person's own default, or Cue's when it already is
+// that. Pressed again right after, it undoes the reset (nothing is lost by a slip of the hand).
+void PlayView::reset_style(double now) {
+  resetting_ = true;
+  if (undo_ok_ && in.style == undo_target_) {
+    in.style = undo_style_;
+    undo_ok_ = false;
+    style_changed(false);
+    toast(tr(str::style_undone), nullptr, now);
+  } else {
+    SubStyle target = in.style != in.default_style ? in.default_style : SubStyle{};
+    if (!(in.style == target)) {
+      undo_style_ = in.style;
+      undo_target_ = target;
+      in.style = target;
+      undo_ok_ = true;
+      style_changed(false);
+      toast(tr(str::style_restored), nullptr, now);
+    }
+  }
+  resetting_ = false;
+  build_rows();
+  layout_rows();
+  panel_dirty_ = true;
+}
+
 void PlayView::style_changed(bool live) {
+  if (!resetting_) undo_ok_ = false;
   in.style.size = std::clamp(in.style.size, 24, 80);
   act(live ? PA::StyleLive : PA::Style);
   if (panel_ == Panel::Style) {
@@ -1097,7 +1181,11 @@ void PlayView::panel_click(int row, int part, int x, double now) {
     case R_SUB_TRACK: act(PA::SelectSub, 0, r.track); break;  // picking a track also turns it on
     case R_ADD_SUB: act(PA::AddSubFile); close_panel(); break;
     case R_STYLE: open_panel(Panel::Style, panel_btn_, now); break;
-    case R_BACK: open_panel(Panel::CC, panel_btn_, now); break;
+    case R_BACK:
+      if (part == 0 && !r.parts.empty()) { if (r.enabled) reset_style(now); }
+      else open_panel(Panel::CC, panel_btn_, now);
+      break;
+    case R_STYLE_RESET: reset_style(now); break;
     case R_DELAY: if (part >= 0) act(PA::SubDelay, part == 0 ? -0.1 : 0.1); break;
     case R_FONTS: if (part >= 0) { in.style.font = part; style_changed(false); } break;
     case R_ASS: if (part >= 0) { in.style.ass_mode = part; style_changed(false); } break;
@@ -1106,14 +1194,43 @@ void PlayView::panel_click(int row, int part, int x, double now) {
       break;
     case R_LINKS:
       if (part >= 0 && part < (int)r.segs.size() && ((r.seg >> part) & 1)) {
-        if (part == 1) { in.style = SubStyle{}; style_changed(false); }
-        else { act(PA::StyleDefault); ack_until_ = now + 1.3; }
+        act(PA::StyleDefault);
+        ack_until_ = now + 1.3;
       }
       break;
     case R_AUDIO_TRACK: act(PA::SelectAudio, 0, r.track); break;
+    case R_AUDIO_MIX: open_panel(Panel::AudioMix, panel_btn_, now); break;
+    case R_BACK_AUDIO: open_panel(Panel::Audio, panel_btn_, now); break;
+    case R_AUDIO_MIX_ALL: {
+      // a switch like the boxes above it: all on, or back to the one track heard before
+      if (in.amix && in.amix_ids.size() == in.audios.size()) {
+        int64_t back = in.aid > 0 ? in.aid : (in.audios.empty() ? 0 : in.audios.front().id);
+        if (back > 0) act(PA::SelectAudio, 0, back);
+        break;
+      }
+      uint64_t mask = 0;
+      for (size_t i = 0; i < in.audios.size() && i < 64; ++i) mask |= 1ull << i;
+      act(PA::AudioMix, 1, (int64_t)mask);
+      break;
+    }
+    case R_AUDIO_MIX_TRACK: {
+      // a set of tracks: this one in or out; one left is simply that track, none is not allowed
+      uint64_t mask = 0;
+      for (size_t i = 0; i < in.audios.size() && i < 64; ++i) {
+        int64_t id = in.audios[i].id;
+        bool was = in.amix ? std::find(in.amix_ids.begin(), in.amix_ids.end(), id) != in.amix_ids.end() : id == in.aid;
+        if (was != (id == r.track)) mask |= 1ull << i;
+      }
+      int n = std::popcount(mask);
+      if (n == 0) { toast(tr(str::audio_keep_one), "mixer", now); break; }  // silence is not a mix: say so
+      if (n == 1) { for (size_t i = 0; i < in.audios.size(); ++i) if (mask >> i & 1) act(PA::SelectAudio, 0, in.audios[i].id); }
+      else act(PA::AudioMix, 1, (int64_t)mask);
+      break;
+    }
     case R_SPEED: open_panel(Panel::Speed, panel_btn_, now); break;
     case R_BACK_MORE: open_panel(Panel::More, panel_btn_, now); break;
     case R_ABOUT: open_panel(Panel::About, panel_btn_, now); break;
+    case R_REMOTE: close_panel(); act(PA::Remote); break;
     case R_LANGUAGE: open_panel(Panel::Language, panel_btn_, now); break;
     case R_LANG_OPT:
       if ((int)r.opt != in.language) { in.language = (int)r.opt; act(PA::Language, r.opt); }
@@ -1222,6 +1339,36 @@ void PlayView::begin_sub_drag_for_preview(double now) {
   update_sub_layers();
 }
 
+// While the dock is dragged near one of its places, the place shows itself: four corners where
+// it will land. What the hand sees when it lets go is where the dock stays.
+void PlayView::update_ghost() {
+  Layer& H = layers[L_HINT];
+  bool show = dragging_dock_ && ghost_ >= 0;
+  if (show) {
+    const Palette& p = P();
+    int s = (int)s_;
+    int cw = dw_ / s * s, ch = dh_ / s * s;
+    if (H.c.w != cw || H.c.h != ch || ghost_drawn_ != ghost_) {
+      H.c.resize(cw, ch);
+      H.c.clear_transparent();
+      int L = 6 * s, x1 = cw - s, y1 = ch - s;
+      Rgb col = p.fg;
+      H.c.fill(0, 0, L, s, col, 0.7); H.c.fill(0, 0, s, L, col, 0.7);
+      H.c.fill(x1 - L + s, 0, L, s, col, 0.7); H.c.fill(x1, 0, s, L, col, 0.7);
+      H.c.fill(0, y1, L, s, col, 0.7); H.c.fill(0, y1 - L + s, s, L, col, 0.7);
+      H.c.fill(x1 - L + s, y1, L, s, col, 0.7); H.c.fill(x1, y1 - L + s, s, L, col, 0.7);
+      ghost_drawn_ = ghost_;
+      H.dirty = true;
+    }
+    double ax, ay;
+    anchor_pos((DockAnchor)ghost_, ax, ay);
+    int nx = (int)std::lround(ax), ny = (int)std::lround(ay);
+    if (nx != H.x || ny != H.y) { H.x = nx; H.y = ny; H.dirty = true; }
+  }
+  if (show != H.visible) H.dirty = true;
+  H.visible = show;
+}
+
 void PlayView::update_sub_layers() {
   const Palette& p = P();
   double s = s_;
@@ -1241,27 +1388,6 @@ void PlayView::update_sub_layers() {
     L.visible = vis;
   }
   // always draggable, never visually selected: the cursor (open / closed hand) is the only sign
-  Layer& H = layers[L_HINT];
-  bool hint = false;
-  if (hint) {
-    Rect r = sub_rect().grow(6 * s);
-    r.x = r.x / s * s; r.y = r.y / s * s;
-    int cw = r.w / s * s + 10 * s, ch = r.h / s * s;
-    H.c.resize(cw, ch);
-    Rgb col = sub_drag_ ? p.fg : p.dim;
-    int L = 4 * s;
-    int x0 = 10 * s, x1 = cw - s, y1 = ch - s;
-    // corner brackets around the block, and a grip on the left
-    H.c.fill(x0, 0, L, s, col); H.c.fill(x0, 0, s, L, col);
-    H.c.fill(x1 - L + s, 0, L, s, col); H.c.fill(x1, 0, s, L, col);
-    H.c.fill(x0, y1, L, s, col); H.c.fill(x0, y1 - L + s, s, L, col);
-    H.c.fill(x1 - L + s, y1, L, s, col); H.c.fill(x1, y1 - L + s, s, L, col);
-    H.c.bitmap(bmp("grip"), 2 * s, (ch - 5 * s) / 2 / s * s, s, col);
-    H.x = r.x - 10 * s;
-    H.y = r.y;
-  }
-  if (hint != H.visible || hint) H.dirty = true;
-  H.visible = hint;
 }
 
 // ── composition ─────────────────────────────────────────────────────
@@ -1398,7 +1524,39 @@ void PlayView::compose(double now) {
       draw_panel(T.c, 0, 0, W / s, H / s, s, {1}, p.tip_bg, 0.92, p.edge, 1.0);
       int x = 7 * s;
       if (ib && !toast_icon_after_) { T.c.bitmap(ib, x, (H - ib->h * s) / 2 / s * s, s, p.fg); x += iw; }
-      for (size_t i = 0; i < lines.size(); ++i) text(T.c, lines[i], x, (3 + 12 * (int)i) * s, s, p.fg);
+      double ft = now - flap_t0_;
+      bool flap_again = false;
+      if (lines.size() == 1 && ft >= 0 && ft < 1.2) {
+        // a departures board: each letter shuffles through others, then drops into place,
+        // one after the other from the left
+        static const char* kShuffle = "aeiounrstlmdcp";
+        size_t i = 0, n = 0;
+        double cx = x;
+        const std::string& line = lines[0];
+        bool turning = false;
+        while (i < line.size()) {
+          size_t st = i;
+          unsigned char c0 = (unsigned char)line[i];
+          i += c0 < 0x80 ? 1 : c0 < 0xE0 ? 2 : c0 < 0xF0 ? 3 : 4;
+          std::string ch = line.substr(st, i - st);
+          int cw = text_w(ch, s);
+          double settle = 0.05 + 0.035 * n++;
+          if (ch != " " && ft < settle) {
+            turning = true;
+            int beat = (int)(ft * 30) + (int)n * 7;
+            std::string fake(1, kShuffle[beat % 14]);
+            text(T.c, fake, (int)cx + (cw - text_w(fake, s)) / 2, 3 * s, s, p.dim);
+          } else {
+            int drop = (int)std::lround((1 - clamp01((ft - settle) / 0.07)) * 3) * (int)s;
+            text(T.c, ch, (int)cx, 3 * s - drop, s, p.fg);
+          }
+          cx += cw;
+        }
+        flap_again = true;  // the next frame turns them again
+        if (!turning && ft > 0.05 + 0.035 * n + 0.08) flap_t0_ = -10;
+      } else {
+        for (size_t i = 0; i < lines.size(); ++i) text(T.c, lines[i], x, (3 + 12 * (int)i) * s, s, p.fg);
+      }
       x += tw + 4 * s;
       if (ib && toast_icon_after_) T.c.bitmap(ib, x, (H - ib->h * s) / 2 / s * s, s, p.fg);
       if (toast_btn_) {
@@ -1412,7 +1570,7 @@ void PlayView::compose(double now) {
                      toast_btn_rect_.y + (toast_btn_rect_.h - fb->h * s) / 2 / s * s, s, toast_hot_ ? p.fg : p.dim);
       }
       toast_base_ = T.c;
-      toast_dirty_ = false;
+      toast_dirty_ = flap_again;  // (was reset here: the letters froze mid-turn)
       ++toast_gen_;
     }
     int tx = (w_ - toast_base_.w) / 2 / s * s, ty = kMargin * s + (int)std::lround((1 - ta) * -3) * s;
@@ -1452,7 +1610,8 @@ void PlayView::compose(double now) {
       Rect a = chrome.area(w_);
       std::string sig = std::to_string(a.x) + "|" + std::to_string((int)(chrome.vis.v * 255)) + "|" +
                         std::to_string((int)(chrome.hov[0] * 50)) + std::to_string((int)(chrome.hov[1] * 50)) +
-                        std::to_string((int)(chrome.hov[2] * 50)) + (chrome.maximized ? "m" : "");
+                        std::to_string((int)(chrome.hov[2] * 50)) + std::to_string((int)(chrome.hov[3] * 50)) +
+                        (chrome.maximized ? "m" : "") + (chrome.pinned ? "p" : "");
       if (sig != chrome_sig_ || !WL.visible) {
         chrome_sig_ = sig;
         WL.c.resize(a.w, a.h);
@@ -1588,7 +1747,7 @@ void PlayView::begin_viewport_transition(double now, bool instant) {
   pending_click_=press_=P_NONE; second_click_=false; last_click_t_=-10;
   close_panel(); pvis_.v=0; tip_on_=false; tipvis_.v=tipvis_.target=0;
   hover_=B_NONE; phover_=-1; back_hot_=false; chrome.hot=WindowChrome::None;
-  scrubbing_=vol_drag_=dragging_dock_=drag_pending_=false;
+  scrubbing_=vol_drag_=dragging_dock_=drag_pending_=false; ghost_ = -1; update_ghost();
   flash_t0_=-10; activity(now);
   if(reduce_motion() || instant) viewport_vis_.v=0;
 }
@@ -1607,6 +1766,8 @@ void PlayView::reset(double now) {
   viewport_transition_=false; viewport_vis_.v=viewport_vis_.target=1;
   pvis_.v = 0;
   scrubbing_ = vol_drag_ = dragging_dock_ = drag_pending_ = sub_drag_ = false;
+  ghost_ = -1;
+  update_ghost();
   press_ = pending_click_ = P_NONE;
   win_drag_ = close_on_release_ = swallow_up_ = second_click_ = false;
   last_click_t_ = -10;
@@ -1658,6 +1819,7 @@ void PlayView::changed(double /*now*/) {
   if (panel_ != Panel::None) {
     // the panel is rebuilt only if something it shows changed (never on every tick of the clock)
     std::string ps = std::to_string(in.sid) + "|" + std::to_string(in.aid) + "|" + std::to_string(in.subs.size()) + "|" +
+                     (in.amix ? "m" : "") + (undo_ok_ ? "u" : "") + [&] { std::string m; for (auto id : in.amix_ids) m += std::to_string(id) + ","; return m; }() + "|" +
                      std::to_string(in.audios.size()) + "|" + fmt_delay(in.sub_delay) + (in.sub_visible ? "v" : "") +
                      std::to_string((int)in.kind) + (in.style == in.default_style ? "d" : "") +
                      (in.controls_free ? "F" : "B") + (in.ambient ? "A" : "") + (in.audio_only ? "a" : "v") + std::to_string(in.ui_scale) + speed_label(in.speed);
@@ -1766,6 +1928,23 @@ void PlayView::toast(const std::string& t, const char* icon, double now, bool ic
   toast_dirty_ = true;
   toast_btn_ = toast_hot_ = false;
   toast_hold_ = 1.1;
+}
+
+void PlayView::announce_audio(double now) {
+  std::string label;
+  if (in.amix) {
+    std::vector<std::string> names;
+    for (auto id : in.amix_ids)
+      for (auto& t : in.audios) if (t.id == id) names.push_back(track_label(t, in.audios));
+    if (names.size() == 2 && text_w(names[0] + " + " + names[1], 1) < 220) label = names[0] + " + " + names[1];
+    else label = i18n::format(str::audio_mixed, {{"n", std::to_string(in.amix_ids.size())}});
+  } else {
+    for (auto& t : in.audios) if (t.id == in.aid) label = track_label(t, in.audios);
+  }
+  if (label.empty()) return;
+  toast(label, in.amix ? "mixer" : "sound-on", now);
+  toast_hold_ = 1.4;
+  flap_t0_ = reduce_motion() ? -10 : now;
 }
 
 void PlayView::toast_folder(const std::string& t, double now) {
@@ -1982,7 +2161,7 @@ void PlayView::activate(int b, double now) {
     case B_SPEED: if (panel_ == Panel::Speed) close_panel(); else open_panel(Panel::Speed, B_SPEED, now); break;
     case B_FS: act(PA::Fullscreen); break;
     case B_CC: if (panel_ == Panel::CC || panel_ == Panel::Style) close_panel(); else open_panel(Panel::CC, B_CC, now); break;
-    case B_AUDIO: if (panel_ == Panel::Audio) close_panel(); else open_panel(Panel::Audio, B_AUDIO, now); break;
+    case B_AUDIO: if (panel_ == Panel::Audio || panel_ == Panel::AudioMix) close_panel(); else open_panel(Panel::Audio, B_AUDIO, now); break;
     case B_MORE: if (panel_ == Panel::More) close_panel(); else open_panel(Panel::More, B_MORE, now); break;
     default: break;
   }
@@ -2017,10 +2196,14 @@ void PlayView::mouse_move(int x, int y, double now) {
         double d = std::hypot(ax - rx, ay - ry);
         if (d < best) { best = d; bx = ax; by = ay; }
       }
-      double R = 40.0 * s_;
+      double R = kSnap * s_;
       double k = best < R ? std::pow(1 - best / R, 2) * 0.7 : 0;
       px_.snap(lerp(rx, bx, k));
       py_.snap(lerp(ry, by, k));
+      int ghost = -1;
+      if (best < R) for (int a = 0; a < 4; ++a) { double ax, ay; anchor_pos((DockAnchor)a, ax, ay); if (ax == bx && ay == by) ghost = a; }
+      if (ghost != ghost_) { ghost_ = ghost; ghost_drawn_ = -2; }
+      update_ghost();
       if (panel_ != Panel::None) panel_dirty_ = true;
     }
     return;
@@ -2136,6 +2319,7 @@ void PlayView::mouse_down(int x, int y, double now) {
     case WindowChrome::Min: act(PA::WinMin); return;
     case WindowChrome::Max: act(PA::WinMax); return;
     case WindowChrome::Close: act(PA::WinClose); return;
+    case WindowChrome::Pin: act(PA::WinPin); return;
     default: break;
   }
   switch (b) {
@@ -2218,21 +2402,15 @@ void PlayView::mouse_up(int x, int y, double now) {
   drag_pending_ = false;
   if (dragging_dock_) {
     dragging_dock_ = false;
-    double best = 1e9;
-    int ba = -1;
-    for (int a = 0; a < 4; ++a) {
-      double ax, ay;
-      anchor_pos((DockAnchor)a, ax, ay);
-      double d = std::hypot(ax - px_.x, ay - py_.x);
-      if (d < best) { best = d; ba = a; }
-    }
-    if (best < 56.0 * s_) place.anchor = (DockAnchor)ba;
+    update_ghost();
+    if (ghost_ >= 0) place.anchor = (DockAnchor)ghost_;  // exactly what the corners showed
     else {
       double m = kMargin * s_;
       place.anchor = DockAnchor::Free;
       place.fx = clamp01((px_.x - m) / std::max(1.0, w_ - dw_ - 2 * m));
       place.fy = clamp01((py_.x - m) / std::max(1.0, h_ - dh_ - 2 * m));
     }
+    ghost_ = -1;
     double tx, ty;
     place_target(tx, ty);
     px_.target = tx;
@@ -2280,7 +2458,7 @@ void PlayView::set_volume_from(int x) {
 }
 
 void PlayView::open_panel_for_preview(int which, double now) {
-  Panel pn = which == 0 ? Panel::CC : which == 1 ? Panel::Style : which == 2 ? Panel::Audio : which == 4 ? Panel::Speed : which == 5 ? Panel::About : which == 6 ? Panel::FileInfo : which == 7 ? Panel::Language : which == 8 ? Panel::Context : Panel::More;
+  Panel pn = which == 0 ? Panel::CC : which == 1 ? Panel::Style : which == 2 ? Panel::Audio : which == 4 ? Panel::Speed : which == 5 ? Panel::About : which == 6 ? Panel::FileInfo : which == 7 ? Panel::Language : which == 8 ? Panel::Context : which == 9 ? Panel::AudioMix : Panel::More;
   int btn = which == 2 ? B_AUDIO : (which == 3 || which == 7) ? B_MORE : which == 4 ? B_SPEED : which == 8 ? B_NONE : B_CC;
   activity(now);
   open_panel(pn, btn, now);
@@ -2297,6 +2475,7 @@ void PlayView::key(const std::string& k, bool shift, bool ctrl, double now) {
   if (k == "esc") {
     if (panel_ == Panel::About || panel_ == Panel::Language) open_panel(Panel::More, B_MORE, now);
     else if (panel_ == Panel::Style) open_panel(Panel::CC, panel_btn_, now);
+    else if (panel_ == Panel::AudioMix) open_panel(Panel::Audio, panel_btn_, now);
     else if (panel_ == Panel::Speed && panel_btn_ == B_MORE) open_panel(Panel::More, panel_btn_, now);
     else if (panel_ != Panel::None) close_panel();
     else if (kb_) { kb_ = false; focus_ = B_NONE; dock_dirty_ = true; }

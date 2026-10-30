@@ -1,10 +1,10 @@
-# Release checks · Cue 1.0
+# Release checks · Cue 1.1
 
 This is a condensed record of the supplied release review, not a new certification or a record of checks run during documentation editing.
 
 ## Previously recorded
 
-- Version 1.0 centralized in `src/core/version.h`; expected release tag `v1.0`.
+- Version 1.1 centralized in `src/core/version.h`; expected release tag `v1.1`.
 - Windows x64 cross-build without warnings and 25 portable tests passing.
 - Installer, silent install, uninstall, onboarding, playback, subtitle controls, fullscreen, live language switching, saved preferences, and the distributed audio engine exercised in Wine 9.
 - Language tests cover resolution, Traditional/Simplified Chinese distinction, fallback, catalogs, placeholders, plurals, persistence, and glyph coverage. Layout tests recorded roughly 27,000 checks over five languages, four sizes, DPI/window combinations, fullscreen, and vertical video.
@@ -15,7 +15,7 @@ This is a condensed record of the supplied release review, not a new certificati
 ## Before publishing
 
 1. Keep `tinypeep/cue` public so unauthenticated update checks work.
-2. Attach `Cue-1.0-Setup.exe` and the matching `Cue-1.0-Engine-Source.zip` to `v1.0`; preserve notices and clear source links. GitHub provides the application source archive for the tag.
+2. Attach `Cue-1.1-Setup.exe` and the matching `Cue-1.1-Engine-Source.zip` (the 1.0 engine package, renamed) to `v1.1`; preserve notices and clear source links. GitHub provides the application source archive for the tag.
 3. Verify installed `sources/README.txt` points to that release. The current installer links to source ZIPs rather than bundling them.
 4. Test on native Windows: fullscreen while playing/paused, single/double-click input, resize/DPI, multi-entry display-language preferences, Narrator, the native license reader, “Open with”, updates, and uninstall.
 

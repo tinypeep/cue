@@ -155,13 +155,13 @@ int main() {
       std::fclose(f); }
     SettingsStore m; CHECK(m.load(p1));
     CHECK(m.load_status == "migrated" && m.volume == 40 && m.dock.anchor == DockAnchor::TopCenter && m.recents.size() == 1);
-    m.ui_scale = 1; m.ambient = true; m.recents[0].sid = 2; m.recents[0].sid_lang = "por"; m.recents[0].sub_delay = 0.4;
+    m.ui_scale = 3; m.ambient = true; m.recents[0].sid = 2; m.recents[0].sid_lang = "por"; m.recents[0].sub_delay = 0.4;
     CHECK(m.save(p1));
     SettingsStore m2; CHECK(m2.load(p1) && m2.load_status == "ok");
-    CHECK(m2.ui_scale == 1 && m2.ambient && m2.recents[0].sid == 2 && std::abs(m2.recents[0].sub_delay - 0.4) < 1e-6);
+    CHECK(m2.ui_scale == 3 && m2.ambient && m2.recents[0].sid == 2 && std::abs(m2.recents[0].sub_delay - 0.4) < 1e-6);
     CHECK(m2.save(p1));  // now a .bak exists
     { FILE* f = std::fopen(p1.string().c_str(), "wb"); std::fputs("{garbage", f); std::fclose(f); }
-    SettingsStore m3; CHECK(m3.load(p1) && m3.load_status == "recovered" && m3.ui_scale == 1);
+    SettingsStore m3; CHECK(m3.load(p1) && m3.load_status == "recovered" && m3.ui_scale == 3);
   }
   // atmosphere: the representative colour, not the average; greys stay neutral
   {

@@ -29,7 +29,7 @@ int main(){
   p.in.controls_free=false;p.changed(t);settle(p,t);assert(layer.c.w==original);
   p.open_panel_for_preview(3,t);settle(p,t);auto& menu=p.layers[PlayView::L_PANEL];assert(menu.x>=0&&menu.y>=0&&menu.y+menu.c.h<=400*scale);
   p.take_actions();for(int i=0;i<20;++i)p.key("down",false,false,t);
-  p.key("up",false,false,t);p.key("right",false,false,t);
+  p.key("up",false,false,t);p.key("up",false,false,t);p.key("right",false,false,t);  // past "about" and "remote control"
   bool selected=false;for(auto a:p.take_actions())if(a.a==PA::ControlsFree&&a.v==1)selected=true;assert(selected);
  }
  for(bool audio:{false,true}){PlayView p;p.in.audio_only=audio;p.in.audios={{1,"audio"},{2,"audio"}};p.resize(480,360,2);double t=1;p.reset(t);p.open_panel_for_preview(3,t);settle(p,t);auto& menu=p.layers[PlayView::L_PANEL];assert(menu.y>=0&&menu.y+menu.c.h<=360);}

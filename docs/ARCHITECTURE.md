@@ -11,7 +11,7 @@ Cue uses **C++20, Win32, and dynamically loaded libmpv**. Portable UI/core code 
 | `src/win/` | Windowing, DPI, input, dialogs, clipboard, libmpv, updater, preview host |
 | `installer/` | Native installer, uninstaller, LZMA unpacking |
 | `i18n/` | Five translation catalogs |
-| `assets/`, `res/` | Fonts, icons, executable resources |
+| `assets/`, `res/` | Fonts, icons, the phone remote's page, executable resources |
 | `tools/`, `tests/` | Generators, previews, packaging, portable and engine tests |
 
 ## Playback and input
@@ -49,6 +49,14 @@ Color sampling starts 1.5 seconds after the first frame; thumbnails wait 3 secon
 `on_preloaded` inspects actual tracks, ignoring album artwork as video. `core/audio_mode.h` builds a `lavfi-complex` graph: `asplit` preserves sound and feeds `showwaves` (160×48, 30 Hz), scaled with nearest-neighbor pixels and centered in 1024×576. No second audio decoder or whole-file analysis is needed.
 
 Controls remain visible; video previews and ambient lighting stay off. Timeline dragging updates the displayed time and sends one exact seek on release. The graph drops two preparation frames to avoid flashing. Failed visualization initialization triggers one retry without it. File-local settings reset when media unloads.
+
+## Phone remote
+
+`core/remote_proto` holds everything portable: HTTP parsing, the WebSocket handshake (SHA-1, Base64) and frames, the JSON state and commands, folder filtering, natural order and next-episode detection, pairing-code throttling, and path containment. `core/qr` encodes the pairing QR code (byte mode, versions 1-10, ECC M; verified against a reference encoder). `core/remote_sound` synthesizes the pairing sound as WAV bytes.
+
+`win/remote_server` runs one thread with a `select` loop for HTTP and WebSocket clients, accepting only private IPv4 peers and literal-address `Host` headers. Folder listings and thumbnails (Explorer's `IShellItemImageFactory`, reduced to 84×48 BMP) run on short-lived workers that own their socket and copies of what they read. Commands reach the UI thread through `WM_APP + 12`; App applies them as the same `PlayAction`s the dock produces, then publishes a state snapshot (~2 Hz while phones are connected, and after every command).
+
+The page (`assets/remote/index.html`) is embedded by `tools/gen_remote_page.py` into `win/remote_page.inc`; the server injects the language's `remote.*` strings. The pairing scene is `ui/remote_view` (portable, previewable with `tools/preview_remote.cpp`) inside `win/remote_scene`, which hosts it in `win/overlay`: a layered popup laid over the player's client area that runs any `ui/scene_view` (pointer, keys, its own frame timer, background drag moving the window). The once-per-version "what's new" splash (`ui/news_view`, previewable with `tools/preview_news.cpp`) uses the same host; `Store::news_seen` remembers the last version shown. `tools/remote_harness.cpp` runs the real server without the player for browser testing.
 
 ## Persistence and lifecycle
 

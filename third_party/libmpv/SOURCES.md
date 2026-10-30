@@ -1,6 +1,6 @@
 # Corresponding playback engine sources · build 1.1.4
 
-The engine was built locally from the **16 source archives** identified in `sources.json`. Original archives, notices, licenses, and the actual build recipes are provided in **Cue-1.0-Engine-Source.zip**, named for the Cue release. This is an archived source package, not a moving upstream “latest” link.
+The engine was built locally from the **16 source archives** identified in `sources.json`. Original archives, notices, licenses, and the actual build recipes are provided in **Cue-1.1-Engine-Source.zip**, named for the Cue release (the same engine build as 1.0). This is an archived source package, not a moving upstream “latest” link.
 
 | Item | Value |
 |---|---|
@@ -15,8 +15,8 @@ Components: mpv, FFmpeg, libplacebo, libass, HarfBuzz, FriBidi, FreeType, dav1d,
 
 Publish the Windows package, Cue source, and matching engine source ZIP together. Keep a clear source link beside the application download, preserve notices, and allow replacement of the DLL with API-compatible modified versions.
 
-For Cue 1.0, the installer links to these large archives rather than bundling them:
-[release v1.0](https://github.com/tinypeep/cue/releases/tag/v1.0) → GitHub's **Source code (zip)** and **Cue-1.0-Engine-Source.zip**. Installed `sources/README.txt` contains that address; the license reader can open the folder.
+For Cue 1.1, the installer links to these large archives rather than bundling them:
+[release v1.1](https://github.com/tinypeep/cue/releases/tag/v1.1) → GitHub's **Source code (zip)** and **Cue-1.1-Engine-Source.zip**. Installed `sources/README.txt` contains that address; the license reader can open the folder.
 
 ## Recorded verification
 

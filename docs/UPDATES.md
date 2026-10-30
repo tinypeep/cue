@@ -21,7 +21,7 @@ An update appears on the home screen, in More, and in About. It can be skipped f
 3. Put the matching `libmpv-2.dll` in `build/Cue/`.
 4. With `gh` authenticated, run `bash tools/release.sh`. It tests, builds, packages, and publishes `v<version>`. The engine source defaults to `sources/Cue-Engine-Source.zip`; override with `ENGINE_SRC=...` if needed.
 
-For manual publication, run `make setup`, create the matching GitHub tag/release, and attach `Cue-<version>-Setup.exe` plus `Cue-<version>-Engine-Source.zip`. GitHub supplies Cue's source archives for the tag. For the current release, use `v1.0`.
+For manual publication, run `make setup`, create the matching GitHub tag/release, and attach `Cue-<version>-Setup.exe` plus `Cue-<version>-Engine-Source.zip`. GitHub supplies Cue's source archives for the tag. For the current release, use `v1.1`.
 
 Keep the matching engine source ZIP and license notices available beside the download. The installer contains `sources/README.txt` pointing to that release rather than bundling the large source archives.
 
