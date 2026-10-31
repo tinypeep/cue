@@ -31,6 +31,7 @@ build/Cue/Cue.exe: $(OBJ)
 	cp third_party/fusion-pixel-font/OFL.txt build/Cue/licenses/FusionPixel-OFL.txt
 	cp docs/LICENSES.md build/Cue/LICENSES.md
 	cp docs/ASSETS.md build/Cue/ASSETS.md
+	cp docs/SECURITY.md build/Cue/SECURITY.md
 	mkdir -p build/Cue/sources && cp res/sources-README.txt build/Cue/sources/README.txt
 	cp LICENSE COPYRIGHT.md build/Cue/
 	mkdir -p build/Cue/third_party && cp -r third_party/libmpv build/Cue/third_party/

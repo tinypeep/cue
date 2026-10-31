@@ -1,4 +1,4 @@
-# Licenses · Cue 1.1
+# Licenses · Cue 1.1.1
 
 Cue's own code uses **GPL-3.0-or-later**. The full terms are in `LICENSE`; [COPYRIGHT.md](../COPYRIGHT.md) identifies authorship and third-party boundaries. Software is provided without warranty under the applicable terms.
 
@@ -6,7 +6,7 @@ Cue's own code uses **GPL-3.0-or-later**. The full terms are in `LICENSE`; [COPY
 
 The distributed `libmpv-2.dll` was built from archived sources, excluding mpv's GPL-only parts and without enabling FFmpeg GPL/nonfree options. The combined engine distribution uses **LGPL-3.0-or-later**, selecting permitted later LGPL versions for Apache-2.0 compatibility. Individual component licenses/notices remain in `third_party/libmpv/notices/`; FreeType uses FTL and FastFloat uses MIT. The old nonfree-marked `mpv.dll` is not included.
 
-Corresponding sources for all 16 components, versions, SHA256 hashes, notices, and build recipes are provided in **Cue-1.1-Engine-Source.zip** (engine build 1.1.4, unchanged since Cue 1.0), beside the installer and GitHub-generated Cue source archive on the [v1.1 release page](https://github.com/tinypeep/cue/releases/tag/v1.1). See [SOURCES.md](../third_party/libmpv/SOURCES.md) and `third_party/libmpv/manifest.json`.
+Corresponding sources for all 16 components, versions, SHA256 hashes, notices, and build recipes are provided in **Cue-1.1.1-Engine-Source.zip** (engine build 1.1.4, unchanged since Cue 1.0), beside the installer and GitHub-generated Cue source archive on the [v1.1.1 release page](https://github.com/tinypeep/cue/releases/tag/v1.1.1). See [SOURCES.md](../third_party/libmpv/SOURCES.md) and `third_party/libmpv/manifest.json`.
 
 Keep the DLL replaceable with API-compatible modified versions. Preserve notices and source access when redistributing. The installed `sources/README.txt` links to the release; the in-app license reader provides full texts and a source-folder button.
 

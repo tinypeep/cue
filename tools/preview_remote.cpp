@@ -37,9 +37,9 @@ int main(int argc, char** argv) {
   RemoteView v;
   v.chips = {{"Vídeos", true}, {"Downloads", true}, {"Área de Trabalho", false}};
   v.address = "192.168.0.12:7878";
-  v.code = "4812";
+  v.code = "481234";
   v.set_size(480 * s, 270 * s, s);
-  v.set_link("http://192.168.0.12:7878/#c=4812");
+  v.set_link("http://192.168.0.12:7878/#c=481234");
   Canvas c;
   double now = 100;
   v.open(now);
@@ -79,9 +79,9 @@ int main(int argc, char** argv) {
     RemoteView q;
     q.chips = {{"Vídeos", true}, {"Downloads", true}};
     q.address = "192.168.0.12:7878";
-    q.code = "4812";
+    q.code = "481234";
     q.set_size(480 * s, 270 * s, s);
-    q.set_link("http://192.168.0.12:7878/#c=4812");
+    q.set_link("http://192.168.0.12:7878/#c=481234");
     double t = 500;
     q.open(t);
     for (int i = 0; i < 120; ++i) { t += 1 / 60.0; q.tick(t, 1 / 60.0); }
@@ -104,4 +104,11 @@ int main(int argc, char** argv) {
       save(c, out + name);
     }
   }
+  for (auto size : {std::pair{500, 890}, {320,568}, {320,200}}) {
+    v.set_size(size.first * s, size.second * s, s);
+    v.open(now);
+    v.render(c, now + 2);
+    save(c, out + "/remote-" + std::to_string(size.first) + "x" + std::to_string(size.second) + ".png");
+  }
+
 }

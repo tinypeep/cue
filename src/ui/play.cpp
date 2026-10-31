@@ -1509,6 +1509,32 @@ void PlayView::compose(double now) {
   toast_alpha_ = ta;
   if (ta > 0) {
     if (toast_dirty_ || T.c.w == 0) {
+      if (next_toast_ && !next_name_.empty()) {
+        int W=std::min(w_ - (int)(2*kMargin*s), 270*(int)s), H=42*s;
+        T.c.resize(W,H); draw_panel(T.c,0,0,W/s,H/s,s,{1},p.tip_bg,.94,p.edge,1);
+        int imageW=56*s,imageH=32*s,ix=5*s,iy=5*s;
+        T.c.fill_pixels(ix,iy,imageW,imageH,p.bg);
+        if(!next_picture_.px.empty()) {
+          Canvas image; image.resize(imageW,imageH);
+          for(int y=0;y<imageH;++y) for(int x=0;x<imageW;++x)
+            image.px[y*imageW+x]=next_picture_.px[(y*48/imageH)*84+x*84/imageW];
+          T.c.blit(image,ix,iy);
+        } else if(auto icon=bmp("folder")) T.c.bitmap(icon,ix+imageW/2-5*s,iy+imageH/2-4*s,s,p.dim);
+        int x=66*s, room=std::max((int)(20*s),W-x-24*(int)s);
+        auto fit=[&](std::string text) {
+          if(text_w(text,s)<=room) return text;
+          while(!text.empty() && text_w(text+"...",s)>room) {
+            size_t k=text.size()-1; while(k>0 && ((unsigned char)text[k]&0xc0)==0x80) --k; text.resize(k);
+          }
+          return text+"...";
+        };
+        text(T.c,fit(toast_text_),x,8*s,s,p.dim);
+        text(T.c,fit(next_name_),x,23*s,s,p.fg);
+        toast_btn_rect_={W-21*(int)s,4*(int)s,17*(int)s,H-8*(int)s};
+        if(toast_hot_) T.c.cornered(toast_btn_rect_,s,p.hover,1);
+        if(auto cross=bmp("cross")) T.c.bitmap(cross,W-16*s,17*s,s,p.fg);
+        toast_base_=T.c; toast_dirty_=false; ++toast_gen_;
+      } else {
       const BitmapDef* ib = toast_icon_ ? bmp(toast_icon_) : nullptr;
       int iw = ib ? (ib->w + 4) * s : 0;
       int bw = toast_btn_ ? 19 * s : 0;  // divider + folder button
@@ -1564,7 +1590,7 @@ void PlayView::compose(double now) {
         T.c.fill(dx, 3 * s, s, H - 6 * s, p.edge);
         toast_btn_rect_ = {dx + 2 * s, 2 * s, 15 * s, H - 4 * s};
         if (toast_hot_) T.c.cornered(toast_btn_rect_, s, p.hover, 1.0);
-        const BitmapDef* fb = bmp("folder");
+        const BitmapDef* fb = bmp(next_toast_ ? "cross" : "folder");
         if (fb)
           T.c.bitmap(fb, toast_btn_rect_.x + (toast_btn_rect_.w - fb->w * s) / 2 / s * s,
                      toast_btn_rect_.y + (toast_btn_rect_.h - fb->h * s) / 2 / s * s, s, toast_hot_ ? p.fg : p.dim);
@@ -1572,6 +1598,7 @@ void PlayView::compose(double now) {
       toast_base_ = T.c;
       toast_dirty_ = flap_again;  // (was reset here: the letters froze mid-turn)
       ++toast_gen_;
+      }
     }
     int tx = (w_ - toast_base_.w) / 2 / s * s, ty = kMargin * s + (int)std::lround((1 - ta) * -3) * s;
     toast_rect_ = {tx, ty, toast_base_.w, toast_base_.h};
@@ -1762,6 +1789,7 @@ void PlayView::end_viewport_transition(double now) {
 }
 
 void PlayView::reset(double now) {
+  next_notice("", now);
   close_panel();
   viewport_transition_=false; viewport_vis_.v=viewport_vis_.target=1;
   pvis_.v = 0;
@@ -1921,6 +1949,7 @@ bool PlayView::pinned() const {
 }
 
 void PlayView::toast(const std::string& t, const char* icon, double now, bool icon_after) {
+  next_toast_ = false;
   toast_text_ = t;
   toast_icon_ = icon;
   toast_icon_after_ = icon_after;
@@ -1945,6 +1974,20 @@ void PlayView::announce_audio(double now) {
   toast(label, in.amix ? "mixer" : "sound-on", now);
   toast_hold_ = 1.4;
   flap_t0_ = reduce_motion() ? -10 : now;
+}
+
+void PlayView::set_next_details(const std::string& name) {
+  next_name_=name; next_picture_=Canvas{}; toast_dirty_=true;
+}
+void PlayView::set_next_picture(const std::vector<uint32_t>& pixels,int w,int h) {
+  if(w!=84 || h!=48 || pixels.size()!=84*48) return;
+  next_picture_.resize(w,h); next_picture_.px=pixels; toast_dirty_=true;
+}
+void PlayView::next_notice(const std::string& label, double now) {
+  if (label.empty()) { if (next_toast_) { toast_text_.clear(); toast_alpha_ = 0; toast_dirty_ = true; next_toast_ = false; } return; }
+  double started = next_toast_ ? toast_t0_ : now;
+  toast(label, "skip-forward", started);
+  next_toast_ = true; toast_btn_ = true; toast_hold_ = 12;
 }
 
 void PlayView::toast_folder(const std::string& t, double now) {
@@ -2287,7 +2330,8 @@ void PlayView::mouse_down(int x, int y, double now) {
   {
     bool on_btn = false;
     if (toast_hit(x, y, &on_btn)) {  // a click on the toast never pauses; its button opens the folder
-      if (on_btn) act(PA::OpenFrameFolder);
+      if (next_toast_) act(on_btn ? PA::CancelNext : PA::NextEpisode);
+      else if (on_btn) act(PA::OpenFrameFolder);
       swallow_up_ = true;
       return;
     }
@@ -2571,6 +2615,8 @@ void PlayView::key(const std::string& k, bool shift, bool ctrl, double now) {
   if (k == "up" || k == "down") { act(PA::Volume, std::clamp(in.volume + (k == "up" ? 5 : -5), 0.0, kVolMax)); return; }
   if (k == "c" && !ctrl) { activity(now); open_panel(Panel::CC, B_CC, now); return; }
   if (k == "m") { act(PA::ToggleMute); return; }
+  // the next file lives on the card at the end of the video, on the phone and here: not in a menu
+  if (k == "n" && !ctrl && in.has_next) { act(PA::NextEpisode); return; }
   if (k == "l") { toggle_loop(now); return; }
   if (k == "f") { act(PA::Fullscreen); return; }
   if (k == "s") { act(PA::SubVisible, in.sub_visible ? 0 : 1); return; }

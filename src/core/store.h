@@ -62,7 +62,7 @@ struct SettingsStore {
 
   RecentItem* find(const std::string& media_path);
   RecentItem& touch(const std::string& media_path, double dur, int64_t now);
-  void set_position(const std::string& media_path, double pos, double dur);
+  bool set_position(const std::string& media_path, double pos, double dur); // false when unchanged
   void clear_recents() { recents.clear(); }
   // Where to resume, or -1. Skips the very start and the very end.
   double resume_point(const std::string& media_path) const;

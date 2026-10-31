@@ -10,6 +10,8 @@
 
 class RemoteScene {
  public:
+  ~RemoteScene() { destroy(); }
+  void destroy() { host_.destroy(); stop_sound(); }
   RemoteView view;
   std::function<void(RemoteAction)> on_action;
   std::function<void()> on_closed;

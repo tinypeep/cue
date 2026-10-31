@@ -20,6 +20,7 @@ At the end of a video, Cue pauses on the last frame. Play restarts it. Enable re
 | L | Toggle repeat; preference is saved |
 | ↑ / ↓ / mouse wheel | Volume, up to 125%; orange above 100% |
 | M | Mute |
+| N / media next key | Open the next file when Cue found one |
 | [ / ] | Adjust playback speed |
 | 1× button | Speed slider (0.25×–3×), 0.05 steps, and presets |
 | \ | Reset speed to 1× |
@@ -49,7 +50,7 @@ Cue supports Brazilian Portuguese, English, Spanish, French, and Simplified Chin
 
 ## Phone remote
 
-Open **… → remote control** while a film plays, or **··· → remote control** beside Recent on the home screen. Cue shows a QR code with its network address and a four-digit code. Point the phone's camera at the code (or type the address in the phone's browser and enter the code). The phone and the computer must be on the same network. Nothing is installed on the phone.
+Open **… → remote control** while a film plays, or **··· → remote control** beside Recent on the home screen. Cue shows a QR code with its network address and a six-digit code. Point the phone's camera at the code (or type the address in the phone's browser and enter the code). The phone and the computer must be on the same network. Nothing is installed on the phone.
 
 The first time, Windows may ask whether Cue can use the network: allow it on **private** networks. On a network marked as public, Windows blocks phones from reaching Cue.
 
@@ -89,3 +90,9 @@ The old `tinyoffice\Player` state and `.tinyoffice Player` frames migrate on fir
 | `Cue.exe --log` | Enable `mpv.log` in the state folder |
 
 About Cue includes credits, an in-app license reader, source links, and update checks. Cue checks for updates every 15 days. See [installation and updates](UPDATES.md).
+
+### Remote security
+
+The pairing code works once and expires after two minutes; a waiting pairing screen refreshes it. Six wrong attempts in a minute lock pairing for one minute. Turning the remote off revokes all remembered phones. This update requires existing phones to pair again once.
+
+The remote uses HTTP on private IPv4 networks. Pairing controls access; it does **not** encrypt traffic. Use a trusted home network. Cue does not request router port forwarding. Only explicitly enabled, local-drive folders can be browsed; UNC paths and junctions/symlinks below those folders are refused.

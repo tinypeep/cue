@@ -43,6 +43,7 @@ bool App::remote_start() {
 
 void App::remote_stop(bool tell_phones) {
   remote_.stop(tell_phones);
+  if (tell_phones) { store_.remote_tokens.clear(); remote_.set_tokens({}); save_state(); }
   remote_devices_.clear();
   if (scene_.visible()) scene_.view.phones.clear();
   if (!remote_timer_) KillTimer(hwnd_, T_REMOTE);
@@ -106,7 +107,8 @@ bool App::remote_path_ok(const std::string& path) const {
   if (path.empty() || !remote::is_playable_name(path)) return false;
   bool inside = false;
   for (auto& f : store_.remote_folders)
-    if (f.on && remote::path_within(f.path, path)) inside = true;
+    if (f.on && remote_path_allowed(f.path, path)) inside = true;
+  if (!inside) return false;  // never touch an untrusted UNC/device path, even to ask for attributes
   DWORD a = GetFileAttributesW(widen(path).c_str());
   return inside && a != INVALID_FILE_ATTRIBUTES && !(a & FILE_ATTRIBUTE_DIRECTORY);
 }
@@ -137,6 +139,7 @@ void App::remote_publish() {
     st.audio_tracks = (int)in.audios.size();
     for (size_t i = 0; i < in.audios.size(); ++i) if (in.audios[i].id == in.aid) st.audio_index = (int)i;
     if (amix_) { st.audio_index = -1; st.audio_mix = (int)in.amix_ids.size(); }  // several at once
+    st.next_auto = next_auto_ && !next_cancelled_ && !store_.loop && remote_timer_ != -1;
     st.next = next_ep_.empty() ? "" : file_name(next_ep_);
   }
   st.timer = remote_timer_;
@@ -293,6 +296,7 @@ void App::end_what(bool restore) {
 // Which file plays after this one: the next episode, by its number, else by name.
 void App::find_next_episode() {
   next_ep_.clear();
+  next_auto_ = false; play_.in.has_next = false;
   if (path_.empty() || path_.find("://") != std::string::npos) return;
   std::error_code ec;
   std::filesystem::path p(widen(path_));
@@ -303,7 +307,23 @@ void App::find_next_episode() {
     if (it->is_regular_file(ec)) names.push_back(narrow(it->path().filename().wstring()));
   }
   std::string next = remote::next_episode(narrow(p.filename().wstring()), names);
+  next_auto_ = !audio_only_ && !next.empty() && remote::same_series(narrow(p.filename().wstring()), next);
+  if (next.empty()) next = remote::next_file(narrow(p.filename().wstring()), names);
   if (!next.empty()) next_ep_ = narrow((dir / widen(next)).wstring());
+  play_.set_next_details(file_name(next_ep_));
+  next_thumb_job_.reset(); next_thumb_requested_ = false;
+  play_.in.has_next = !next_ep_.empty();
+
+}
+
+// Capture the destination before idle notifications can clear discovery state.
+bool App::queue_next_episode() {
+  bool allowed = !next_cancelled_ && !store_.loop && remote_timer_ != -1 &&
+      next_auto_ && mode_ == Mode::Play;
+  if (next_advance_.pending()) return allowed;
+  if (!next_advance_.arm(next_ep_, allowed)) return false;
+  SetTimer(hwnd_, T_NEXT, next_auto_ ? 1 : 2500, nullptr);
+  return true;
 }
 
 // The phone's timeline preview: the same frames as the PC's hover, from the same helper.
@@ -321,6 +341,7 @@ void App::remote_peek_send() {
   int k = thumb_key(remote_peek_want_);
   auto it = thumb_cache_.lower_bound(k);
   if (it == thumb_cache_.end() || (it != thumb_cache_.begin() && it->first != k && k - std::prev(it)->first < it->first - k)) --it;
+  thumb_cache_.touch(it->first);
   if (it->first != remote_peek_sent_) {
     remote_peek_sent_ = it->first;
     remote_.set_peek(it->first * thumb_step(), it->second.px, it->second.w, it->second.h);
@@ -342,6 +363,7 @@ void App::open_remote_scene() {
   v.problem.clear();
   v.address.clear();
   v.code.clear();
+  remote_pair_deadline_ = 0;
   std::string ip = on ? lan_address() : "";
   if (!on) {
     v.problem = tr(str::remote_failed);
@@ -351,10 +373,12 @@ void App::open_remote_scene() {
     v.set_link("");
   } else {
     remote_code_ = new_pairing_code();
-    remote_.set_pairing(true, remote_code_);
+    remote_pair_deadline_ = now() + remote::kPairLifetime;
+    if (remote_code_.empty()) { v.problem = tr(str::remote_failed); v.set_link(""); }
+    remote_.set_pairing(!remote_code_.empty(), remote_code_);
     v.address = ip + ":" + std::to_string(remote_.port());
     v.code = remote_code_;
-    v.set_link("http://" + v.address + "/#c=" + remote_code_);
+    if (!remote_code_.empty()) v.set_link("http://" + v.address + "/#c=" + remote_code_);
   }
   // the film waits behind the scene, in black and white, and shows through a little more
   bool film = mode_ == Mode::Play && loaded_ && !audio_only_;

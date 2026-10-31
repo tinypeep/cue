@@ -1,5 +1,79 @@
 # Changelog
 
+## 1.1.1
+
+### Final 1.1 polish
+
+- The next file lives on the card at the end of the video, on the phone and on **N** (or the keyboard's media "next" key). The duplicate "Next episode" / "Up next" entry in the ⋯ menu is gone.
+- Phone folders: the arrow beside the title goes one folder up and only appears when there is a folder above; a separate × leaves the folders from anywhere. With several shared folders, the top of one goes back to their list.
+- Phone menus: an arrow beside each title goes one step back (a value to the subtitles list, the subtitles to the menu, the menu to the player).
+- The phone remote no longer zooms on a quick double tap; fast taps on + and − all count.
+- Embedded subtitles stay in sync at every speed: they are timed by the engine on the video's own clock (measured at 1×, 2× and 3× with zero drift).
+
+### Next-file preview and series boundaries
+
+- Show the destination filename and a small asynchronous thumbnail in the player's next card.
+- Match normalized series title as well as season/episode; never automatically continue a different or unidentified show.
+- Keep unrelated files as manual Up next suggestions, with matching labels in the player and phone.
+
+
+### Episode handoff fix
+
+- Preserve the next filename when opening it; `open` owns its argument before resetting discovery state.
+- Capture automatic destinations across EOF/END_FILE/idle events, consume them once, and clear cancelled/stale requests.
+- Reject empty open requests without disturbing playback.
+
+### Remote layout and playback follow-up
+
+- Enlarge portrait pairing independently of the playback dock scale; wrap folder actions.
+- Prioritize Escape for the pairing overlay, preserve early cancellation and return keyboard focus on close.
+- Add an exit timer fallback and avoid synchronous drag handoff to the player window.
+- Keep system keyboard volume/mute separate from Cue's internal volume.
+- Add Next episode to the player menu and a compact, cancellable countdown in the last 10 playback seconds; automatically continue numbered episodes at EOF, respecting loop and the end-of-episode sleep timer.
+- Make the phone timeline fill follow the dragged position; dragging the active wheel dot seeks continuously while other wheel gestures retain detents.
+
+All remote, memory and disk improvements are consolidated in this release.
+
+### Stability and input handling
+
+- Move preview pipe writes off the UI thread into a bounded, replaceable command queue.
+- Give preview workers shared ownership of their process/pipe state; release stale posted frames on shutdown.
+- Restrict child handle inheritance and require successful kill-on-close job assignment.
+- Bound remote lifecycle events and keep disconnects from delaying remote shutdown.
+- Make file-worker cleanup exception safe and acquire Winsock ownership before thread launch.
+- Bound settings reads/JSON nodes and validate numeric conversions before casting; reject implausible saved window geometry.
+- See [Additional stability review](STABILITY.md) for validation and remaining limits.
+
+### Disk and RAM
+
+- Generate timeline previews on demand instead of scanning distant timestamps in the background after a hover.
+- Bound timeline pixel storage to 12 MiB / 256 entries with LRU eviction and capacity-based accounting.
+- Keep colour-only samples transient while preserving ambient-light timing and sampling quality.
+- Skip unchanged position/settings writes, preserve recovery-copy refresh and reuse identical blur-shader files.
+- Exclude temporary build/sync leftovers from the installer.
+- Add cache/real-filesystem I/O regressions and an optional read-only Windows resource probe. See [Disk and RAM review](RESOURCES.md) for scope and tradeoffs.
+
+### Memory lifecycle
+
+- Fix DIB/DC ownership when pairing/news windows resize; restore selection before deleting the bitmap.
+- Release full-window scene surfaces and canvases after closing; destroy overlay windows and graphics resources explicitly.
+- Give the display-pacing worker independent shared state so a late DwmFlush cannot access a destroyed owner or closed event.
+- Stop caching unsupported Unicode code points. Known fallback glyphs remain cached and stable.
+- Release the phone file browser’s DOM/blob URLs and abort pending requests on close; release timeline preview URLs when scrubbing ends.
+- Add counted resource/allocation regressions, a Chromium memory stress test and a native Windows GDI-counter test. See [Memory review](MEMORY.md).
+
+### Phone UI and security
+
+- Reflow remote pairing for portrait desktop windows; wrap shared-folder chips and fit text.
+- Adapt the phone remote to available width/height, browser bars and safe-area insets; keep primary targets at least 44 CSS pixels.
+- Fix the folder bitmap and center icon clipping.
+- Harden pairing: six digits, two-minute validity, one use, CSPRNG-only 256-bit remembered tokens, and revocation when turning the remote off. Existing phones pair again once.
+- Validate Host/Origin and WebSocket handshakes; require first-message authentication and HTTP Bearer headers. Add strict input validation, script nonces, CSP and resource limits.
+- Restrict file access to enabled local roots; reject special Windows paths and descendant reparse points.
+- Limit listing work, worker count and lazy thumbnail requests; avoid redundant menu rebuilding and release sound nodes/object URLs.
+- Require SHA-256 verification for automatic installer downloads and use unique temporary folders.
+- See [Security](SECURITY.md) for remaining HTTP and platform-validation limitations.
+
 ## 1.1
 
 The phone remote, and more.

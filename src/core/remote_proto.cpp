@@ -68,28 +68,82 @@ std::string url_encode(std::string_view s) {
   return r;
 }
 
+bool valid_authority(std::string_view host) {
+  if (host.empty() || host.size() > 32) return false;
+  size_t colon = host.find(':');
+  auto ip = host.substr(0, colon);
+  if (colon != std::string_view::npos) {
+    auto port = host.substr(colon + 1);
+    if (port.empty() || port.size() > 5) return false;
+    unsigned n = 0;
+    for (char c : port) { if (c < '0' || c > '9') return false; n = n * 10 + c - '0'; }
+    if (!n || n > 65535) return false;
+  }
+  if (ip == "localhost") return true;
+  size_t at = 0;
+  for (int part = 0; part < 4; ++part) {
+    size_t end = ip.find('.', at);
+    if ((part < 3) != (end != std::string_view::npos)) return false;
+    if (end == std::string_view::npos) end = ip.size();
+    auto v = ip.substr(at, end - at);
+    if (v.empty() || v.size() > 3 || (v.size() > 1 && v[0] == '0')) return false;
+    int n = 0;
+    for (char c : v) { if (c < '0' || c > '9') return false; n = n * 10 + c - '0'; }
+    if (n > 255) return false;
+    at = end + 1;
+  }
+  return true;
+}
+
+bool valid_ws_key(std::string_view k) {
+  if (k.size() != 24 || k.substr(22) != "==") return false;
+  for (size_t i = 0; i < 22; ++i)
+    if (!std::isalnum((unsigned char)k[i]) && k[i] != '+' && k[i] != '/') return false;
+  return k[21] == 'A' || k[21] == 'Q' || k[21] == 'g' || k[21] == 'w';
+}
+
+bool valid_token(std::string_view t) {
+  if (t.size() != 64) return false;
+  for (char c : t) if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return false;
+  return true;
+}
+
+bool RateLimit::take(double now, double rate, double burst) {
+  if (last < 0) credit = burst;
+  else credit = std::min(burst, credit + std::max(0.0, now - last) * rate);
+  last = now;
+  if (credit < 1) return false;
+  credit -= 1;
+  return true;
+}
+
 int parse_request(std::string_view buf, Request& out, size_t& header_len) {
   size_t end = buf.find("\r\n\r\n");
   if (end == std::string_view::npos) return buf.size() > kMaxRequest ? -1 : 0;
-  if (end > kMaxRequest) return -1;
+  if (end + 4 > kMaxRequest) return -1;
   header_len = end + 4;
   out = Request{};
   size_t line_end = buf.find("\r\n");
   std::string_view first = buf.substr(0, line_end);
   size_t a = first.find(' '), b = first.rfind(' ');
-  if (a == std::string_view::npos || b == a) return -1;
+  if (a == std::string_view::npos || b == a || first.substr(b + 1) != "HTTP/1.1") return -1;
   out.method = std::string(first.substr(0, a));
   std::string_view target = first.substr(a + 1, b - a - 1);
-  if (first.substr(b + 1).substr(0, 5) != "HTTP/") return -1;
+  if (target.empty() || target[0] != '/' || target.find('#') != std::string_view::npos) return -1;
   size_t q = target.find('?');
   out.path = url_decode(target.substr(0, q));
+  if (out.path.find_first_of(std::string("\0\r\n", 3)) != std::string::npos) return -1;
   if (q != std::string_view::npos) {
     std::string_view qs = target.substr(q + 1);
     while (!qs.empty()) {
       size_t amp = qs.find('&');
       std::string_view kv = qs.substr(0, amp);
       size_t eq = kv.find('=');
-      if (!kv.empty()) out.query[url_decode(kv.substr(0, eq))] = eq == std::string_view::npos ? "" : url_decode(kv.substr(eq + 1));
+      if (!kv.empty()) {
+        auto key = url_decode(kv.substr(0, eq));
+        if (out.query.count(key)) return -1;
+        out.query[key] = eq == std::string_view::npos ? "" : url_decode(kv.substr(eq + 1));
+      }
       if (amp == std::string_view::npos) break;
       qs = qs.substr(amp + 1);
     }
@@ -97,22 +151,38 @@ int parse_request(std::string_view buf, Request& out, size_t& header_len) {
   size_t pos = line_end + 2;
   while (pos < end) {
     size_t le = buf.find("\r\n", pos);
-    if (le == std::string_view::npos || le > end) le = end;
+    if (le == std::string_view::npos || le > end) return -1;
     std::string_view line = buf.substr(pos, le - pos);
     size_t colon = line.find(':');
-    if (colon != std::string_view::npos) out.headers[lower(trim(line.substr(0, colon)))] = trim(line.substr(colon + 1));
+    if (colon == std::string_view::npos || !colon) return -1;
+    auto name = lower(line.substr(0, colon));
+    for (unsigned char c : name) if (!(std::isalnum(c) || c == '-')) return -1;
+    auto value = trim(line.substr(colon + 1));
+    for (unsigned char c : value) if ((c < 32 && c != 9) || c == 127) return -1;
+    if (out.headers.count(name)) return -1;
+    out.headers[name] = value;
     pos = le + 2;
   }
+  if (!out.headers.count("host") || out.headers.count("transfer-encoding")) return -1;
+  auto cl = out.headers.find("content-length");
+  if (cl != out.headers.end() && cl->second != "0") return -1;
   return 1;
 }
 
-std::string http_response(int status, std::string_view type, std::string_view body, bool cache) {
+std::string http_response(int status, std::string_view type, std::string_view body, bool cache, std::string_view nonce, std::string_view authority) {
   const char* reason = status == 200 ? "OK" : status == 400 ? "Bad Request" : status == 403 ? "Forbidden" :
                        status == 404 ? "Not Found" : status == 405 ? "Method Not Allowed" : "Error";
   std::string r = "HTTP/1.1 " + std::to_string(status) + " " + reason + "\r\n";
   if (!type.empty()) r += "Content-Type: " + std::string(type) + "\r\n";
   r += "Content-Length: " + std::to_string(body.size()) + "\r\n";
   r += cache ? "Cache-Control: max-age=86400\r\n" : "Cache-Control: no-store\r\n";
+  r += "Content-Security-Policy: default-src 'none'; script-src ";
+  bool safe_nonce = nonce.size() == 32 && std::all_of(nonce.begin(), nonce.end(), [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); });
+  r += safe_nonce ? "'nonce-" + std::string(nonce) + "'" : "'none'";
+  r += "; style-src 'self' 'unsafe-inline'; img-src 'self' blob:; font-src 'self'; connect-src 'self'";
+  if (valid_authority(authority)) r += " ws://" + std::string(authority) + " wss://" + std::string(authority);
+  r += "; frame-ancestors 'none'; base-uri 'none'; form-action 'none'\r\n";
+  r += "X-Frame-Options: DENY\r\nCross-Origin-Resource-Policy: same-origin\r\nPermissions-Policy: camera=(), microphone=(), geolocation=()\r\n";
   r += "X-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nConnection: close\r\n\r\n";
   r.append(body.data(), body.size());
   return r;
@@ -194,7 +264,10 @@ int ws_decode(std::string_view buf, Frame& out, size_t& consumed) {
     for (int i = 0; i < 8; ++i) len = len << 8 | (unsigned char)buf[2 + i];
     pos = 10;
   }
-  if (len > kMaxFrame) return -1;
+  int op = b0 & 0x0F;
+  if (op != WS_TEXT && op != WS_CLOSE && op != WS_PING && op != WS_PONG) return -1;
+  if (!(b0 & 0x80) || ((op & 8) && (len > 125 || (b1 & 0x7F) >= 126))) return -1;
+  if ((op == WS_CLOSE && len == 1) || len > kMaxFrame) return -1;
   if (buf.size() < pos + 4 + len) return 0;
   const unsigned char* key = (const unsigned char*)buf.data() + pos;
   pos += 4;
@@ -293,7 +366,7 @@ bool natural_less(std::string_view a, std::string_view b) {
   return a < b;
 }
 
-bool episode_of(std::string_view name, int& season, int& episode) {
+bool episode_of(std::string_view name, int& season, int& episode, size_t* marker) {
   std::string n = lower(name);
   size_t dot = n.rfind('.');
   if (dot != std::string::npos) n.resize(dot);
@@ -312,7 +385,7 @@ bool episode_of(std::string_view name, int& season, int& episode) {
     if (p < n.size() && n[p] == 'e') {
       ++p;
       int e = digits(p, 4);
-      if (e >= 0) { season = s; episode = e; return true; }
+      if (e >= 0) { season = s; episode = e; if (marker) *marker = k; return true; }
     }
   }
   // 1x03
@@ -326,7 +399,7 @@ bool episode_of(std::string_view name, int& season, int& episode) {
     p = k + 1;
     int e = digits(p, 3);
     if (p < n.size() && std::isdigit((unsigned char)n[p])) continue;  // a resolution like 1920x1080
-    season = s; episode = e;
+    season = s; episode = e; if (marker) *marker = a;
     return true;
   }
   // "ep 3", "episode 03", "e03", "cap 3", "capítulo 3"
@@ -338,10 +411,39 @@ bool episode_of(std::string_view name, int& season, int& episode) {
       size_t p = k + ws.size();
       while (p < n.size() && (n[p] == ' ' || n[p] == '.' || n[p] == '_' || n[p] == '-')) ++p;
       int e = digits(p, 4);
-      if (e >= 0 && (p >= n.size() || !std::isalpha((unsigned char)n[p]))) { season = 0; episode = e; return true; }
+      if (e >= 0 && (p >= n.size() || !std::isalpha((unsigned char)n[p]))) { season = 0; episode = e; if (marker) *marker = k; return true; }
     }
   }
   return false;
+}
+
+namespace {
+std::string series_key(std::string_view name) {
+  int season=0, episode=0; size_t marker=0;
+  if (!episode_of(name,season,episode,&marker)) return {};
+  std::string prefix=lower(name.substr(0,marker));
+  // Release groups are metadata, not series identity.
+  while (!prefix.empty() && prefix.front()=='[') {
+    auto end=prefix.find(']'); if(end==std::string::npos) break;
+    prefix.erase(0,end+1); prefix=trim(prefix);
+  }
+  std::string key; bool space=false;
+  for (unsigned char c:prefix) {
+    if (std::isalnum(c) || c>=128) { if(space && !key.empty()) key+=' '; key+=(char)c; space=false; }
+    else space=true;
+  }
+  return key;
+}
+}
+bool same_series(std::string_view a,std::string_view b) {
+  auto key=series_key(a); return !key.empty() && key==series_key(b);
+}
+std::string next_file(std::string_view current,const std::vector<std::string>& siblings) {
+  std::vector<std::string> files;
+  for(auto& f:siblings) if(is_playable_name(f)) files.push_back(f);
+  std::sort(files.begin(),files.end(),[](auto& a,auto& b){return natural_less(a,b);});
+  for(size_t i=0;i+1<files.size();++i) if(lower(files[i])==lower(current)) return files[i+1];
+  return {};
 }
 
 std::string next_episode(std::string_view current, const std::vector<std::string>& siblings) {
@@ -356,7 +458,7 @@ std::string next_episode(std::string_view current, const std::vector<std::string
     int bs = 0, be = 0;
     for (auto& f : files) {
       int s = 0, e = 0;
-      if (!episode_of(f, s, e)) continue;
+      if (!episode_of(f, s, e) || !same_series(current,f)) continue;
       bool after = s > cs || (s == cs && e > ce);
       if (!after) continue;
       if (best.empty() || s < bs || (s == bs && e < be) || (s == bs && e == be && natural_less(f, best))) {
@@ -386,7 +488,27 @@ bool path_within(std::string_view root, std::string_view path) {
     return r;
   };
   std::string r = norm(root), p = norm(path);
-  if (r.empty() || p.empty()) return false;
+  if (r.size() < 3 || p.size() < 3) return false;
+  auto normal = [](const std::string& v) {
+    if (!std::isalpha((unsigned char)v[0]) || v[1] != ':' || v[2] != '\\') return false;
+    for (size_t i = 2; i < v.size(); ++i) {
+      unsigned char c = v[i];
+      if (c < 32 || c == 127 || c == ':' || c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|') return false;
+    }
+    size_t at = 3;
+    while (at < v.size()) {
+      size_t end = v.find('\\', at);
+      if (end == std::string::npos) end = v.size();
+      auto part = v.substr(at, end - at);
+      if (part.empty() || part.back() == '.' || part.back() == ' ') return false;
+      auto stem = part.substr(0, part.find('.'));
+      if (stem == "con" || stem == "prn" || stem == "aux" || stem == "nul" || stem == "conin$" || stem == "conout$" ||
+          (stem.size() == 4 && (stem.substr(0, 3) == "com" || stem.substr(0, 3) == "lpt") && stem[3] >= '0' && stem[3] <= '9')) return false;
+      at = end + 1;
+    }
+    return true;
+  };
+  if (!normal(r) || !normal(p)) return false;
   // no "." or ".." segments: they would walk out of the root after this check
   size_t k = 0;
   while (k <= p.size()) {
@@ -422,13 +544,14 @@ std::string state_json(const State& s) {
   o += ",\"audio\":{\"n\":" + std::to_string(s.audio_tracks) + ",\"i\":" + std::to_string(s.audio_index) + ",\"m\":" + std::to_string(s.audio_mix) + "}";
   o += ",\"timer\":{\"m\":" + std::to_string(s.timer) + ",\"left\":" + num(s.timer_left, 0) + "}";
   o += ",\"next\":" + escape(s.next);
+  o += std::string(",\"nextAuto\":") + (s.next_auto ? "true" : "false");
   o += ",\"color\":" + escape(s.color) + "}";
   return o;
 }
 
 bool parse_command(std::string_view text, Command& out) {
   JVal j;
-  if (!json_parse(std::string(text), j) || j.t != JVal::Obj) return false;
+  if (text.size() > kMaxFrame || !json_parse(std::string(text), j) || j.t != JVal::Obj) return false;
   out = Command{};
   out.c = j["c"].str();
   if (out.c.empty() || out.c.size() > 24) return false;
@@ -439,7 +562,21 @@ bool parse_command(std::string_view text, Command& out) {
     if (!out.has_v) out.v = 0;
   }
   out.path = j["path"].str();
-  return true;
+  if (out.path.size() > 4096 || out.path.find('\0') != std::string::npos) return false;
+  static const char* simple[] = {"toggle", "next", "what"};
+  for (auto k : simple) if (out.c == k) return true;
+  if (out.c == "open") return !out.path.empty() && is_playable_name(out.path);
+  if (v.t != JVal::Num || !out.has_v || std::abs(out.v) > 1000000000.0) return false;
+  if (out.c == "timer") return out.v >= -1 && out.v <= 600;
+  if (out.c == "skip") return std::abs(out.v) <= 600;
+  if (out.c == "vol") return out.v >= 0 && out.v <= 200;
+  if (out.c == "seek" || out.c == "peek") return out.v >= 0;
+  if (out.c == "sub") return out.v == 0 || out.v == 1;
+  if (out.c == "subsize") return out.v >= 28 && out.v <= 72;
+  if (out.c == "subpos") return out.v >= 12 && out.v <= 97;
+  if (out.c == "subdelay") return std::abs(out.v) <= 600;
+  if (out.c == "audio") return out.v >= -1 && out.v <= 1000;
+  return false;
 }
 
 std::string listing_json(const std::string& title, const std::string& path, const std::string& parent,

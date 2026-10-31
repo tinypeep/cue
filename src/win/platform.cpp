@@ -7,6 +7,7 @@
 #include <cmath>
 
 #include "../core/i18n.h"
+#include "../core/remote_proto.h"
 
 std::wstring widen(const std::string& s) {
   if (s.empty()) return {};
@@ -355,4 +356,36 @@ HRESULT DropTarget::Drop(IDataObject* data, DWORD, POINTL, DWORD* effect) {
     if (on_drop) on_drop(files);
   }
   return S_OK;
+}
+
+// Check lexical syntax before touching the filesystem (no UNC/ADS/device namespace tricks).
+// Reject junctions/symlinks below the explicitly shared root, and compare resolved handles.
+bool remote_path_allowed(const std::string& root, const std::string& path) {
+  if (!remote::path_within(root, path)) return false;
+  std::wstring rw = widen(root), pw = widen(path);
+  for (auto& c : rw) if (c == L'/') c = L'\\';
+  for (auto& c : pw) if (c == L'/') c = L'\\';
+  while (rw.size() > 3 && rw.back() == L'\\') rw.pop_back();
+  for (size_t at = rw.size() + (rw.back() != L'\\'); at < pw.size();) {
+    size_t end = pw.find(L'\\', at);
+    if (end == std::wstring::npos) end = pw.size();
+    DWORD attrs = GetFileAttributesW(pw.substr(0, end).c_str());
+    if (attrs == INVALID_FILE_ATTRIBUTES || (attrs & FILE_ATTRIBUTE_REPARSE_POINT)) return false;
+    at = end + 1;
+  }
+  auto final_path = [](const std::wstring& v) {
+    std::wstring result;
+    HANDLE h = CreateFileW(v.c_str(), FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                           nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+    if (h == INVALID_HANDLE_VALUE) return result;
+    std::vector<wchar_t> b(32768);
+    DWORD n = GetFinalPathNameByHandleW(h, b.data(), (DWORD)b.size(), FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+    if (n && n < b.size()) result.assign(b.data(), n);
+    CloseHandle(h);
+    return result;
+  };
+  auto rp = final_path(rw), pp = final_path(pw);
+  if (rp.empty() || pp.size() < rp.size()) return false;
+  if (CompareStringOrdinal(rp.data(), (int)rp.size(), pp.data(), (int)rp.size(), TRUE) != CSTR_EQUAL) return false;
+  return pp.size() == rp.size() || rp.back() == L'\\' || pp[rp.size()] == L'\\';
 }

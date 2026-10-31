@@ -278,6 +278,7 @@ enum Id : uint16_t {
   remote_reconnecting,
   remote_empty_folder,
   remote_back,
+  remote_close_folders,
   remote_play_pause,
   remote_rewind,
   remote_forward,
@@ -304,6 +305,9 @@ enum Id : uint16_t {
   news_audio_line,
   news_audio_title,
   news_try,
+  player_up_next,
+  player_up_next_manual,
+  remote_up_next,
   kCount
 };
 }  // namespace str

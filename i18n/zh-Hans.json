@@ -1,9 +1,7 @@
 {
   "_language": "zh-Hans",
   "_note": "简体中文。保持 Cue 的语气：简短，句末不加句号，不用感叹号。使用全角标点。",
-
   "number.decimal": ".",
-
   "home.open_file": "打开文件",
   "home.drop_here": "拖到这里",
   "home.recents": "最近",
@@ -22,11 +20,9 @@
   "home.update_preparing": "正在准备更新",
   "notice.open_failed": "无法打开",
   "notice.open_video_first": "请先打开视频",
-
   "engine.missing_dll": "缺少 libmpv-2.dll",
   "engine.too_old": "libmpv 版本太旧",
   "engine.failed": "视频引擎没有启动",
-
   "tip.volume": "音量",
   "tip.rewind": "后退 15 秒",
   "tip.forward": "前进 15 秒",
@@ -43,13 +39,11 @@
   "tip.unmute": "取消静音",
   "flash.loop_on": "循环",
   "flash.loop_off": "不循环",
-
   "cc.none": "没有字幕",
   "cc.toggle": "字幕",
   "cc.load": "加载字幕",
   "cc.style": "样式",
   "cc.sync": "同步",
-
   "style.title": "样式",
   "style.original": "原始",
   "style.mine": "我的样式",
@@ -68,7 +62,6 @@
   "style.restored": "字幕已恢复默认",
   "style.undone": "已恢复原样",
   "style.saved": "已保存",
-
   "more.open": "打开文件",
   "more.close_video": "关闭视频",
   "more.close_audio": "关闭音频",
@@ -85,16 +78,12 @@
   "size.large": "大",
   "size.larger": "加大",
   "size.now": "大小：{size}",
-
   "language.title": "语言",
   "language.auto": "自动 · 跟随 Windows",
-
   "about.licenses": "许可证",
   "speed.title": "速度",
-
   "ctx.file_info": "文件信息",
   "ctx.save_frame": "保存画面",
-
   "info.title": "文件信息",
   "info.loading": "正在加载…",
   "info.file": "文件",
@@ -111,13 +100,14 @@
   "info.no_audio_track": "未选择音轨",
   "info.stereo": "立体声",
   "info.mono": "单声道",
-  "info.channels_n": { "other": "{n} 声道" },
+  "info.channels_n": {
+    "other": "{n} 声道"
+  },
   "unit.b": "B",
   "unit.kb": "KB",
   "unit.mb": "MB",
   "unit.gb": "GB",
   "unit.tb": "TB",
-
   "update.check": "检查更新",
   "update.checking": "正在检查更新…",
   "update.to": "更新到 {version}",
@@ -132,14 +122,12 @@
   "update.rate_limited": "GitHub 请求暂停，请稍后再试",
   "update.bad_response": "GitHub 暂时没有正常响应",
   "update.offline": "暂时无法连接 GitHub",
-
   "toast.frame_saved": "画面已保存",
   "toast.frame_failed": "无法保存画面",
   "toast.sub_delay": "字幕 {delay}",
   "toast.sub_on": "字幕已开启",
   "toast.sub_off": "字幕已关闭",
   "toast.link_failed": "无法打开链接",
-
   "track.n": "轨道 {n}",
   "track.forced": "强制",
   "lang.ro": "罗马尼亚语",
@@ -157,7 +145,6 @@
   "lang.vi": "越南语",
   "lang.id": "印度尼西亚语",
   "lang.ms": "马来语",
-
   "ob.intro": "你好，我是 Cue",
   "ob.ambient_title": "动态光效",
   "ob.ambient_line": "窗口会随视频的颜色发光",
@@ -178,7 +165,6 @@
   "ob.start": "开始",
   "ob.skip": "跳过",
   "ob.back": "返回",
-
   "win.open_title": "打开文件",
   "win.subtitle_title": "添加字幕",
   "win.filter_media": "视频和音频",
@@ -188,7 +174,6 @@
   "win.progid": "Cue 媒体",
   "win.crash": "Cue 因错误而关闭。\n详细信息保存在 {path}",
   "win.forward_failed": "无法在 Cue 窗口中打开视频。\n请关闭 Cue 后重试。",
-
   "lic.title": "Cue · 许可证与致谢",
   "lic.sources": "源代码",
   "lic.close": "关闭",
@@ -200,7 +185,6 @@
   "lic.read_failed": "无法读取此文档。请确认 Cue 文件夹已完整解压。",
   "lic.sources_missing": "找不到 fontes 文件夹。源代码位于 {url}。",
   "lic.viewer_failed": "无法打开许可证查看器。",
-
   "setup.title_install": "安装 Cue",
   "setup.title_uninstall": "卸载 Cue",
   "setup.reinstall": "重新安装",
@@ -249,7 +233,6 @@
   "setup.needs_admin": "该文件夹需要管理员权限，请选择其他文件夹",
   "setup.choose_folder": "选择 Cue 的安装位置",
   "setup.shortcut": "轻巧的本地视频播放器",
-
   "remote.title": "遥控器",
   "remote.menu": "菜单",
   "remote.subtitles": "字幕",
@@ -293,6 +276,7 @@
   "remote.reconnecting": "正在重试",
   "remote.empty_folder": "这里没有可播放的内容",
   "remote.back": "返回",
+  "remote.close_folders": "关闭文件夹",
   "remote.play_pause": "播放或暂停",
   "remote.rewind": "后退 15 秒",
   "remote.forward": "前进 15 秒",
@@ -308,7 +292,6 @@
   "remote.phone_connected": "手机已连接",
   "remote.linked": "已连接！",
   "remote.linked_hint": "好了，可以躺下了",
-
   "news.title": "新鲜出炉",
   "news.line": "这个版本带来了这些",
   "news.remote_title": "手机遥控",
@@ -319,5 +302,8 @@
   "news.subs_title": "字幕一键恢复默认",
   "news.audio_line": "OBS 的游戏、麦克风和 Discord 一起播放，由你挑选。",
   "news.audio_title": "多条音轨",
-  "news.try": "试试看"
+  "news.try": "试试看",
+  "player.up_next": "下一集倒计时",
+  "player.up_next_manual": "接下来",
+  "remote.up_next": "接下来 · {name}"
 }

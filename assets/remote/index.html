@@ -11,11 +11,17 @@
 <style>
 @font-face{font-family:"CueOmni";src:url("/font.ttf") format("truetype");font-display:block}
 :root{--bg:#030303;--sheet:#0b0b0b;--hover:#1a1a1a;--press:#262626;--edge:#232323;--faint:#303030;--dim:#787878;--fg:#ededed;--px:#ffffff;--orange:#ffaa5a}
-html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;overscroll-behavior:none;touch-action:manipulation}
+html,body{margin:0;min-height:100%;background:var(--bg);overflow-x:hidden;overscroll-behavior:none;touch-action:manipulation}
 body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;color:var(--fg);font-family:"CueOmni",ui-monospace,monospace;font-size:20px;line-height:24px;-webkit-font-smoothing:none;-webkit-text-size-adjust:100%}
 svg{shape-rendering:crispEdges;display:block}
 button{font:inherit;color:inherit;background:transparent;border:0;padding:0;margin:0;cursor:pointer;-webkit-appearance:none;appearance:none}
-#app{position:absolute;left:50%;top:50%;width:390px;height:844px;margin:-422px 0 0 -195px;transform-origin:50% 50%;overflow:hidden}
+#viewport{box-sizing:border-box;min-height:100vh;min-height:100dvh;padding: max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))}
+#remoteFrame{position:relative;margin:0 auto}
+#app{position:absolute;left:0;top:0;width:390px;height:844px;transform-origin:0 0;overflow:hidden}
+button:focus-visible{outline:2px solid var(--px);outline-offset:3px}
+#stage{z-index:1;pointer-events:none}#stage button,#stage #frame{pointer-events:auto}
+#menu,#subEdit{background:var(--bg)}
+#bFolder{color:var(--fg)}
 .abs{position:absolute}
 .hide{display:none!important}
 .ell{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -26,10 +32,10 @@ button{font:inherit;color:inherit;background:transparent;border:0;padding:0;marg
 .wbtn[disabled]{opacity:.35}
 .center{position:absolute;left:114px;top:114px;width:116px;height:116px;color:var(--fg)}
 .center:active .cfill{fill:var(--press)}
-.row{display:flex;justify-content:space-between;align-items:center;width:100%;height:40px;padding:0 12px;border-radius:2px;box-sizing:border-box;color:var(--dim);text-align:left}
+.row{display:flex;justify-content:space-between;align-items:center;width:100%;height:var(--row-h,40px);padding:0 12px;border-radius:2px;box-sizing:border-box;color:var(--dim);text-align:left}
 .row.on{color:var(--fg)}
 .row.edit{background:var(--press);color:var(--fg)}
-.adj{width:44px;height:36px;background:var(--sheet);border:2px solid var(--edge);border-radius:2px;color:var(--fg)}
+.adj{width:var(--hit,44px);height:var(--hit,44px);background:var(--sheet);border:2px solid var(--edge);border-radius:2px;color:var(--fg)}
 .adj:active{background:var(--press)}
 .card{position:absolute;box-sizing:border-box;background:var(--sheet);border:2px solid var(--edge);border-radius:2px;text-align:left;padding:8px 12px;display:flex;flex-direction:column;gap:2px}
 .card:active{background:var(--hover)}
@@ -50,17 +56,17 @@ button{font:inherit;color:inherit;background:transparent;border:0;padding:0;marg
 @keyframes b1{to{transform:translate(-44px,-34px);opacity:0}}@keyframes b2{to{transform:translate(44px,-34px);opacity:0}}
 @keyframes b3{to{transform:translate(-66px,-6px);opacity:0}}@keyframes b4{to{transform:translate(66px,-6px);opacity:0}}
 @keyframes b5{to{transform:translate(-22px,-54px);opacity:0}}@keyframes b6{to{transform:translate(22px,-54px);opacity:0}}
-.digits{display:flex;gap:12px;justify-content:center}
-.digit{width:52px;height:64px;box-sizing:border-box;border:2px solid var(--edge);border-radius:2px;background:var(--sheet);display:flex;align-items:center;justify-content:center;font-size:40px;line-height:48px}
+.digits{display:flex;gap:8px;justify-content:center}
+.digit{width:42px;height:60px;box-sizing:border-box;border:2px solid var(--edge);border-radius:2px;background:var(--sheet);display:flex;align-items:center;justify-content:center;font-size:40px;line-height:48px}
 .digit.cur{border-color:var(--dim)}
 .keys{display:grid;grid-template-columns:repeat(3,72px);gap:10px;justify-content:center}
-.key{height:56px;border:2px solid var(--edge);border-radius:2px;background:var(--sheet);font-size:30px;line-height:36px}
+.key{height:max(56px,var(--hit,44px));border:2px solid var(--edge);border-radius:2px;background:var(--sheet);font-size:30px;line-height:36px}
 .key:active{background:var(--press)}
 #grid{-webkit-overflow-scrolling:touch;touch-action:pan-y}
 :root{--spring:cubic-bezier(.34,1.56,.64,1)}
 @supports (transition-timing-function:linear(0,1)){:root{--spring:linear(0, 0.054, 0.185, 0.357, 0.538, 0.708, 0.853, 0.967, 1.047, 1.097, 1.122, 1.126, 1.116, 1.098, 1.075, 1.053, 1.032, 1.015, 1.001, 0.992, 0.987, 0.984, 0.984, 0.986, 0.988, 0.991, 0.994, 0.997, 0.999, 1)}}
 .wbtn,.center,.icon,.tile,.ftile,.row,.card,.key,.crumb{transition:transform .5s var(--spring)}
-.wbtn:active:not([disabled]),.icon:active,.key:active,.crumb:active{transform:scale(.84);transition-duration:.07s;transition-timing-function:ease-out}
+.wbtn:active:not([disabled]),.icon:active,.key:active,.crumb:active:not([disabled]){transform:scale(.84);transition-duration:.07s;transition-timing-function:ease-out}
 .center:active{transform:scale(.93);transition-duration:.07s;transition-timing-function:ease-out}
 .tile:active,.ftile:active,.card:active{transform:scale(.94);transition-duration:.07s;transition-timing-function:ease-out}
 .rise{animation:rise .55s var(--spring) both}
@@ -71,8 +77,9 @@ button{font:inherit;color:inherit;background:transparent;border:0;padding:0;marg
 @keyframes slideup{from{transform:translateY(40px);opacity:0}30%{opacity:1}to{transform:none;opacity:1}}
 .boing{animation:boing .45s var(--spring)}
 @keyframes boing{from{transform:scale(.9)}to{transform:none}}
-#rowHi{position:absolute;left:0;right:0;height:40px;border-radius:2px;background:var(--hover);transition:transform .45s var(--spring)}
-.crumb{display:flex;align-items:center;gap:10px;color:var(--dim);max-width:100%;height:40px}
+#rowHi{position:absolute;left:0;right:0;height:var(--row-h,40px);border-radius:2px;background:var(--hover);transition:transform .45s var(--spring)}
+.crumb{display:flex;align-items:center;gap:10px;color:var(--dim);max-width:100%;height:var(--hit,44px)}
+.crumb[disabled]{cursor:default;color:var(--dim)}
 .flash{animation:flash .3s steps(3)}
 @keyframes flash{0%{background:var(--press);color:var(--px)}100%{}}
 .thumb img{opacity:0;transition:opacity .24s steps(3)}
@@ -94,7 +101,7 @@ button{font:inherit;color:inherit;background:transparent;border:0;padding:0;marg
 </style>
 </head>
 <body>
-<div id="app">
+<div id="viewport"><div id="remoteFrame"><div id="app">
   <div id="top" class="abs" style="left:0;right:0;top:0;height:40px;padding:0 20px;display:flex;align-items:center;justify-content:flex-end;color:var(--dim)">
     <span id="timerTag" class="hide" style="display:flex;align-items:center;gap:8px"><svg width="9" height="15"><path id="zedTop" transform="scale(3)" fill="currentColor"/></svg><span id="timerLabel"></span></span>
   </div>
@@ -115,11 +122,11 @@ button{font:inherit;color:inherit;background:transparent;border:0;padding:0;marg
       <div id="scrubD" class="abs" style="left:0;right:0;top:88px;text-align:center;color:var(--dim)"></div>
     </div>
     <div id="menu" class="abs hide" style="left:35px;top:16px;width:320px;display:flex;flex-direction:column;gap:4px">
-      <div id="menuTitle" style="color:var(--dim);padding:0 12px 4px"></div>
+      <div style="display:flex"><button id="menuTitle" class="crumb" style="height:auto;padding:8px 12px 4px;margin-top:-8px"><svg width="12" height="20" style="flex-shrink:0"><path class="icoBack" transform="scale(4)" fill="currentColor"/></svg><span id="menuTitleText"></span></button></div>
       <div style="position:relative"><div id="rowHi"></div><div id="rows" style="position:relative;display:flex;flex-direction:column;gap:4px"></div></div>
     </div>
     <div id="subEdit" class="abs hide" style="inset:0">
-      <div id="subEditTitle" class="abs" style="left:0;right:0;top:14px;text-align:center;color:var(--dim)"></div>
+      <div class="abs" style="left:0;right:0;top:14px;display:flex;justify-content:center"><button id="subEditBack" class="crumb" style="height:auto;padding:6px 10px;margin-top:-6px"><svg width="12" height="20" style="flex-shrink:0"><path class="icoBack" transform="scale(4)" fill="currentColor"/></svg><span id="subEditTitle"></span></button></div>
       <div id="frame" class="abs" style="left:67px;top:46px;width:256px;height:144px;box-sizing:border-box;border:2px solid var(--edge);background:#000;border-radius:2px;overflow:hidden;touch-action:none">
         <div id="frameTint" class="abs" style="inset:0;opacity:.18"></div>
         <div id="subLine" class="abs" style="left:0;right:0;display:flex;justify-content:center;align-items:center"></div>
@@ -146,18 +153,18 @@ button{font:inherit;color:inherit;background:transparent;border:0;padding:0;marg
   </div>
 
   <div id="browse" class="abs hide" style="left:0;top:40px;width:390px;height:372px;background:var(--bg);z-index:2;display:flex;flex-direction:column">
-    <div style="height:40px;flex-shrink:0;padding:0 20px;display:flex;align-items:center;color:var(--dim)"><button id="crumbBtn" class="crumb"><svg width="12" height="20" style="flex-shrink:0"><path id="icoCrumb" transform="scale(4)" fill="currentColor"/></svg><span id="crumb" class="ell"></span></button></div>
+    <div style="height:var(--hit,44px);flex-shrink:0;padding:0 10px 0 20px;display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--dim)"><button id="crumbBtn" class="crumb" style="min-width:0"><svg id="crumbArrow" width="12" height="20" style="flex-shrink:0"><path id="icoCrumb" transform="scale(4)" fill="currentColor"/></svg><span id="crumb" class="ell"></span></button><button id="browseClose" class="icon crumb" style="flex-shrink:0;justify-content:center;width:var(--hit,44px)"><svg width="20" height="20"><path id="icoClose" transform="scale(4)" fill="currentColor"/></svg></button></div>
     <div id="grid" style="position:relative;flex-grow:1;overflow-y:auto;padding:4px 20px 16px;display:flex;flex-direction:column;gap:16px"></div>
   </div>
 
   <div id="wheel" class="abs" style="left:23px;top:422px;width:344px;height:344px;touch-action:none">
     <div id="dots"></div>
     <div class="abs" style="left:22px;top:22px"><svg width="300" height="300"><path id="wEdge" transform="scale(4)" fill="#232323"/><path id="wFill" transform="scale(4)" fill="#0b0b0b"/><path id="wGap" transform="scale(4)" fill="#030303"/></svg></div>
-    <button id="bMenu" class="wbtn" style="left:136px;top:46px;width:72px;height:44px"><span id="bMenuLabel"></span><svg id="bMenuUp" class="hide" width="20" height="12"><path id="icoUp" transform="scale(4)" fill="currentColor"/></svg></button>
-    <button id="bBack" class="wbtn" style="left:40px;top:150px;width:56px;height:44px"><svg id="bBackRew" width="24" height="15"><path id="icoRew" transform="scale(3)" fill="currentColor"/></svg><svg id="bBackArrow" class="hide" width="12" height="20"><path id="icoBack" transform="scale(4)" fill="currentColor"/></svg><svg id="bBackLeft" class="hide" width="12" height="20"><path id="icoLeft" transform="scale(4)" fill="currentColor"/></svg></button>
-    <button id="bFwd" class="wbtn" style="left:248px;top:150px;width:56px;height:44px"><svg id="bFwdSkip" width="24" height="15"><path id="icoFwd" transform="scale(3)" fill="currentColor"/></svg><svg id="bFwdArrow" class="hide" width="12" height="20"><path id="icoEnter" transform="scale(4)" fill="currentColor"/></svg><svg id="bFwdRight" class="hide" width="12" height="20"><path id="icoRight" transform="scale(4)" fill="currentColor"/></svg></button>
-    <button id="bPlay" class="wbtn" style="left:136px;top:254px;width:72px;height:44px;gap:6px"><span id="bPlayPP" style="display:flex;gap:6px"><svg width="21" height="21"><path id="icoPlay" transform="scale(3)" fill="currentColor"/></svg><svg width="21" height="21"><path id="icoPause" transform="scale(3)" fill="currentColor"/></svg></span><svg id="bPlayDown" class="hide" width="20" height="12"><path id="icoDown" transform="scale(4)" fill="currentColor"/></svg></button>
-    <button id="bCenter" class="center"><svg width="116" height="116"><path id="cEdge" transform="scale(4)" fill="#232323"/><path id="cFill" class="cfill" transform="scale(4)" fill="#030303"/></svg><div class="abs" style="left:44px;top:44px"><svg width="28" height="28"><path id="cIcon" transform="scale(4)" fill="currentColor"/></svg></div></button>
+    <button id="bMenu" class="wbtn" style="left:132px;top:40px;width:80px;height:56px"><span id="bMenuLabel"></span><svg id="bMenuUp" class="hide" width="20" height="12"><path id="icoUp" transform="scale(4)" fill="currentColor"/></svg></button>
+    <button id="bBack" class="wbtn" style="left:36px;top:144px;width:64px;height:56px"><svg id="bBackRew" width="24" height="15"><path id="icoRew" transform="scale(3)" fill="currentColor"/></svg><svg id="bBackArrow" class="hide" width="12" height="20"><path id="icoBack" transform="scale(4)" fill="currentColor"/></svg><svg id="bBackLeft" class="hide" width="12" height="20"><path id="icoLeft" transform="scale(4)" fill="currentColor"/></svg></button>
+    <button id="bFwd" class="wbtn" style="left:244px;top:144px;width:64px;height:56px"><svg id="bFwdSkip" width="24" height="15"><path id="icoFwd" transform="scale(3)" fill="currentColor"/></svg><svg id="bFwdArrow" class="hide" width="12" height="20"><path id="icoEnter" transform="scale(4)" fill="currentColor"/></svg><svg id="bFwdRight" class="hide" width="12" height="20"><path id="icoRight" transform="scale(4)" fill="currentColor"/></svg></button>
+    <button id="bPlay" class="wbtn" style="left:132px;top:248px;width:80px;height:56px;gap:6px"><span id="bPlayPP" style="display:flex;gap:6px"><svg width="21" height="21"><path id="icoPlay" transform="scale(3)" fill="currentColor"/></svg><svg width="21" height="21"><path id="icoPause" transform="scale(3)" fill="currentColor"/></svg></span><svg id="bPlayDown" class="hide" width="20" height="12"><path id="icoDown" transform="scale(4)" fill="currentColor"/></svg></button>
+    <button id="bCenter" class="center"><svg width="116" height="116"><path id="cEdge" transform="scale(4)" fill="#232323"/><path id="cFill" class="cfill" transform="scale(4)" fill="#030303"/></svg><div class="abs" style="left:40px;top:44px"><svg width="36" height="28"><path id="cIcon" transform="scale(4)" fill="currentColor"/></svg></div></button>
   </div>
 
   <div class="abs" style="left:0;right:0;bottom:14px;display:flex;justify-content:center">
@@ -186,7 +193,7 @@ button{font:inherit;color:inherit;background:transparent;border:0;padding:0;marg
     <div id="offSub" class="abs" style="left:0;right:0;top:268px;text-align:center;color:var(--dim)"></div>
   </div>
 
-</div>
+</div></div></div>
 <script>
 /*CUE_BOOT*/
 (function () {
@@ -226,8 +233,8 @@ var EYES = { open: sprite(2, 2, '####'), flat: sprite(2, 2, '##..'), closed: spr
 var P = {
   rew: bmp(8, 5, '...#...#..##..##.###.###..##..##...#...#'), fwd: bmp(8, 5, '#...#...##..##..###.###.##..##..#...#...'),
   play: bmp(7, 7, '#......###....#####..############..###....#......'), pause: bmp(7, 7, '##...####...####...####...####...####...####...##'),
-  zed: bmp(3, 5, '###..#.#.#..###'), back: bmp(3, 5, '..#.#.#...#...#'), grip: bmp(3, 5, '#.#...#.#...#.#'),
-  folder: bmp(9, 7, '####.....#...######.......##.......##.......##.......##########'),
+  zed: bmp(3, 5, '###..#.#.#..###'), close: bmp(5, 5, '#...#.#.#...#...#.#.#...#'), back: bmp(3, 5, '..#.#.#...#...#'), grip: bmp(3, 5, '#.#...#.#...#.#'),
+  folder: bmp(9, 7, ['.###.....', '#...#####', '#.......#', '#.......#', '#.......#', '#.......#', '#########'].join('')),
   stack: bmp(7, 7, '#####..#...#..#...####...#.######.#..#...#..#####'),
   note: bmp(4, 5, '..##..#...#.###.###.'),
   clock: bmp(7, 7, '.#####.#..#..##..#..##..##.##.....##.....#.#####.'),
@@ -251,13 +258,50 @@ function dec(x, unit) {
 }
 function stem(n) { n = String(n || ''); var d = n.lastIndexOf('.'); return d > 0 ? n.slice(0, d) : n; }
 
-// ── fit the 390x844 design to the phone ───────────────────────────
+// Keep the art grid, but size it from width and lay out vertical regions separately.
+// Short/landscape screens scroll instead of shrinking all touch targets to fit a poster.
 var app = $('app');
 function fit() {
-  var k = Math.min(window.innerWidth / 390, window.innerHeight / 844);
+  var viewport = window.visualViewport;
+  var box = getComputedStyle($('viewport'));
+  var width = Math.min(window.innerWidth, viewport ? viewport.width : window.innerWidth);
+  var height = viewport ? viewport.height : window.innerHeight;
+  var k = Math.min(1.25, (width - parseFloat(box.paddingLeft) - parseFloat(box.paddingRight)) / 390);
+  k = Math.max(.6, k);
+  var H = Math.max(700, (height - parseFloat(box.paddingTop) - parseFloat(box.paddingBottom)) / k);
+  var wheelScale = Math.min(1, Math.max(.84, (H - 420) / 424));
+  var wheelTop = H - 78 - 344 * wheelScale;
+  app.style.height = H + 'px';
   app.style.transform = 'scale(' + k + ')';
+  $('remoteFrame').style.width = 390 * k + 'px';
+  $('remoteFrame').style.height = H * k + 'px';
+  $('wheel').style.top = wheelTop + 'px';
+  $('wheel').style.left = (390 - 344 * wheelScale) / 2 + 'px';
+  $('wheel').style.transformOrigin = '0 0';
+  $('wheel').style.transform = 'scale(' + wheelScale + ')';
+  $('info').style.top = (wheelTop - 112) + 'px';
+  $('stage').style.height = (wheelTop - 42) + 'px';
+  [['bMenu',172,68,80],['bBack',68,172,64],['bFwd',276,172,64],['bPlay',172,276,80]].forEach(function(item) {
+    var el = $(item[0]), w = Math.max(item[3],Math.ceil(44 / (k * wheelScale))), h = Math.max(56,Math.ceil(44 / (k * wheelScale)));
+    el.style.width = w + 'px'; el.style.height = h + 'px';
+    el.style.left = (item[1] - w / 2) + 'px'; el.style.top = (item[2] - h / 2) + 'px';
+  });
+  var hit = Math.max(44,Math.ceil(44 / k));
+  $('bFolder').style.width = hit + 'px'; $('bFolder').style.height = hit + 'px';
+  app.style.setProperty('--hit',hit + 'px');
+  app.style.setProperty('--row-h', Math.max(40,Math.ceil(44 / k)) + 'px');
+  $('browse').style.height = (wheelTop - 50) + 'px';
+  // Only the decorative face/glow compress; menu text and hit targets retain their size.
+  var hero = Math.min(1, (wheelTop - 152) / 260);
+  ['glow', 'face', 'zzz', 'burst'].forEach(function (id) {
+    if (id === 'zzz' || id === 'burst') return; // they already belong to face
+    $(id).style.transformOrigin = '50% 0';
+    $(id).style.transform = 'scale(' + hero + ')';
+  });
+  $('toast').style.top = Math.round(228 * hero) + 'px';
 }
 window.addEventListener('resize', fit);
+if (window.visualViewport) window.visualViewport.addEventListener('resize', fit);
 fit();
 
 // ── state ─────────────────────────────────────────────────────────
@@ -265,7 +309,7 @@ var S = { view: 'home', file: '', pos: 0, dur: 0, speed: 1, vol: 100, paused: tr
   sub: { has: false, on: false, delay: 0, size: 44, sizeMin: 28, sizeMax: 72, pos: 93, posDefault: 93, posMin: 12, posMax: 97 },
   audio: { n: 0, i: 0 }, timer: { m: 0, left: 0 }, next: '', color: '#a0508f' };
 var stamp = performance.now();       // when S.pos was true
-var U = { mode: 'tempo', menu: null, idx: 0, edit: null, browse: null, list: null, sel: 0, scrub: false, prev: 0, step: 5,
+var U = { mode: 'tempo', menu: null, idx: 0, edit: null, browse: null, list: null, multiRoot: false, sel: 0, scrub: false, prev: 0, step: 5,
   ang: null, toast: '', blink: false, glance: 0, sleep: 0, react: false, fx: { dx: 0, dy: 0, sy: 1, happy: false } };
 var reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 // The phone answers at once; the PC confirms a moment later. Until it does, a state that
@@ -292,20 +336,21 @@ function livePos() {
 }
 
 // ── link to the PC ────────────────────────────────────────────────
-var ws = null, token = null, retry = 0, offlineT = 0, everConnected = false;
-try { token = localStorage.getItem('cue.token'); } catch (e) {}
-var codeFromLink = (location.hash.match(/c=(\d{4})/) || [])[1] || null;
+var ws = null, token = null, retry = 0, offlineT = 0, retryT = 0, everConnected = false;
+try { token = localStorage.getItem('cue.token.v2'); } catch (e) {}
+var codeFromLink = (location.hash.match(/(?:^#|&)c=(\d{6})(?:&|$)/) || [])[1] || null;
 if (codeFromLink) history.replaceState(null, '', location.pathname);
 function connect(code) {
-  var q = code ? 'c=' + code : (token ? 'k=' + token : '');
-  if (!q) { showPair(''); return; }
-  try { ws = new WebSocket('ws://' + location.host + '/ws?' + q); } catch (e) { scheduleRetry(); return; }
-  ws.onopen = function () { retry = 0; };
+  if (ws && (ws.readyState === 0 || ws.readyState === 1)) return;
+  clearTimeout(retryT);
+  if (!code && !token) { showPair(''); return; }
+  try { ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws'); } catch (e) { scheduleRetry(); return; }
+  ws.onopen = function () { retry = 0; ws.send(JSON.stringify(code ? {t:'auth',c:code} : {t:'auth',k:token})); };
   ws.onmessage = function (ev) {
     var m; try { m = JSON.parse(ev.data); } catch (e) { return; }
     if (m.t === 'hello') {
       everConnected = true;
-      if (m.token) { token = m.token; try { localStorage.setItem('cue.token', token); } catch (e) {} }
+      if (m.token) { token = m.token; try { localStorage.setItem('cue.token.v2', token); } catch (e) {} }
       var wasOff = !$('offline').classList.contains('hide');
       hidePair(); setOffline(false);
       if (code) linked(m.pc || '');
@@ -314,26 +359,32 @@ function connect(code) {
       var was = S.view, wasFile = S.file, prev = S, prevLive = livePos();
       reconcile(m, prev, prevLive);
       S = m; stamp = performance.now();
+      if (wasFile !== S.file || was !== S.view) clearPeek();
       if (!U.scrub) U.prev = S.pos;
       if (was !== S.view || (wasFile && wasFile !== S.file)) { U.menu = null; U.edit = null; if (wasFile !== S.file && S.view === 'play' && was === 'play') celebrate(); }
       render();
     } else if (m.t === 'peek') {
       if (!U.scrub) return;
-      var img = new Image(), n = m.n;
-      img.onload = function () {
-        if (!U.scrub || n < peekShown) return;
-        peekShown = n;
-        $('peekImg').src = img.src;
-        $('scrub').classList.add('peeking');
-      };
-      img.src = '/peek?k=' + encodeURIComponent(token || '') + '&n=' + n;
+      var n = m.n, epoch = peekEpoch;
+      if (peekFetch) peekFetch.abort();
+      peekFetch = new AbortController();
+      fetch('/peek?n=' + n, {headers: authHeaders(), cache:'no-store', signal:peekFetch.signal})
+        .then(function(r) { if (!r.ok) throw Error(); return r.blob(); })
+        .then(function(blob) {
+          if (!U.scrub || epoch !== peekEpoch || n < peekShown) return;
+          peekShown = n;
+          if (peekURL) URL.revokeObjectURL(peekURL);
+          peekURL = URL.createObjectURL(blob);
+          $('peekImg').src = peekURL;
+          $('scrub').classList.add('peeking');
+        }).catch(function() {});
     } else if (m.t === 'bye') {
       ws.onclose = null; ws.close(); setOffline(true, t('remote.off_by_pc'));
     }
   };
   ws.onclose = function (ev) {
     ws = null;
-    if (ev.code === 4001) { token = null; try { localStorage.removeItem('cue.token'); } catch (e) {} showPair(code ? t('remote.code_wrong') : ''); return; }
+    if (ev.code === 4001) { token = null; try { localStorage.removeItem('cue.token.v2'); } catch (e) {} showPair(code ? t('remote.code_wrong') : ''); return; }
     if (ev.code === 4002) { showPair(t('remote.code_closed')); return; }
     if (ev.code === 4003) { showPair(t('remote.locked')); return; }
     if (!everConnected && code) { showPair(t('remote.code_wrong')); return; }
@@ -344,7 +395,8 @@ function scheduleRetry() {
   clearTimeout(offlineT);
   offlineT = setTimeout(function () { setOffline(true); }, 1500);
   var wait = Math.min(10000, 1000 * Math.pow(2, retry++));
-  setTimeout(function () { if (!ws) connect(null); }, wait);
+  clearTimeout(retryT);
+  retryT = setTimeout(function () { if (!ws && !document.hidden) connect(null); }, wait);
 }
 function setOffline(on, msg) {
   if (!on) clearTimeout(offlineT);
@@ -377,7 +429,7 @@ function showPair(msg) {
 function hidePair() { $('pair').classList.add('hide'); }
 function drawDigits() {
   var h = '';
-  for (var i = 0; i < 4; i++) h += '<div class="digit' + (i === typed.length ? ' cur' : '') + '">' + (typed[i] || '') + '</div>';
+  for (var i = 0; i < 6; i++) h += '<div class="digit' + (i === typed.length ? ' cur' : '') + '">' + (typed[i] || '') + '</div>';
   $('digits').innerHTML = h;
 }
 (function () {
@@ -388,9 +440,9 @@ function drawDigits() {
     var b = e.target.closest('button'); if (!b) return;
     tick();
     var k = b.getAttribute('data-k');
-    if (k === '<') typed = typed.slice(0, -1); else if (typed.length < 4) typed += k;
+    if (k === '<') typed = typed.slice(0, -1); else if (typed.length < 6) typed += k;
     drawDigits();
-    if (typed.length === 4) { var c = typed; setTimeout(function () { connect(c); }, 120); }
+    if (typed.length === 6) { var c = typed; setTimeout(function () { connect(c); }, 120); }
   });
 })();
 
@@ -411,6 +463,7 @@ function tick(kind) {
     g.gain.exponentialRampToValueAtTime(.03, now + .002);
     g.gain.exponentialRampToValueAtTime(.0001, now + .03);
     o.connect(lp); lp.connect(g); g.connect(ac.destination);
+    o.onended = function() { o.disconnect(); lp.disconnect(); g.disconnect(); };
     o.start(now); o.stop(now + .04);
   } catch (e) {}
   try { if (navigator.vibrate) navigator.vibrate(4); } catch (e) {}  // Android; iPhones have the tick
@@ -480,6 +533,7 @@ function chord() {
       g.gain.setValueAtTime(.0001, at);
       g.gain.exponentialRampToValueAtTime(.045, at + .01);
       g.gain.exponentialRampToValueAtTime(.0001, at + .5);
+      o.onended = function() { o.disconnect(); g.disconnect(); };
       o.connect(g); g.connect(ac.destination); o.start(at); o.stop(at + .55);
     });
   } catch (e) {}
@@ -487,16 +541,58 @@ function chord() {
 // a row that just changed: a quick flash so the eye finds it
 function pop(i) { U.flash = i; }
 // the wheel's preview: the PC sends the frame where it will land
-var peekShown = 0;
-function scrubStart() { $('scrub').classList.remove('peeking'); $('peekImg').removeAttribute('src'); peekShown = 0; }
-function peek() { send({ c: 'peek', v: Math.round(U.prev * 10) / 10 }, true); }
-function thumbFail(img) {
-  if (img.getAttribute('data-r')) { img.remove(); return; }
-  img.setAttribute('data-r', '1');
-  var src = img.src;
-  setTimeout(function () { img.src = src + '&r=1'; }, 1200 + Math.random() * 800);
+var peekShown = 0, peekURL = null, peekFetch = null, peekEpoch = 0;
+function clearPeek() {
+  ++peekEpoch;
+  if (peekFetch) { peekFetch.abort(); peekFetch = null; }
+  if (peekURL) { URL.revokeObjectURL(peekURL); peekURL = null; }
+  $('peekImg').removeAttribute('src');
+  $('scrub').classList.remove('peeking');
+  peekShown = 0;
 }
-window.thumbFail = thumbFail;
+function authHeaders() { return {Authorization: 'Bearer ' + (token || '')}; }
+function scrubStart() { clearPeek(); }
+function peek() { send({ c: 'peek', v: Math.round(U.prev * 10) / 10 }, true); }
+// Authenticated, lazy, bounded thumbnail fetches; object URLs never contain a credential.
+var thumbObserver = null, thumbQueue = [], thumbBusy = 0, thumbURLs = [], thumbRequests = new Set();
+function clearThumbs() {
+  if (thumbObserver) { thumbObserver.disconnect(); thumbObserver = null; }
+  thumbQueue = [];
+  thumbRequests.forEach(function(controller) { controller.abort(); });
+  thumbRequests.clear();
+  thumbURLs.forEach(function(url) { URL.revokeObjectURL(url); }); thumbURLs = [];
+}
+function pumpThumbs() {
+  while (thumbBusy < 3 && thumbQueue.length) {
+    var img = thumbQueue.shift();
+    if (!img.isConnected) continue;
+    thumbBusy++;
+    (function(img) {
+      img.insertAdjacentHTML('beforebegin',pixelThumb({path:img.dataset.thumb},0));
+      var controller = new AbortController(); thumbRequests.add(controller);
+      fetch('/thumb?p=' + encodeURIComponent(img.dataset.thumb), {headers:authHeaders(), cache:'no-store', signal:controller.signal})
+        .then(function(r) { if (!r.ok) throw Error(); return r.blob(); })
+        .then(function(blob) {
+          if (!img.isConnected || U.browse === null) return;
+          var url = URL.createObjectURL(blob); thumbURLs.push(url);
+          img.onload = function() { img.classList.add('ok'); };
+          img.src = url;
+        }).catch(function() {})
+        .then(function() { thumbRequests.delete(controller); thumbBusy--; pumpThumbs(); });
+    })(img);
+  }
+}
+function loadThumbs() {
+  clearThumbs();
+  var imgs = $('grid').querySelectorAll('img[data-thumb]');
+  if (window.IntersectionObserver) {
+    thumbObserver = new IntersectionObserver(function(entries) {
+      entries.forEach(function(e) { if (e.isIntersecting) { thumbObserver.unobserve(e.target); thumbQueue.push(e.target); } });
+      pumpThumbs();
+    }, {root:$('grid'), rootMargin:'100px'});
+    imgs.forEach(function(img) { thumbObserver.observe(img); });
+  } else { imgs.forEach(function(img) { thumbQueue.push(img); }); pumpThumbs(); }
+}
 function celebrate() {
   anim('celebrate');
   if (reduced) return;
@@ -519,7 +615,7 @@ function wake() {
 })();
 (function glance() {
   setTimeout(function () {
-    if (S.view === 'play' && !S.paused && !drag && !U.menu && !U.browse && !U.scrub && !anims.length) {
+    if (!document.hidden && S.view === 'play' && !S.paused && !drag && !U.menu && !U.browse && !U.scrub && !anims.length) {
       U.glance = Math.random() < .5 ? -1 : 1; drawFace();
       setTimeout(function () { U.glance = 0; drawFace(); }, 700 + Math.random() * 600);
     }
@@ -534,7 +630,7 @@ setInterval(function () {
     var lv = Date.now() - pausedAt > 180000 ? 2 : (Date.now() - pausedAt > 60000 ? 1 : 0);
     if (lv !== U.sleep) { U.sleep = lv; drawFace(); drawGlow(); }
   }
-  render();
+  if (!document.hidden) render();
 }, 500);
 
 function nextVisible() {
@@ -609,9 +705,11 @@ $('icoRew').setAttribute('d', P.rew); $('icoFwd').setAttribute('d', P.fwd); $('i
 $('icoPlay').setAttribute('d', P.play); $('icoPause').setAttribute('d', P.pause); $('icoFolder').setAttribute('d', P.folder);
 $('zedTop').setAttribute('d', P.zed); $('gripP').setAttribute('d', P.grip);
 $('bMenuLabel').textContent = t('remote.menu');
-$('icoUp').setAttribute('d', P.up); $('icoLeft').setAttribute('d', P.left); $('icoRight').setAttribute('d', P.right); $('icoCrumb').setAttribute('d', P.back); $('icoDown').setAttribute('d', P.down); $('icoEnter').setAttribute('d', P.enter);
+$('icoUp').setAttribute('d', P.up); $('icoLeft').setAttribute('d', P.left); $('icoRight').setAttribute('d', P.right); $('icoCrumb').setAttribute('d', P.back); document.querySelectorAll('.icoBack').forEach(function (p) { p.setAttribute('d', P.back); }); $('icoClose').setAttribute('d', P.close); $('icoDown').setAttribute('d', P.down); $('icoEnter').setAttribute('d', P.enter);
 $('lkL').setAttribute('d', EYES.happy.d); $('lkR').setAttribute('d', EYES.happy.d);
 $('bFolder').setAttribute('aria-label', t('remote.folders'));
+$('browseClose').setAttribute('aria-label', t('remote.close_folders'));
+$('menuTitle').setAttribute('aria-label', t('remote.back')); $('subEditBack').setAttribute('aria-label', t('remote.back'));
 $('bPlay').setAttribute('aria-label', t('remote.play_pause'));
 $('bFwd').setAttribute('aria-label', t('remote.forward'));
 var dotEls = [];
@@ -684,39 +782,57 @@ function navBack() {
 }
 
 // ── folders ───────────────────────────────────────────────────────
-function openBrowse(path) {
+var browseRequest = 0, browseFetch = null;
+function closeBrowse() {
+  ++browseRequest;
+  if (browseFetch) { browseFetch.abort(); browseFetch = null; }
+  clearThumbs();
+  U.browse = null; U.list = null;
+  $('grid').innerHTML = ''; placeholders = {};
+  render();
+}
+function openBrowse(path, from) {
+  var request = ++browseRequest;
+  if (browseFetch) browseFetch.abort();
+  browseFetch = new AbortController();
+  clearThumbs();
+  $('grid').innerHTML = ''; placeholders = {};
   U.browse = path === undefined ? '' : path;
   U.list = null; U.sel = 0; U.menu = null; U.edit = null;
   render();
-  fetch('/list?k=' + encodeURIComponent(token || '') + '&p=' + encodeURIComponent(U.browse))
-    .then(function (r) { return r.json(); })
+  fetch('/list?p=' + encodeURIComponent(U.browse), {headers:authHeaders(), cache:'no-store', signal:browseFetch.signal})
+    .then(function (r) { if (!r.ok) throw Error(); return r.json(); })
     .then(function (j) {
+      if (request !== browseRequest) return;
       if (!(U.browse === j.path || (U.browse === '' && j.path === ''))) return;
+      if (j.path === '') U.multiRoot = j.items.length > 1;
       if (j.path === '' && j.items.length === 1 && j.items[0].dir) { openBrowse(j.items[0].path); return; }
-      U.list = j; renderGrid(); render();
+      U.list = j;
+      if (from) j.items.forEach(function(it,i) { if (it.path === from) U.sel = i; });
+      renderGrid(); render();
     })
-    .catch(function () { U.list = { title: '', path: U.browse, parent: '', items: [] }; renderGrid(); });
+    .catch(function () { if (request !== browseRequest || U.browse === null) return; U.list = { title: '', path: U.browse, parent: '', items: [] }; renderGrid(); });
+}
+// "back" always means one folder up; leaving the folders is the × beside it (or the folder button).
+// With several shared folders, the top of one goes back to the list of them; at the very top, back leaves.
+function browseCanUp() {
+  if (U.browse === null || U.browse === '' || !U.list) return false;
+  return U.list.parent !== '' || U.multiRoot;
 }
 function browseUp() {
-  if (!U.list || U.browse === '' || U.list.parent === '') { U.browse = null; render(); return; }
+  if (!browseCanUp()) { closeBrowse(); return; }
   var from = U.browse;
   openBrowseKeep(U.list.parent, from);
 }
 function openBrowseKeep(path, from) {
-  openBrowse(path);
-  var wait = setInterval(function () {
-    if (!U.list) return;
-    clearInterval(wait);
-    U.list.items.forEach(function (it, i) { if (it.path === from) U.sel = i; });
-    renderGrid(); render();
-  }, 30);
+  openBrowse(path, from);
 }
 function openItem(i) {
   var it = U.list && U.list.items[i];
   if (!it) return;
   if (it.dir) { openBrowse(it.path); return; }
   send({ c: 'open', path: it.path });
-  U.browse = null;
+  closeBrowse();
   toast(t('remote.opening'));
   render();
 }
@@ -737,6 +853,7 @@ function pixelThumb(it, i) {
   var mid = gridPath(29, 16, function (x, y) { return bright(x, y) > bay(x, y); });
   var light = gridPath(29, 16, function (x, y) { var dx = x - sx, dy = (y - sy) * 1.2; return dx * dx + dy * dy <= 6.5 || (y < hor && bright(x, y) > .8 + bay(x, y) * .2); });
   var h = '<svg width="170" height="96" style="position:absolute;left:0;top:0;background:' + shade(base, .16) + '"><path transform="scale(6)" d="' + mid + '" fill="' + shade(base, .55) + '"/><path transform="scale(6)" d="' + light + '" fill="' + shade(base, 1.45) + '"/></svg>';
+  if (Object.keys(placeholders).length >= 128) placeholders = {};
   placeholders[key] = h;
   return h;
 }
@@ -752,7 +869,7 @@ function renderGrid() {
       var isNow = S.view === 'play' && S.file === it.name;
       if (isNow) pct = S.dur > 0 ? Math.round(livePos() / S.dur * 100) : pct;
       var inner = it.audio ? '<span style="position:absolute;left:50%;top:50%;margin:-15px 0 0 -12px">' + svgIcon(P.note, 24, 30, 6, '#787878') + '</span>'
-        : pixelThumb(it, i) + '<img alt="" loading="lazy" src="/thumb?k=' + encodeURIComponent(token || '') + '&p=' + encodeURIComponent(it.path) + '" onload="this.classList.add(\'ok\')" onerror="thumbFail(this)">';
+        : '<img alt="" data-thumb="' + esc(it.path) + '">';
       files += '<button class="ftile rise" style="animation-delay:' + Math.min(i, 8) * 30 + 'ms" data-i="' + i + '"><span class="thumb">' + inner +
         (pct > 0 ? '<span class="prog' + (done ? ' done' : '') + '" style="width:' + pct + '%"></span>' : '') +
         '</span><span class="ell" style="color:' + (done ? 'var(--dim)' : 'var(--fg)') + '">' + esc(it.name) + '</span></button>';
@@ -764,6 +881,7 @@ function renderGrid() {
   if (!dirs && !files) h = '<div style="color:var(--dim);text-align:center;padding-top:40px">' + esc(t('remote.empty_folder')) + '</div>';
   g.innerHTML = h;
   g.scrollTop = 0;
+  loadThumbs();
   markSel();
 }
 function markSel() {
@@ -804,12 +922,12 @@ function render() {
   if (nv && $('next').classList.contains('hide')) replay($('next'), 'rise');
   $('next').classList.toggle('hide', !nv);
   if (nv) {
-    $('nextTop').textContent = S.timer.m === -1 ? t('remote.timer_stops') : t('remote.next', { name: stem(S.next) });
-    $('nextBottom').textContent = S.timer.m === -1 ? t('remote.tap_continue') : (S.ended ? '' : t('remote.next_in', { time: fmt(S.dur - livePos()) }));
+    $('nextTop').textContent = S.timer.m === -1 ? t('remote.timer_stops') : t(S.nextAuto ? 'remote.next' : 'remote.up_next', { name: stem(S.next) });
+    $('nextBottom').textContent = S.timer.m === -1 ? t('remote.tap_continue') : (!S.nextAuto ? t('remote.tap_continue') : (S.ended ? '' : t('remote.next_in', { time: fmt(S.dur - livePos()) })));
   }
   if (U.scrub) { $('scrubT').textContent = fmt(U.prev); var d = U.prev - S.pos; $('scrubD').textContent = (d < 0 ? '-' : '+') + fmt(Math.abs(d)); }
   if (U.menu && !subEdit) {
-    $('menuTitle').textContent = U.menu === 'subs' ? t('remote.subtitles') : t('remote.menu');
+    $('menuTitleText').textContent = U.menu === 'subs' ? t('remote.subtitles') : t('remote.menu');
     var h = '', key = U.menu + '|' + (U.menu === 'subs' ? 1 : 0), fresh = U.menuShown !== key;
     U.menuShown = key;
     rows().forEach(function (r, j) {
@@ -819,11 +937,11 @@ function render() {
       else h += '<button class="row' + (on ? ' on' : '') + cls + '"' + st + ' data-row="' + j + '"><span>' + esc(r.k) + '</span><span>' + esc(r.v) + '</span></button>';
     });
     if (fresh) replay($('menuTitle'), 'rise');
-    $('rows').innerHTML = h;
+    if ($('rows').__html !== h) { $('rows').innerHTML = h; $('rows').__html = h; }
     var hi = $('rowHi'), r0 = rows()[U.idx], on = !(U.edit === 'delay' && r0 && r0.act === 'delay');
     hi.style.display = on ? '' : 'none';
-    if (fresh) { hi.style.transition = 'none'; hi.style.transform = 'translateY(' + U.idx * 44 + 'px) scaleX(.6)'; hi.style.opacity = '0'; void hi.offsetWidth; hi.style.transition = ''; hi.style.opacity = '1'; }
-    hi.style.transform = 'translateY(' + U.idx * 44 + 'px)';
+    if (fresh) { hi.style.transition = 'none'; hi.style.transform = 'translateY(' + U.idx * (parseFloat(app.style.getPropertyValue('--row-h')) + 4) + 'px) scaleX(.6)'; hi.style.opacity = '0'; void hi.offsetWidth; hi.style.transition = ''; hi.style.opacity = '1'; }
+    hi.style.transform = 'translateY(' + U.idx * (parseFloat(app.style.getPropertyValue('--row-h')) + 4) + 'px)';
     U.flash = -1;
   }
   if (subEdit) {
@@ -842,7 +960,7 @@ function render() {
   if (tt !== $('toast').textContent) { $('toast').textContent = tt; if (tt) replay($('toast'), 'popin'); }
   $('toast').style.color = U.toast ? 'var(--fg)' : 'var(--dim)';
   // under the stage
-  $('info').classList.toggle('hide', !play);
+  $('info').classList.toggle('hide', !play || !!U.menu);
   $('file').textContent = stem(S.file);
   var barPct, knobPct, barColor = 'var(--dim)', right, rightColor = 'var(--dim)';
   if (volMode) {
@@ -850,7 +968,7 @@ function render() {
     if (S.vol > 100) barColor = rightColor = 'var(--orange)';
     $('leftNote').textContent = t('remote.volume'); right = Math.round(S.vol) + '%';
   } else {
-    barPct = S.dur ? livePos() / S.dur * 100 : 0; knobPct = S.dur ? pos / S.dur * 100 : 0;
+    barPct = knobPct = S.dur ? pos / S.dur * 100 : 0;
     $('leftNote').textContent = fmt(pos);
     var end = new Date(Date.now() + Math.max(0, S.dur - livePos()) / (S.speed || 1) * 1000);
     right = S.ended ? '' : t('remote.ends', { time: (end.getHours() < 10 ? '0' : '') + end.getHours() + ':' + (end.getMinutes() < 10 ? '0' : '') + end.getMinutes() });
@@ -864,6 +982,10 @@ function render() {
   if (U.browse !== null && $('browse').classList.contains('hide')) replay($('browse'), 'slideup');
   $('browse').classList.toggle('hide', U.browse === null);
   if (U.browse !== null) $('crumb').textContent = U.list ? (U.list.title || t('remote.folders')) : '';
+  var canUp = browseCanUp();
+  $('crumbArrow').style.display = canUp ? '' : 'none';
+  $('crumbBtn').disabled = !canUp;
+  if (canUp) $('crumbBtn').setAttribute('aria-label', t('remote.back')); else $('crumbBtn').removeAttribute('aria-label');
   $('bFolder').style.color = U.browse !== null ? 'var(--px)' : 'var(--dim)';
   // the wheel
   var inNav = !!(U.menu || U.browse !== null);
@@ -895,7 +1017,7 @@ function render() {
   var ci = (U.browse !== null || U.menu || nv || !play) ? (play || U.browse !== null ? P.check : P.folder) : (U.mode === 'tempo' ? P.clock : P.speaker);
   if (U.ci !== ci) { U.ci = ci; replay($('cIcon').parentNode.parentNode, 'popin'); }
   $('cIcon').setAttribute('d', ci);
-  $('cIcon').setAttribute('transform', ci === P.folder ? 'translate(-4,1) scale(4)' : 'scale(4)');
+  $('cIcon').setAttribute('transform', ci === P.folder ? 'scale(4)' : 'translate(4,0) scale(4)');
   drawFace();
 }
 
@@ -951,7 +1073,28 @@ $('bBack').addEventListener('click', function () {
 });
 $('bFwd').addEventListener('click', function () { if (U.browse !== null) { gridMove('right'); return; } tick(); if (inNav()) center(); else skip(15); });
 $('bPlay').addEventListener('click', function () { if (U.browse !== null) { gridMove('down'); return; } if (inNav()) { navStep(1); return; } tick(); togglePlay(); });
-$('crumbBtn').addEventListener('click', function () { tick(); navBack(); });
+$('crumbBtn').addEventListener('click', function () { if (!browseCanUp()) return; tick(); browseUp(); });
+$('browseClose').addEventListener('click', function () { tick(); closeBrowse(); });
+// the arrow beside a menu's title: one step back (a value to the list, the subtitles to the menu, the menu to the player)
+$('menuTitle').addEventListener('click', function () { tick(); navBack(); });
+$('subEditBack').addEventListener('click', function () { tick(); navBack(); });
+// ── no zoom: the page already fits the phone, and quick taps (+ + +) must stay taps ──
+// iOS zooms on a double tap even with touch-action: manipulation in some places. A second tap that
+// lands quickly and without moving is kept from zooming and delivered as an ordinary click instead.
+(function () {
+  var lastEnd = 0, sx = 0, sy = 0;
+  document.addEventListener('touchstart', function (e) { if (e.touches.length === 1) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; } }, { passive: true });
+  document.addEventListener('touchend', function (e) {
+    var now = Date.now(), c = e.changedTouches[0], still = c && Math.abs(c.clientX - sx) < 10 && Math.abs(c.clientY - sy) < 10;
+    if (still && e.touches.length === 0 && now - lastEnd < 350 && e.cancelable) {
+      e.preventDefault();
+      var b = e.target && e.target.closest ? e.target.closest('button') : null;
+      if (b && !b.disabled) b.click();
+    }
+    lastEnd = now;
+  }, { passive: false });
+  ['gesturestart', 'gesturechange', 'dblclick'].forEach(function (ev) { document.addEventListener(ev, function (e) { e.preventDefault(); }, { passive: false }); });
+})();
 $('bMenu').addEventListener('click', function () {
   if (U.browse !== null) { gridMove('up'); return; }
   if (inNav()) { navStep(-1); return; }
@@ -960,7 +1103,7 @@ $('bMenu').addEventListener('click', function () {
   render();
 });
 $('bCenter').addEventListener('click', function () { tick(); center(); });
-$('bFolder').addEventListener('click', function () { tick(); if (U.browse !== null) { U.browse = null; render(); } else openBrowse(''); });
+$('bFolder').addEventListener('click', function () { tick(); if (U.browse !== null) closeBrowse(); else openBrowse(''); });
 $('next').addEventListener('click', function () { tick(); send({ c: 'next' }); celebrate(); });
 $('rows').addEventListener('click', function (e) {
   var a = e.target.closest('[data-adj]');
@@ -1032,7 +1175,7 @@ $('bar').addEventListener('pointermove', barMove);
 function barUp() {
   if (!barDrag) return;
   barDrag = false;
-  if (U.scrub) { U.scrub = false; S.pos = U.prev; stamp = performance.now(); holdOn('pos'); send({ c: 'seek', v: U.prev }); toast(fmt(U.prev)); }
+  if (U.scrub) { U.scrub = false; clearPeek(); S.pos = U.prev; stamp = performance.now(); holdOn('pos'); send({ c: 'seek', v: U.prev }); toast(fmt(U.prev)); }
   render();
 }
 $('bar').addEventListener('pointerup', barUp);
@@ -1065,6 +1208,17 @@ $('wheel').addEventListener('pointerdown', function (e) {
   if (e.target.closest('button')) return;
   var g = geo(e);
   if (g.dist < 60 || g.dist > 178) return;
+  if (!inNav() && U.mode === 'tempo' && S.view === 'play') {
+    var tipAngle = Math.max(0, Math.min(1, livePos() / (S.dur || 1))) * 360;
+    var delta = ((g.a - tipAngle + 540) % 360) - 180;
+    // A generous hit area around the lit dot starts continuous seeking.
+    if (g.dist >= 145 && Math.abs(delta) <= 18) {
+      drag = { last: g.a, direct: true, start: livePos(), travel: 0 };
+      U.prev = drag.start; scrubStart(); U.scrub = true;
+      try { $('wheel').setPointerCapture(e.pointerId); } catch (x) {}
+      render(); return;
+    }
+  }
   try { $('wheel').setPointerCapture(e.pointerId); } catch (x) {}
   drag = { last: g.a, acc: 0, t: performance.now() };
   U.ang = g.a; U.prev = livePos();
@@ -1075,7 +1229,13 @@ $('wheel').addEventListener('pointermove', function (e) {
   var g = geo(e), d = g.a - drag.last;
   if (d > 180) d -= 360;
   if (d < -180) d += 360;
-  drag.last = g.a; drag.acc += d;
+  drag.last = g.a;
+  if (drag.direct) {
+    drag.travel += d;
+    U.prev = Math.max(0, Math.min(S.dur, drag.start + drag.travel / 360 * S.dur));
+    U.ang = g.a; peek(); render(); return;
+  }
+  drag.acc += d;
   var det = U.edit ? 14 : ((U.menu || U.browse !== null) ? 24 : (U.mode === 'tempo' ? 15 : 12));
   U.ang = g.a;
   var changed = false;
@@ -1116,7 +1276,7 @@ function detent(dir) {
 function wheelUp() {
   if (!drag) return;
   drag = null; U.ang = null;
-  if (U.scrub) { U.scrub = false; S.pos = U.prev; stamp = performance.now(); holdOn('pos'); send({ c: 'seek', v: U.prev }); toast(fmt(U.prev)); }
+  if (U.scrub) { U.scrub = false; clearPeek(); S.pos = U.prev; stamp = performance.now(); holdOn('pos'); send({ c: 'seek', v: U.prev }); toast(fmt(U.prev)); }
   render();
 }
 $('wheel').addEventListener('pointerup', wheelUp);

@@ -16,7 +16,28 @@ double Overlay::now() const {
   return double(t.QuadPart) / double(qpf_.QuadPart);
 }
 
+Overlay::~Overlay() { destroy(); }
+
+void Overlay::release_surface() {
+  surface_.reset();
+  canvas_ = Canvas{}; // hidden scenes must not retain two full-window buffers
+}
+
+void Overlay::destroy() {
+  pacer_.stop();
+  view_ = nullptr;
+  if (wnd_) {
+    KillTimer(wnd_, kTimer);
+    SetWindowLongPtrW(wnd_, GWLP_USERDATA, 0);
+    DestroyWindow(wnd_);
+    wnd_ = nullptr;
+  }
+  owner_ = nullptr;
+  release_surface();
+}
+
 bool Overlay::create(HINSTANCE inst) {
+  if (wnd_) return true;
   QueryPerformanceFrequency(&qpf_);
   WNDCLASSEXW wc{sizeof(wc)};
   wc.lpfnWndProc = proc;
@@ -30,30 +51,15 @@ bool Overlay::create(HINSTANCE inst) {
   return wnd_ != nullptr;
 }
 
-void Overlay::place(HWND owner) {
-  RECT rc;
-  GetClientRect(owner, &rc);
+bool Overlay::place(HWND owner) {
+  RECT rc{};
+  if (!GetClientRect(owner, &rc)) return false;
   POINT tl{0, 0};
-  ClientToScreen(owner, &tl);
+  if (!ClientToScreen(owner, &tl)) return false;
   int w = rc.right - rc.left, h = rc.bottom - rc.top;
-  if (w <= 0 || h <= 0) return;
-  if (w != bw_ || h != bh_) {
-    if (bmp_) { DeleteObject(bmp_); bmp_ = nullptr; }
-    if (!mem_) mem_ = CreateCompatibleDC(nullptr);
-    BITMAPINFO bi{};
-    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-    bi.bmiHeader.biWidth = w;
-    bi.bmiHeader.biHeight = -h;
-    bi.bmiHeader.biPlanes = 1;
-    bi.bmiHeader.biBitCount = 32;
-    void* bits = nullptr;
-    bmp_ = CreateDIBSection(nullptr, &bi, DIB_RGB_COLORS, &bits, nullptr, 0);
-    bits_ = static_cast<uint32_t*>(bits);
-    SelectObject(mem_, bmp_);
-    bw_ = w;
-    bh_ = h;
-  }
+  if (!surface_.resize(w, h)) return false;
   SetWindowPos(wnd_, nullptr, tl.x, tl.y, w, h, SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOREDRAW);
+  return true;
 }
 
 void Overlay::show(SceneView* view, HWND owner, double s, double t) {
@@ -62,8 +68,8 @@ void Overlay::show(SceneView* view, HWND owner, double s, double t) {
   owner_ = owner;
   s_ = s;
   SetWindowLongPtrW(wnd_, GWLP_HWNDPARENT, (LONG_PTR)owner);  // above the player; minimizes with it
-  place(owner);
-  view_->set_size(bw_, bh_, s);
+  if (!place(owner)) { view_ = nullptr; return; }
+  view_->set_size(surface_.width(), surface_.height(), s);
   view_->open(t);
   last_ = t;
   fresh_ = true;
@@ -77,14 +83,19 @@ void Overlay::show(SceneView* view, HWND owner, double s, double t) {
 }
 
 void Overlay::close(double t) {
-  if (visible() && view_ && !view_->closing()) view_->close(t);
+  if (visible() && view_ && !view_->closing()) {
+    fresh_ = false; // a late first frame must never reopen a cancelled scene
+    view_->close(t);
+    SetTimer(wnd_, kTimer, 16, nullptr); // exit must progress even after a missed compositor beat
+    next();
+  }
 }
 
 void Overlay::follow(HWND owner, double s) {
   if (!visible() || !view_) return;
   s_ = s;
-  place(owner);
-  view_->set_size(bw_, bh_, s);
+  if (!place(owner)) return;
+  view_->set_size(surface_.width(), surface_.height(), s);
   present();
 }
 
@@ -110,28 +121,30 @@ void Overlay::frame() {
     KillTimer(wnd_, kTimer);
     view_ = nullptr;
     ShowWindow(wnd_, SW_HIDE);
-    if (owner_) SetForegroundWindow(owner_);
+    release_surface();
+    if (owner_) { SetForegroundWindow(owner_); SetFocus(owner_); }
     if (on_closed) on_closed();
     return;
   }
   // calm moments at 30 Hz (20 on a 4K screen); entrances, exits and celebrations on every frame
-  long long px = (long long)bw_ * bh_;
+  long long px = (long long)surface_.width() * surface_.height();
   double calm = px > 16000000 ? 0.066 : px > 4000000 ? 0.05 : 0.033;  // 8K breathes at 15 Hz
   if (view_->fast(t) || t - drawn_ >= calm - 0.004) { present(); drawn_ = t; }
   next();
 }
 
 void Overlay::present() {
-  if (!bits_ || bw_ <= 0 || !view_) return;
+  if (!surface_.bits() || !view_) return;
+  int bw = surface_.width(), bh = surface_.height();
   view_->render(canvas_, now());
-  if (canvas_.w != bw_ || canvas_.h != bh_) return;
-  std::memcpy(bits_, canvas_.px.data(), canvas_.px.size() * 4);
+  if (canvas_.w != bw || canvas_.h != bh) return;
+  std::memcpy(surface_.bits(), canvas_.px.data(), canvas_.px.size() * 4);
   RECT wr;
   GetWindowRect(wnd_, &wr);
   POINT dst{wr.left, wr.top}, src{0, 0};
-  SIZE sz{bw_, bh_};
+  SIZE sz{bw, bh};
   BLENDFUNCTION bf{AC_SRC_OVER, 0, 255, AC_SRC_ALPHA};
-  UpdateLayeredWindow(wnd_, nullptr, &dst, &sz, mem_, &src, 0, &bf, ULW_ALPHA);
+  UpdateLayeredWindow(wnd_, nullptr, &dst, &sz, surface_.dc(), &src, 0, &bf, ULW_ALPHA);
 }
 
 LRESULT CALLBACK Overlay::proc(HWND h, UINT m, WPARAM w, LPARAM l) {
@@ -147,6 +160,16 @@ LRESULT CALLBACK Overlay::proc(HWND h, UINT m, WPARAM w, LPARAM l) {
 LRESULT Overlay::handle(UINT m, WPARAM w, LPARAM l) {
   double t = now();
   switch (m) {
+    case WM_NCDESTROY: {
+      // The owner may destroy its popups before our C++ destructor runs.
+      HWND destroyed = wnd_;
+      SetWindowLongPtrW(destroyed, GWLP_USERDATA, 0);
+      wnd_ = owner_ = nullptr;
+      view_ = nullptr;
+      pacer_.stop();
+      release_surface();
+      return DefWindowProcW(destroyed, m, w, l);
+    }
     case WM_TIMER:
       if (w == kTimer) { KillTimer(wnd_, kTimer); frame(); }
       return 0;
@@ -180,7 +203,7 @@ LRESULT Overlay::handle(UINT m, WPARAM w, LPARAM l) {
       if (view_->draggable(x, y) && owner_ && !IsZoomed(owner_)) {
         // the empty background moves the window, as anywhere else in Cue (Snap included)
         ReleaseCapture();
-        SendMessageW(owner_, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+        PostMessageW(owner_, WM_NCLBUTTONDOWN, HTCAPTION, 0);
       }
       return 0;
     }

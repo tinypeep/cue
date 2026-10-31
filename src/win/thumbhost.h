@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <atomic>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -24,8 +25,12 @@ struct ThumbMsg {
 
 class ThumbClient {
  public:
+  ThumbClient() = default;
+  ~ThumbClient();
+  ThumbClient(const ThumbClient&) = delete;
+  ThumbClient& operator=(const ThumbClient&) = delete;
   bool start(HWND notify, UINT msg);  // spawns the helper (once)
-  bool running() const { return proc_ && WaitForSingleObject(proc_, 0) == WAIT_TIMEOUT; }
+  bool running() const;
   uint32_t epoch() const { return epoch_; }
   void open(const std::string& utf8_path, int width, uint32_t session);
   void shot(uint32_t id, double t, int output_width = 0);
@@ -34,11 +39,9 @@ class ThumbClient {
   void kill();  // ends the helper at once, waits for nothing (the app is leaving)
 
  private:
-  HANDLE proc_ = nullptr, job_ = nullptr, to_ = nullptr, from_ = nullptr, reader_ = nullptr;
-  HWND notify_ = nullptr;
-  UINT msg_ = 0;
+  struct State;
+  std::shared_ptr<State> state_;
   uint32_t epoch_ = 0;
-  std::atomic<uint32_t> session_{0};
-  void send(const std::string& line);
-  static DWORD WINAPI read_loop(void* self);
+  void send(const std::string& line, bool replace = false);
+  static void read_loop(std::shared_ptr<State> state);
 };

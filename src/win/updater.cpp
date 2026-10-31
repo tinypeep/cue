@@ -129,9 +129,12 @@ DWORD WINAPI check_main(void* p) {
 std::wstring temp_dir() {
   wchar_t t[MAX_PATH + 1] = {};
   GetTempPathW(MAX_PATH, t);
-  std::wstring d = std::wstring(t) + L"Cue-update";
-  CreateDirectoryW(d.c_str(), nullptr);
-  return d;
+  unsigned char random[16];
+  if (!t[0] || BCryptGenRandom(nullptr, random, sizeof random, BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0) return {};
+  std::wstring d = std::wstring(t) + L"Cue-update-";
+  const wchar_t* hex = L"0123456789abcdef";
+  for (auto b : random) { d += hex[b >> 4]; d += hex[b & 15]; }
+  return CreateDirectoryW(d.c_str(), nullptr) ? d : std::wstring();
 }
 
 std::wstring safe_name(const std::string& name) {
@@ -147,7 +150,8 @@ DWORD WINAPI download_main(void* p) {
   Job* job = static_cast<Job*>(p);
   const ReleaseInfo& rel = job->rel;
   std::wstring dir = temp_dir(), final_path = dir + L"\\" + safe_name(rel.asset_name), part = final_path + L".part";
-  HANDLE f = CreateFileW(part.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+  HANDLE f = dir.empty() || rel.sha256.empty() ? INVALID_HANDLE_VALUE :
+      CreateFileW(part.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
   auto fail = [&](const std::string& why) {
     auto* m = new UpdateMsg;
     m->kind = UpdateMsg::Failed;
@@ -156,7 +160,7 @@ DWORD WINAPI download_main(void* p) {
     m->error = "download: " + why;
     post(job->hwnd, job->msg, m);
   };
-  if (f == INVALID_HANDLE_VALUE) { fail("temp file"); delete job; return 0; }
+  if (f == INVALID_HANDLE_VALUE) { fail(rel.sha256.empty() ? "missing sha256 digest" : "temp file"); delete job; return 0; }
   Sha256 sha;
   int64_t total = rel.size, got = 0;
   int last_pct = -1;
@@ -185,7 +189,7 @@ DWORD WINAPI download_main(void* p) {
   if (!ok) { DeleteFileW(part.c_str()); fail(err); delete job; return 0; }
   if (!mz) { DeleteFileW(part.c_str()); fail("not an executable"); delete job; return 0; }
   if (rel.size > 0 && got != rel.size) { DeleteFileW(part.c_str()); fail("size mismatch"); delete job; return 0; }
-  if (!rel.sha256.empty() && digest != rel.sha256) { DeleteFileW(part.c_str()); fail("sha256 mismatch"); delete job; return 0; }
+  if (digest != rel.sha256) { DeleteFileW(part.c_str()); fail("sha256 mismatch"); delete job; return 0; }
   DeleteFileW(final_path.c_str());
   if (!MoveFileW(part.c_str(), final_path.c_str())) { fail("rename"); delete job; return 0; }
   auto* m = new UpdateMsg;
@@ -193,7 +197,7 @@ DWORD WINAPI download_main(void* p) {
   m->manual = true;
   m->rel = rel;
   m->file = final_path;
-  m->error = rel.sha256.empty() ? "verified by size" : "verified sha256 " + digest;
+  m->error = "verified sha256 " + digest;
   post(job->hwnd, job->msg, m);
   delete job;
   return 0;

@@ -1,9 +1,7 @@
 {
   "_language": "fr",
   "_note": "Ton de Cue : minuscules, phrases courtes, sans point final ni point d'exclamation. Infinitif pour les actions. Espace insécable (U+00A0) avant ? et :",
-
   "number.decimal": ",",
-
   "home.open_file": "ouvrir un fichier",
   "home.drop_here": "déposer ici",
   "home.recents": "Récents",
@@ -22,11 +20,9 @@
   "home.update_preparing": "préparation de la mise à jour",
   "notice.open_failed": "impossible d'ouvrir",
   "notice.open_video_first": "ouvrez d'abord une vidéo",
-
   "engine.missing_dll": "libmpv-2.dll est introuvable",
   "engine.too_old": "libmpv est trop ancienne",
   "engine.failed": "le moteur vidéo n'a pas démarré",
-
   "tip.volume": "volume",
   "tip.rewind": "reculer de 15 s",
   "tip.forward": "avancer de 15 s",
@@ -43,13 +39,11 @@
   "tip.unmute": "rétablir le son",
   "flash.loop_on": "répéter",
   "flash.loop_off": "sans répétition",
-
   "cc.none": "aucun sous-titre",
   "cc.toggle": "sous-titres",
   "cc.load": "charger des sous-titres",
   "cc.style": "style",
   "cc.sync": "synchro",
-
   "style.title": "style",
   "style.original": "original",
   "style.mine": "mon style",
@@ -68,7 +62,6 @@
   "style.restored": "sous-titres par défaut",
   "style.undone": "revenu comme avant",
   "style.saved": "enregistré",
-
   "more.open": "ouvrir un fichier",
   "more.close_video": "fermer la vidéo",
   "more.close_audio": "fermer l'audio",
@@ -85,16 +78,12 @@
   "size.large": "grande",
   "size.larger": "très grande",
   "size.now": "taille : {size}",
-
   "language.title": "langue",
   "language.auto": "automatique · suivre Windows",
-
   "about.licenses": "licences",
   "speed.title": "vitesse",
-
   "ctx.file_info": "infos du fichier",
   "ctx.save_frame": "enregistrer l'image",
-
   "info.title": "infos du fichier",
   "info.loading": "chargement...",
   "info.file": "fichier",
@@ -111,13 +100,15 @@
   "info.no_audio_track": "aucune piste choisie",
   "info.stereo": "stéréo",
   "info.mono": "mono",
-  "info.channels_n": { "one": "{n} canal", "other": "{n} canaux" },
+  "info.channels_n": {
+    "one": "{n} canal",
+    "other": "{n} canaux"
+  },
   "unit.b": "o",
   "unit.kb": "Ko",
   "unit.mb": "Mo",
   "unit.gb": "Go",
   "unit.tb": "To",
-
   "update.check": "rechercher des mises à jour",
   "update.checking": "recherche de mises à jour…",
   "update.to": "passer à la {version}",
@@ -132,14 +123,12 @@
   "update.rate_limited": "GitHub demande une pause, réessayez bientôt",
   "update.bad_response": "GitHub n'a pas bien répondu",
   "update.offline": "GitHub est injoignable pour l'instant",
-
   "toast.frame_saved": "image enregistrée",
   "toast.frame_failed": "impossible d'enregistrer l'image",
   "toast.sub_delay": "sous-titres {delay}",
   "toast.sub_on": "sous-titres activés",
   "toast.sub_off": "sous-titres désactivés",
   "toast.link_failed": "impossible d'ouvrir le lien",
-
   "track.n": "piste {n}",
   "track.forced": "forcés",
   "lang.ro": "roumain",
@@ -157,7 +146,6 @@
   "lang.vi": "vietnamien",
   "lang.id": "indonésien",
   "lang.ms": "malais",
-
   "ob.intro": "salut, moi c'est Cue",
   "ob.ambient_title": "éclairage dynamique",
   "ob.ambient_line": "la fenêtre brille aux couleurs de la vidéo",
@@ -178,7 +166,6 @@
   "ob.start": "c'est parti",
   "ob.skip": "passer",
   "ob.back": "retour",
-
   "win.open_title": "ouvrir un fichier",
   "win.subtitle_title": "ajouter des sous-titres",
   "win.filter_media": "Vidéos et audio",
@@ -188,7 +175,6 @@
   "win.progid": "Média Cue",
   "win.crash": "Cue s'est fermé à cause d'une erreur.\nLes détails sont dans {path}",
   "win.forward_failed": "Impossible d'ouvrir la vidéo dans la fenêtre de Cue.\nFermez Cue et réessayez.",
-
   "lic.title": "Cue · licences et crédits",
   "lic.sources": "code source",
   "lic.close": "fermer",
@@ -200,7 +186,6 @@
   "lic.read_failed": "Impossible de lire ce document. Vérifiez que le dossier de Cue a été extrait en entier.",
   "lic.sources_missing": "Le dossier fontes est introuvable. Le code source se trouve sur {url}.",
   "lic.viewer_failed": "Impossible d'ouvrir le lecteur de licences.",
-
   "setup.title_install": "Installer Cue",
   "setup.title_uninstall": "Désinstaller Cue",
   "setup.reinstall": "réinstaller",
@@ -249,7 +234,6 @@
   "setup.needs_admin": "ce dossier demande les droits d'administrateur. choisissez-en un autre",
   "setup.choose_folder": "Où installer Cue",
   "setup.shortcut": "Lecteur vidéo léger et local",
-
   "remote.title": "télécommande",
   "remote.menu": "menu",
   "remote.subtitles": "sous-titres",
@@ -293,6 +277,7 @@
   "remote.reconnecting": "nouvelle tentative",
   "remote.empty_folder": "rien à lire ici",
   "remote.back": "retour",
+  "remote.close_folders": "fermer les dossiers",
   "remote.play_pause": "lecture ou pause",
   "remote.rewind": "reculer de 15 s",
   "remote.forward": "avancer de 15 s",
@@ -308,7 +293,6 @@
   "remote.phone_connected": "téléphone connecté",
   "remote.linked": "connecté !",
   "remote.linked_hint": "c'est prêt, tu peux t'allonger",
-
   "news.title": "tout juste sorti du four",
   "news.line": "ce qui arrive avec cette version",
   "news.remote_title": "télécommande sur le téléphone",
@@ -319,5 +303,8 @@
   "news.subs_title": "sous-titres par défaut",
   "news.audio_line": "jeu, micro et Discord d'OBS ensemble. tu choisis lesquelles.",
   "news.audio_title": "plusieurs pistes audio",
-  "news.try": "essayer"
+  "news.try": "essayer",
+  "player.up_next": "À suivre dans",
+  "player.up_next_manual": "À suivre",
+  "remote.up_next": "à suivre · {name}"
 }

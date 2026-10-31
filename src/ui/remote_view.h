@@ -20,7 +20,7 @@ struct RemoteAction { RemoteAct a = RemoteAct::None; int index = -1; };
 struct RemoteView : SceneView {
   int w = 0, h = 0;
   double s = 2;
-  std::string address, code;     // "192.168.0.12:7878", "4812"
+  std::string address, code;     // "192.168.0.12:7878", "481234"
   std::string problem;           // instead of the code: "no network", "could not start"
   std::vector<RemoteChip> chips;
   std::vector<std::string> phones;  // connected right now, by name (shown at the top)
@@ -35,6 +35,7 @@ struct RemoteView : SceneView {
   bool closed(double now) const override { return close_t0_ > 0 && now - close_t0_ >= kLeave; }
   bool closing() const override { return close_t0_ > 0; }
   void connected(const std::string& device, double now);  // the code gives way to the phone
+  bool waiting() const { return conn_t0_ < 0; }
   bool done(double now) const { return conn_t0_ > 0 && now - conn_t0_ > 3.2; }
   static constexpr double kEnter = 0.42, kLeave = 0.38;  // the iris opening and closing
   bool tick(double now, double dt) override;
