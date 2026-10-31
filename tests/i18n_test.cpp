@@ -50,7 +50,7 @@ int main() {
   CHECK(i18n::resolve("", {"es-MX"}) == Lang::Es);                        // empty = automatic
   CHECK(i18n::resolve("xx-YY", {"es-MX"}) == Lang::Es);                   // unknown = automatic
   CHECK(i18n::normalize_pref("PT-br") == "pt-BR" && i18n::normalize_pref("ZH-HANS") == "zh-Hans");
-  CHECK(i18n::normalize_pref("RU-ru") == "ru");
+  CHECK(i18n::normalize_pref("RU") == "ru" && i18n::normalize_pref("ru-RU") == "auto");
   CHECK(i18n::normalize_pref("auto") == "auto" && i18n::normalize_pref("") == "auto" && i18n::normalize_pref("en-US") == "auto");
 
   // ── the choice is saved, survives a restart and an update ──────
