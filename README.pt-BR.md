@@ -33,7 +33,7 @@ Abra um arquivo, arraste para o Cue ou use **Abrir com** no Explorador de Arquiv
 | Ctrl+O | Abrir arquivo |
 | Esc | Fechar painel, sair da tela cheia ou voltar ao início |
 
-Mais controles e preferências: [guia de uso em inglês](docs/GUIDE.md).
+Mais controles e preferências: [guia de uso](docs/GUIDE.pt-BR.md).
 
 ## Compilar
 
