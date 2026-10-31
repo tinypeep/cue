@@ -16,8 +16,17 @@ Keys are stable: code refers to them as str::<key with dots replaced by undersco
 import json, os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-LANGS = ["pt-BR", "en", "es", "fr", "zh-Hans"]   # same order as i18n::Lang
-HAS_ONE = {"pt-BR": True, "en": True, "es": True, "fr": True, "zh-Hans": False}
+LANGS = ["pt-BR", "en", "es", "fr", "zh-Hans", "ru"]   # same order as i18n::Lang
+# Required plural forms per language, in the order the generated tables use.
+PLURAL_FORMS = {
+    "pt-BR": ["one", "other"],
+    "en": ["one", "other"],
+    "es": ["one", "other"],
+    "fr": ["one", "other"],
+    "zh-Hans": ["other"],
+    "ru": ["one", "few", "many", "other"],
+}
+FORM_ORDER = ["other", "one", "few", "many"]
 PH = re.compile(r"\{([a-z_]+)\}")
 
 
@@ -52,10 +61,12 @@ def main():
                 continue
             want = set(PH.findall(ref["other"]))
             if isinstance(en[k], dict):
-                if "other" not in val:
-                    problems.append(f"{tag}: {k} needs an 'other' form")
-                if HAS_ONE[tag] and "one" not in val:
-                    problems.append(f"{tag}: {k} needs a 'one' form")
+                for form in PLURAL_FORMS[tag]:
+                    if form not in val:
+                        problems.append(f"{tag}: {k} needs a '{form}' form")
+            for name in val:
+                if name not in FORM_ORDER:
+                    problems.append(f"{tag}: {k} has unknown form '{name}'")
             for name, text in val.items():
                 if not isinstance(text, str) or not text:
                     problems.append(f"{tag}: {k}.{name} is empty")
@@ -110,7 +121,8 @@ def main():
     c.append("static const bool kPluralKey[str::kCount] = {")
     c.append("  " + ", ".join("true" if isinstance(en[k], dict) else "false" for k in keys))
     c.append("};")
-    for table, form in (("kOther", "other"), ("kOne", "one")):
+    for form in FORM_ORDER:
+        table = "k" + form.capitalize()
         c.append(f"static const char* const {table}[{len(LANGS)}][str::kCount] = {{")
         for tag in LANGS:
             c.append(f"  {{  // {tag}")

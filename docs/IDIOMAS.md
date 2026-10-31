@@ -1,6 +1,6 @@
 # Languages
 
-Cue's interface, installer, and uninstaller support five languages:
+Cue's interface, installer, and uninstaller support six languages:
 
 | Tag | Language | Catalog |
 |---|---|---|
@@ -9,12 +9,13 @@ Cue's interface, installer, and uninstaller support five languages:
 | `es` | Español, neutral | `i18n/es.json` |
 | `fr` | Français | `i18n/fr.json` |
 | `zh-Hans` | 简体中文 | `i18n/zh-Hans.json` |
+| `ru` | Русский | `i18n/ru.json` |
 
 ## Selection
 
 Priority: **saved manual choice → first supported Windows display language → English**. Display languages are read once per launch with `GetUserPreferredUILanguages`; keyboard, timezone, country, and regional format do not determine the UI language.
 
-`en-*`, `es-*` (including `es-419`), and `fr-*` map to their base languages. All `pt-*`, including `pt-PT`, use Brazilian Portuguese. Simplified Chinese accepts `zh-Hans`, its subtags, `zh-CN`, `zh-SG`, and bare `zh`. Traditional Chinese (`zh-Hant`, `zh-TW`, `zh-HK`, `zh-MO`) is not mapped to Simplified Chinese; matching continues, then falls back to English.
+`en-*`, `es-*` (including `es-419`), `fr-*`, and `ru-*` map to their base languages. All `pt-*`, including `pt-PT`, use Brazilian Portuguese. Simplified Chinese accepts `zh-Hans`, its subtags, `zh-CN`, `zh-SG`, and bare `zh`. Traditional Chinese (`zh-Hant`, `zh-TW`, `zh-HK`, `zh-MO`) is not mapped to Simplified Chinese; matching continues, then falls back to English.
 
 Choose **… → language** during playback or beside Recent on the home screen. Labels use native language names. Changes apply immediately, including open license-reader labels, and persist in `prefs.language`. The installer/uninstaller use the same resolution rules and saved preference. Subtitle/audio track selection still uses its separate `slang`/`alang` preferences and Windows regional language.
 
@@ -32,12 +33,12 @@ Omni remains the primary 12-row bitmap font. Missing characters use a generated 
 
 ## Editing catalogs
 
-1. Edit `i18n/*.json` with identical stable keys. Keep named placeholders such as `{version}`, `{file}`, and `{path}` identical across languages. Plurals use `one`/`other`; Chinese uses `other`. Do not build sentences from translated fragments.
+1. Edit `i18n/*.json` with identical stable keys. Keep named placeholders such as `{version}`, `{file}`, and `{path}` identical across languages. Plurals use `one`/`other`, plus `few`/`many` where the language needs them (Russian); Chinese uses `other`. Do not build sentences from translated fragments.
 2. Run `make i18n` or `python3 tools/gen_i18n.py`. This validates completeness, placeholders, and plurals, then generates `src/core/strings.h` and `src/core/i18n_catalog.inc`.
 3. For new characters outside Omni, run `python3 tools/gen_fallback_glyphs.py` (development dependencies: freetype-py and fontTools).
 4. Run `bash tools/test.sh`. `i18n_test.cpp` checks selection, fallback, persistence, catalogs, and glyphs; `i18n_layout_test.cpp` checks layouts across languages, sizes, DPI, fullscreen, and vertical video.
-5. Use `tools/preview_i18n.cpp` for visual checks. Other previews accept `CUE_LANG=en|es|fr|zh-Hans`.
+5. Use `tools/preview_i18n.cpp` for visual checks. Other previews accept `CUE_LANG=en|es|fr|zh-Hans|ru`.
 
-Tone: short lowercase phrases without final periods or exclamation marks. French actions use infinitives and U+00A0 before `?`, `:`, `%`; Spanish uses neutral `tú`; Chinese uses full-width punctuation.
+Tone: short lowercase phrases without final periods or exclamation marks. French actions use infinitives and U+00A0 before `?`, `:`, `%`; Spanish uses neutral `tú`; Chinese uses full-width punctuation. Russian uses informal plural-neutral wording and a comma decimal separator.
 
 To add a language, update `LANGS` in the generator, `i18n::Lang`, `kTags`, `kNative`, plural rules, and `match_ui_language`, then regenerate and test.

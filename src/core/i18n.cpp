@@ -14,9 +14,10 @@ namespace {
 std::atomic<int> g_lang{(int)kFallback};
 std::atomic<uint32_t> g_revision{1};
 
-const char* const kTags[kLangCount] = {"pt-BR", "en", "es", "fr", "zh-Hans"};
+const char* const kTags[kLangCount] = {"pt-BR", "en", "es", "fr", "zh-Hans", "ru"};
 const char* const kNative[kLangCount] = {"Português (Brasil)", "English", "Español", "Français",
-                                         "\xe7\xae\x80\xe4\xbd\x93\xe4\xb8\xad\xe6\x96\x87"};  // 简体中文
+                                         "\xe7\xae\x80\xe4\xbd\x93\xe4\xb8\xad\xe6\x96\x87",  // 简体中文
+                                         "\xd0\xa0\xd1\x83\xd1\x81\xd1\x81\xd0\xba\xd0\xb8\xd0\xb9"};  // Русский
 
 std::string lower(std::string_view s) {
   std::string o(s);
@@ -36,22 +37,37 @@ std::vector<std::string> subtags(std::string_view bcp47) {
 }
 
 // CLDR cardinal rules, integers only (that is all the interface counts).
-bool is_one(Lang l, long long n) {
+PluralForm plural_form(Lang l, long long n) {
   switch (l) {
-    case Lang::PtBR: case Lang::Fr: return n == 0 || n == 1;
-    case Lang::En: case Lang::Es: return n == 1;
-    case Lang::ZhHans: return false;
+    case Lang::PtBR: case Lang::Fr: return n == 0 || n == 1 ? PluralForm::One : PluralForm::Other;
+    case Lang::En: case Lang::Es: return n == 1 ? PluralForm::One : PluralForm::Other;
+    case Lang::ZhHans: return PluralForm::Other;
+    case Lang::Ru: {
+      const long long m10 = n % 10, m100 = n % 100;
+      if (m10 == 1 && m100 != 11) return PluralForm::One;
+      if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return PluralForm::Few;
+      return PluralForm::Many;
+    }
   }
-  return n == 1;
+  return n == 1 ? PluralForm::One : PluralForm::Other;
 }
 
-const char* lookup(Lang l, str::Id id, bool one) {
-  if (id >= str::kCount) return "";
-  if (one) {
-    const char* t = pick(kOne[(int)l][id], kOne[(int)kFallback][id], nullptr);
-    return t ? t : lookup(l, id, false);
+const char* const* form_table(PluralForm form) {
+  switch (form) {
+    case PluralForm::One: return kOne[0];
+    case PluralForm::Few: return kFew[0];
+    case PluralForm::Many: return kMany[0];
+    default: return kOther[0];
   }
-  return pick(kOther[(int)l][id], kOther[(int)kFallback][id], kKeyNames[id]);
+}
+
+const char* lookup(Lang l, str::Id id, PluralForm form) {
+  if (id >= str::kCount) return "";
+  const char* const* table = form_table(form);
+  const char* t = pick(table[(int)l * str::kCount + id], table[(int)kFallback * str::kCount + id],
+                       form == PluralForm::Other ? kKeyNames[id] : nullptr);
+  if (t) return t;
+  return form == PluralForm::Other ? "" : lookup(l, id, PluralForm::Other);
 }
 
 std::string fill(std::string_view text, Args args) {
@@ -110,6 +126,7 @@ bool match_ui_language(std::string_view bcp47, Lang& out) {
   if (p == "en") { out = Lang::En; return true; }
   if (p == "es") { out = Lang::Es; return true; }
   if (p == "fr") { out = Lang::Fr; return true; }
+  if (p == "ru") { out = Lang::Ru; return true; }
   if (p == "zh") {
     // the script decides when it is given; otherwise the region
     for (size_t i = 1; i < t.size(); ++i) {
@@ -139,14 +156,15 @@ void set_language(Lang l) {
 Lang language() { return (Lang)g_lang.load(std::memory_order_relaxed); }
 uint32_t revision() { return g_revision.load(std::memory_order_relaxed); }
 
-const char* tr(str::Id id) { return lookup(language(), id, false); }
+const char* tr(str::Id id) { return lookup(language(), id, PluralForm::Other); }
 
 std::string format(str::Id id, Args args) { return fill(tr(id), args); }
 
 std::string plural(str::Id id, long long n, Args args) {
   Lang l = language();
   std::string num = std::to_string(n);
-  std::string t = fill(lookup(l, id, kPluralKey[id] && is_one(l, n)), args);
+  PluralForm form = id < str::kCount && kPluralKey[id] ? plural_form(l, n) : PluralForm::Other;
+  std::string t = fill(lookup(l, id, form), args);
   return fill(t, {{"n", num}});
 }
 
@@ -165,9 +183,9 @@ std::string decimal(double v, int places) {
 }
 
 const char* key_name(str::Id id) { return id < str::kCount ? kKeyNames[id] : ""; }
-const char* raw(Lang l, str::Id id, bool one_form) {
+const char* raw(Lang l, str::Id id, PluralForm form) {
   if (id >= str::kCount) return nullptr;
-  return one_form ? kOne[(int)l][id] : kOther[(int)l][id];
+  return form_table(form)[(int)l * str::kCount + id];
 }
 
 std::vector<Issue> audit() {
@@ -181,9 +199,18 @@ std::vector<Issue> audit() {
       auto want = placeholders(kOther[(int)kFallback][i]);
       if (placeholders(t) != want) out.push_back({l, id, "placeholders differ from English"});
       if (kPluralKey[i]) {
-        bool needs_one = l != Lang::ZhHans;
-        if (needs_one && !kOne[li][i]) out.push_back({l, id, "missing plural form 'one'"});
-        if (kOne[li][i] && placeholders(kOne[li][i]) != want) out.push_back({l, id, "plural 'one' placeholders differ"});
+        for (int f = 1; f < kPluralFormCount; ++f) {
+          const char* const* table = form_table((PluralForm)f);
+          const char* text = table[li * str::kCount + i];
+          bool needed = l == Lang::Ru || (PluralForm)f == PluralForm::One;
+          if (needed && l != Lang::ZhHans && !text)
+            out.push_back({l, id, std::string("missing plural form '") +
+                                      (f == 1 ? "one" : f == 2 ? "few" : "many") + "'"});
+          if (text && placeholders(text) != want)
+            out.push_back({l, id, std::string("plural form '") +
+                                      (f == 1 ? "one" : f == 2 ? "few" : "many") +
+                                      "' placeholders differ"});
+        }
       }
     }
   }

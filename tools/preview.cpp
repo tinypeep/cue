@@ -40,7 +40,7 @@ static void run(HomeView& hv, double& now, double secs) {
 }
 
 int main(int argc, char** argv) {
-  // CUE_LANG=en|es|fr|zh-Hans picks the interface language (Portuguese by default)
+  // CUE_LANG=en|es|fr|zh-Hans|ru picks the interface language (Portuguese by default)
   { i18n::Lang l = i18n::Lang::PtBR; if (const char* e = std::getenv("CUE_LANG")) i18n::parse_tag(e, l); i18n::set_language(l); }
   std::string out = argc > 1 ? argv[1] : "out";
   int s = argc > 2 ? std::atoi(argv[2]) : 2;

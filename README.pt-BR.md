@@ -15,7 +15,7 @@ Um player de vídeo e áudio gratuito e de código aberto para Windows. Leve, lo
 - Iluminação ambiente que acompanha as cores da cena.
 - Reprodução de áudio com uma waveform pixelada reativa.
 - Janela única, posições salvas e prévias na timeline.
-- Cinco idiomas, com seleção automática pelo Windows ou escolha manual.
+- Seis idiomas, com seleção automática pelo Windows ou escolha manual.
 - Controle remoto no celular com uma rodinha de clique das antigas: pareia com QR code, sem instalar app.
 
 ## Comece aqui

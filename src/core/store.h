@@ -30,7 +30,7 @@ struct SettingsStore {
   std::string news_seen;      // the last version whose "saiu do forno" was shown ("" before 1.1)
   std::string news_closed;    // the last version whose "what's new" line was closed on the home
   // interface language: "auto" follows Windows' display languages at every start; a tag
-  // ("pt-BR", "en", "es", "fr", "zh-Hans") is the person's own choice and stays until changed.
+  // ("pt-BR", "en", "es", "fr", "zh-Hans", "ru") is the person's own choice and stays until changed.
   // Independent of slang/alang (subtitle and audio tracks).
   std::string language = "auto";
   // updates (GitHub releases): when the last check ran (unix seconds), what it found,
