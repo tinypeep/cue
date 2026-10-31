@@ -1,9 +1,9 @@
 // Runs the remote's real server without the player, for testing it from a browser.
 //   x86_64-w64-mingw32-g++ -std=c++20 -O1 -municode -DUNICODE -D_UNICODE -DWIN32_LEAN_AND_MEAN -D_WIN32_WINNT=0x0A00
 //     -DNOMINMAX tools/remote_harness.cpp src/win/remote_server.cpp src/win/platform.cpp src/core/*.cpp
-//     -o build/remote_harness.exe -static -lws2_32 -liphlpapi -lbcrypt -lole32 -lshell32 -luuid -lshcore -lcomdlg32 -ldwmapi
+//     -o build/remote_harness.exe -static -lws2_32 -liphlpapi -lbcrypt -lole32 -lshell32 -luuid -lshcore -lcomdlg32 -ldwmapi -lgdi32
 //   remote_harness.exe <font.ttf> <shared folder> [language]
-// Prints every command it receives; pairing code 4812; a pretend episode plays.
+// Prints every command it receives; pairing code 481234; a pretend episode plays.
 #include <windows.h>
 
 #include <cstdio>
@@ -39,7 +39,7 @@ static LRESULT CALLBACK proc(HWND h, UINT m, WPARAM w, LPARAM l) {
         if (c.c == "open") { g_st.file = c.path.substr(c.path.find_last_of('\\') + 1); g_st.pos = 0; g_st.playing_view = true; }
         publish();
       } else {
-        std::printf("event %d device=%s token=%s clients=%d\n", (int)e.kind, e.device.c_str(), e.token.c_str(), g_server.clients());
+        std::printf("event %d device=%s clients=%d\n", (int)e.kind, e.device.c_str(), g_server.clients());
       }
       std::fflush(stdout);
     }
@@ -80,7 +80,7 @@ int wmain(int argc, wchar_t** argv) {
   std::string folder = narrow(argv[2]);
   g_server.set_roots({{folder_display_name(folder), folder}});
   g_server.set_progress({{folder + "\\Show.S01E01.mkv", {0, 2520, true}}, {folder + "\\Show.S01E02.mkv", {1200, 2520, false}}});
-  g_server.set_pairing(true, "4812");
+  g_server.set_pairing(true, "481234");
   g_st.playing_view = true;
   g_st.file = "Show.S01E02.mkv";
   g_st.pos = 1200;

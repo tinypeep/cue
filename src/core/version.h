@@ -2,8 +2,8 @@
 #pragma once
 #define CUE_VERSION_MAJOR 1
 #define CUE_VERSION_MINOR 1
-#define CUE_VERSION_PATCH 0
-#define CUE_VERSION "1.1"
-#define CUE_VERSION_SHORT "1.1"
+#define CUE_VERSION_PATCH 1
+#define CUE_VERSION "1.1.1"
+#define CUE_VERSION_SHORT "1.1.1"
 // Releases are published on GitHub. The update check reads the latest release of this repo.
 #define CUE_UPDATE_REPO "tinypeep/cue"

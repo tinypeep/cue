@@ -1,9 +1,7 @@
 {
   "_language": "en",
   "_note": "English is the fallback for every key. Keep Cue's tone: lowercase, short, no final period, no exclamation marks.",
-
   "number.decimal": ".",
-
   "home.open_file": "open a file",
   "home.drop_here": "drop it here",
   "home.recents": "Recent",
@@ -22,11 +20,9 @@
   "home.update_preparing": "getting the update ready",
   "notice.open_failed": "couldn't open that",
   "notice.open_video_first": "open a video first",
-
   "engine.missing_dll": "libmpv-2.dll is missing",
   "engine.too_old": "libmpv is too old",
   "engine.failed": "the video engine didn't start",
-
   "tip.volume": "volume",
   "tip.rewind": "back 15s",
   "tip.forward": "forward 15s",
@@ -43,13 +39,11 @@
   "tip.unmute": "unmute",
   "flash.loop_on": "repeat",
   "flash.loop_off": "no repeat",
-
   "cc.none": "no subtitles",
   "cc.toggle": "subtitles",
   "cc.load": "load subtitles",
   "cc.style": "style",
   "cc.sync": "sync",
-
   "style.title": "style",
   "style.original": "original",
   "style.mine": "my style",
@@ -68,7 +62,6 @@
   "style.restored": "subtitles back to default",
   "style.undone": "back as it was",
   "style.saved": "saved",
-
   "more.open": "open file",
   "more.close_video": "close video",
   "more.close_audio": "close audio",
@@ -85,16 +78,12 @@
   "size.large": "large",
   "size.larger": "larger",
   "size.now": "size: {size}",
-
   "language.title": "language",
   "language.auto": "automatic · follow Windows",
-
   "about.licenses": "licenses",
   "speed.title": "speed",
-
   "ctx.file_info": "about this file",
   "ctx.save_frame": "save frame",
-
   "info.title": "about this file",
   "info.loading": "loading...",
   "info.file": "file",
@@ -111,13 +100,15 @@
   "info.no_audio_track": "no track selected",
   "info.stereo": "stereo",
   "info.mono": "mono",
-  "info.channels_n": { "one": "{n} channel", "other": "{n} channels" },
+  "info.channels_n": {
+    "one": "{n} channel",
+    "other": "{n} channels"
+  },
   "unit.b": "B",
   "unit.kb": "KB",
   "unit.mb": "MB",
   "unit.gb": "GB",
   "unit.tb": "TB",
-
   "update.check": "check for updates",
   "update.checking": "checking for updates…",
   "update.to": "update to {version}",
@@ -132,14 +123,12 @@
   "update.rate_limited": "GitHub asked for a break, try again soon",
   "update.bad_response": "GitHub didn't answer properly just now",
   "update.offline": "can't reach GitHub right now",
-
   "toast.frame_saved": "frame saved",
   "toast.frame_failed": "couldn't save the frame",
   "toast.sub_delay": "subs {delay}",
   "toast.sub_on": "subtitles on",
   "toast.sub_off": "subtitles off",
   "toast.link_failed": "couldn't open the link",
-
   "track.n": "track {n}",
   "track.forced": "forced",
   "lang.ro": "Romanian",
@@ -157,7 +146,6 @@
   "lang.vi": "Vietnamese",
   "lang.id": "Indonesian",
   "lang.ms": "Malay",
-
   "ob.intro": "hi, I'm Cue",
   "ob.ambient_title": "ambient light",
   "ob.ambient_line": "the window glows with the colors of the video",
@@ -178,7 +166,6 @@
   "ob.start": "let's go",
   "ob.skip": "skip",
   "ob.back": "back",
-
   "win.open_title": "open file",
   "win.subtitle_title": "add subtitles",
   "win.filter_media": "Videos and audio",
@@ -188,7 +175,6 @@
   "win.progid": "Cue media",
   "win.crash": "Cue closed because of an error.\nThe details are in {path}",
   "win.forward_failed": "Couldn't open the video in the Cue window.\nClose Cue and try again.",
-
   "lic.title": "Cue · licenses and credits",
   "lic.sources": "source code",
   "lic.close": "close",
@@ -200,7 +186,6 @@
   "lic.read_failed": "Couldn't read this document. Check that the whole Cue folder was extracted.",
   "lic.sources_missing": "The fontes folder wasn't found. The source code is at {url}.",
   "lic.viewer_failed": "Couldn't open the license viewer.",
-
   "setup.title_install": "Install Cue",
   "setup.title_uninstall": "Uninstall Cue",
   "setup.reinstall": "reinstall",
@@ -249,7 +234,6 @@
   "setup.needs_admin": "that folder needs administrator permission. choose another folder",
   "setup.choose_folder": "Where to install Cue",
   "setup.shortcut": "Light, local video player",
-
   "remote.title": "remote control",
   "remote.menu": "menu",
   "remote.subtitles": "subtitles",
@@ -293,6 +277,7 @@
   "remote.reconnecting": "trying again",
   "remote.empty_folder": "nothing to play here",
   "remote.back": "back",
+  "remote.close_folders": "close folders",
   "remote.play_pause": "play or pause",
   "remote.rewind": "back 15 s",
   "remote.forward": "forward 15 s",
@@ -308,7 +293,6 @@
   "remote.phone_connected": "phone connected",
   "remote.linked": "connected!",
   "remote.linked_hint": "all set, you can lie down",
-
   "news.title": "fresh out of the oven",
   "news.line": "what arrived in this version",
   "news.remote_title": "remote on your phone",
@@ -319,5 +303,8 @@
   "news.subs_title": "subtitles back to default",
   "news.audio_line": "game, mic and Discord from OBS playing together. you pick which.",
   "news.audio_title": "multiple audio tracks",
-  "news.try": "try it"
+  "news.try": "try it",
+  "player.up_next": "Up next in",
+  "player.up_next_manual": "Up next",
+  "remote.up_next": "up next · {name}"
 }

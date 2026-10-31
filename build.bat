@@ -14,6 +14,7 @@ copy /y assets\fonts\*.txt build\Cue\licenses\ >nul
 copy /y third_party\fusion-pixel-font\OFL.txt build\Cue\licenses\FusionPixel-OFL.txt >nul
 copy /y docs\LICENSES.md build\Cue\ >nul
 copy /y docs\ASSETS.md build\Cue\ >nul
+copy /y docs\SECURITY.md build\Cue\ >nul
 if not exist build\Cue\sources mkdir build\Cue\sources
 copy /y res\sources-README.txt build\Cue\sources\README.txt >nul
 copy /y LICENSE build\Cue\ >nul

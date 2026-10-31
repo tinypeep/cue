@@ -19,6 +19,7 @@ std::vector<std::string> clipboard_files(HWND owner);
 void show_in_folder(const std::wstring& file);  // Explorer opens its folder with the file selected (never blocks)
 // the remote's shared folders: pick one, name one the way Explorer does ("Vídeos"), and the
 // usual places (Videos, Downloads, Desktop) wherever this person keeps them
+bool remote_path_allowed(const std::string& root, const std::string& path);
 std::string pick_folder_dialog(HWND owner);
 std::string folder_display_name(const std::string& path);
 std::vector<std::string> default_media_folders();  // Videos, Downloads, Desktop ("" when unknown)

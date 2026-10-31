@@ -47,6 +47,7 @@ struct PlayInput {
   bool update_ready = false;   // a newer version is known: the More menu shows it too
   bool loop = false;           // repeat the file forever (music videos, loops)
   int language = -1;           // interface language as saved: -1 automatic (follow Windows), else i18n::Lang
+  bool has_next = false;
   bool ended = false;          // stopped on the last frame (the controls stay in view)
   uint64_t file_info_revision = 0;
 };
@@ -57,6 +58,7 @@ enum class PA {
   WinMin, WinMax, WinClose, WinPin, WinDragBegin, WinDragEnd, Preview, Speed, SaveFrame, UiScale, Ambient, AmbientStrength,
   OpenFrameFolder, OpenLinkedIn, OpenGitHub, OpenLicenses, FileInfo, ControlsFree, Update, Loop, SubEdit,
   Language,  // v: -1 automatic, else i18n::Lang
+  NextEpisode, CancelNext,
   Remote     // the phone remote's pairing scene
 };
 struct PlayAction { PA a; double v = 0; int64_t id = 0; };
@@ -98,6 +100,9 @@ class PlayView {
   void key(const std::string& k, bool shift, bool ctrl, double now);
   void toast(const std::string& text, const char* icon, double now, bool icon_after = false);
   // "frame saved ✓ | folder": stays a little longer, and its folder button opens where the frame went
+  void set_next_details(const std::string& name);
+  void set_next_picture(const std::vector<uint32_t>& pixels,int w,int h);
+  void next_notice(const std::string& label, double now);
   void toast_folder(const std::string& text, double now);
   // the sound changed language: its name turns over letter by letter, like a departures board
   void announce_audio(double now);
@@ -298,6 +303,9 @@ class PlayView {
   bool toast_dirty_ = false;
   Canvas toast_base_;
   double toast_hold_ = 1.1;      // seconds at full opacity
+  std::string next_name_;
+  Canvas next_picture_;
+  bool next_toast_ = false;
   bool toast_btn_ = false;       // has the folder button
   bool toast_hot_ = false;       // the cursor is on that button
   double toast_alpha_ = 0;

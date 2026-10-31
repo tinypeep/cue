@@ -153,7 +153,7 @@ static void store_checks() {
   a.remote_sound = false;
   a.remote_folders_set = true;
   a.remote_folders = {{"C:\\Users\\a\\Vídeos", true}, {"D:\\Filmes", false}};
-  a.remote_tokens = {std::string(32, 'a'), std::string(32, 'b'), "short"};
+  a.remote_tokens = {std::string(64, 'a'), std::string(64, 'b'), "short"};
   assert(a.save(file));
   Store b;
   assert(b.load(file));

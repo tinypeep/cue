@@ -4,9 +4,9 @@
 // touches the player: App decides what every command does.
 //
 // Who may connect: only private IPv4 peers (the same home network), with a token a phone got by
-// typing the pairing code shown on the PC (or scanning its QR code) while the pairing screen
+// typing the six-digit, short-lived, one-use pairing code (or scanning its QR code) while the pairing screen
 // was open. A few wrong codes lock pairing for a minute. Hosts that are names, not addresses,
-// are refused (a web page cannot reach the server through DNS tricks).
+// are refused. Browser origins must match the actual local endpoint.
 #pragma once
 #include <windows.h>
 
@@ -58,3 +58,5 @@ class RemoteServer {
 std::string lan_address();
 // A pairing code: kCodeDigits random digits.
 std::string new_pairing_code();
+
+std::vector<uint32_t> file_thumbnail_pixels(const std::string& path);

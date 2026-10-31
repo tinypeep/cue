@@ -20,7 +20,7 @@ A free, open-source video and audio player for Windows. Lightweight, local, and 
 
 ## Get started
 
-Download `Cue-1.1-Setup.exe` from the [latest release](https://github.com/tinypeep/cue/releases/latest) and run it. **Windows x64.** No administrator privileges required.
+Download `Cue-1.1.1-Setup.exe` from the [latest release](https://github.com/tinypeep/cue/releases/latest) and run it. **Windows x64.** No administrator privileges required.
 
 Open a file, drag it onto Cue, or use **Open with** in File Explorer.
 
@@ -30,6 +30,7 @@ Open a file, drag it onto Cue, or use **Open with** in File Explorer.
 | F or double-click | Fullscreen |
 | ← / → | Seek 5 seconds |
 | C | Subtitle controls |
+| N | Next file, when Cue found one |
 | Ctrl+O | Open a file |
 | Esc | Close a panel, leave fullscreen, or return home |
 
@@ -48,4 +49,4 @@ Portable tests: `bash tools/test.sh`. Playback and native interactions require W
 
 Cue's code is **GPL-3.0-or-later**. Fonts and third-party components retain their own licenses. See [LICENSE](LICENSE), [copyright](COPYRIGHT.md), and [component licenses](docs/LICENSES.md).
 
-Corresponding playback engine sources are provided as `Cue-1.1-Engine-Source.zip` on the [release page](https://github.com/tinypeep/cue/releases/tag/v1.1).
+Corresponding playback engine sources are provided as `Cue-1.1.1-Engine-Source.zip` on the [release page](https://github.com/tinypeep/cue/releases/tag/v1.1.1).

@@ -7,6 +7,7 @@
 #include <sstream>
 
 #include "../core/json.h"
+#include "../core/file_io.h"
 
 static std::vector<std::string> read_ui_languages() {
   std::vector<std::string> out;
@@ -30,12 +31,10 @@ std::vector<std::string> windows_ui_languages() {
 }
 
 static bool read_pref(const std::wstring& path, std::string& pref) {
-  std::ifstream f(std::filesystem::path(path), std::ios::binary);
-  if (!f) return false;
-  std::stringstream ss;
-  ss << f.rdbuf();
+  std::string text;
+  if (!read_state_file(path, text)) return false;
   JVal j;
-  if (!json_parse(ss.str(), j) || j.t != JVal::Obj) return false;
+  if (!json_parse(text, j) || j.t != JVal::Obj) return false;
   pref = i18n::normalize_pref(j["prefs"]["language"].str(i18n::kAuto));
   return true;
 }

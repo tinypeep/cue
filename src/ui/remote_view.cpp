@@ -14,7 +14,8 @@ double bayer(int x, int y) { return kBayer[(y & 3) * 4 + (x & 3)] / 16.0; }
 void RemoteView::set_size(int w_, int h_, double s_) {
   w = w_;
   h = h_;
-  s = s_;
+  // Scene scale has to fit both axes; a portrait film must not inherit a wide dock's scale.
+  s = std::max(1.0, std::min(std::floor(w_ < h_ ? std::max(s_, std::min(w_ / 235.0, h_ / 310.0)) : s_), std::floor(std::min(w_ / 235.0, h_ / 180.0))));
   layout();
 }
 
@@ -70,54 +71,46 @@ void RemoteView::layout() {
   if (w <= 0 || h <= 0) return;
   const int a = (int)s;  // one art pixel
   int H = h / a;
-  // the code: three art px per module on a normal window, two when it is short
-  module_ = (H < 250 ? 2 : 3) * a;
-  quiet_ = 3;
-  int n = qr_.size > 0 ? qr_.size : 29;
-  int tile = (n + 2 * quiet_) * module_;
-
-  hots_.push_back({kClose, {w - 20 * a, 4 * a, 14 * a, 14 * a}});
-  // folders: a row of chips at the bottom, centred, then the + to add another. It shares the
-  // bottom line with the sound and "turn off" when there is room, else it sits just above them,
-  // and in a narrow window long names are cut.
   const int W = w / a;
+  hots_.push_back({kClose, {w - 20 * a, 4 * a, 14 * a, 14 * a}});
+  // Wrap chips into centered rows. Reserve an independent line for sound/off in narrow views.
   int ow = text_w(tr(str::remote_turn_off), 1) + 12;
-  std::vector<int> widths;
-  int total = 0;
-  chip_label_ = 110;
-  for (;;) {
-    widths.clear();
-    total = 18;
-    for (auto& c : chips) {
-      int tw = std::min(text_w(c.label, 1), chip_label_);
-      widths.push_back(6 + 9 + 5 + tw + 7);
-      total += widths.back() + 4;
+  chip_label_ = std::min(110, std::max(24, W - 60));
+  std::vector<std::vector<std::pair<int,int>>> rows(1);
+  std::vector<int> row_widths(1, 0);
+  for (size_t i = 0; i <= chips.size(); ++i) {
+    int cw = i == chips.size() ? 18 : 27 + std::min(text_w(chips[i].label, 1), chip_label_);
+    if (row_widths.back() && row_widths.back() + 4 + cw > W - 24) { rows.emplace_back(); row_widths.push_back(0); }
+    if (row_widths.back()) row_widths.back() += 4;
+    rows.back().push_back({i == chips.size() ? kAdd : (int)i, cw});
+    row_widths.back() += cw;
+  }
+  bool shared_line = rows.size() == 1 && row_widths[0] <= W - 2 * (std::max(ow, 26) + 12);
+  int chip_bottom = shared_line ? H - 30 : H - 52;
+  int first_y = chip_bottom - ((int)rows.size() - 1) * 22;
+  for (size_t row = 0; row < rows.size(); ++row) {
+    int x = (W - row_widths[row]) / 2;
+    for (auto [id, cw] : rows[row]) {
+      hots_.push_back({id, {x * a, (first_y + (int)row * 22) * a, cw * a, 18 * a}});
+      x += cw + 4;
     }
-    if (total <= W - 16 || chip_label_ <= 24) break;
-    chip_label_ -= 8;
   }
-  bool shared_line = total <= W - 2 * (std::max(ow, 26) + 12);
-  int y = shared_line ? H - 30 : H - 52;
-  int x = (W - total) / 2;
-
-  // eyes, code, address, code line; a short window brings them closer together
-  int eyes = 26, gap = 10;
-  int bottom = (shared_line ? 34 : 56) * a;
-  if ((eyes + gap + 32 + 18) * a + tile + bottom > h) { eyes = 16; gap = 6; }
-  int block = eyes * a + tile + gap * a + 18 * a + 14 * a;
-  int top = std::max(14 * a, (h - bottom - block) / 2);
-  tile_ = {w / 2 - tile / 2, top + eyes * a, tile, tile};
-  addr_gap_ = gap;
-  // eyes peek over the code
-  face_.layout(w / 2.0, tile_.y - 11.0 * a + 3 * 2.5 * a, s, 2.5);
-  face_.max_look = 3;
-  for (size_t i = 0; i < chips.size(); ++i) {
-    hots_.push_back({(int)i, {x * a, y * a, widths[i] * a, 18 * a}});
-    x += widths[i] + 4;
-  }
-  hots_.push_back({kAdd, {x * a, y * a, 18 * a, 18 * a}});
   hots_.push_back({kSound, {8 * a, (H - 30) * a, 18 * a, 18 * a}});
   hots_.push_back({kOff, {w - (8 + ow) * a, (H - 30) * a, ow * a, 18 * a}});
+  quiet_ = 4;  // QR standard quiet zone
+  int n = qr_.size > 0 ? qr_.size : 29;
+  int bottom = (H - first_y + 12) * a;
+  int eyes = H < 250 ? 16 : 26, gap = H < 250 ? 6 : 10;
+  int max_tile = std::max(n + 2 * quiet_, std::min(W - 28, H - bottom / a - 88));
+  module_ = std::clamp(max_tile / (n + 2 * quiet_), 1, 3) * a;
+  int tile = (n + 2 * quiet_) * module_;
+  int block = eyes * a + tile + gap * a + 40 * a;
+  int top = std::max(26 * a, (h - bottom - block) / 2);
+  tile_ = {w / 2 - tile / 2, top + eyes * a, tile, tile};
+  addr_gap_ = gap;
+  face_.layout(w / 2.0, tile_.y - 11.0 * a + 3 * 2.5 * a, s, 2.5);
+  face_.max_look = 3;
+
 }
 
 int RemoteView::hit(int x, int y) const {
@@ -216,7 +209,7 @@ void RemoteView::render(Canvas& c, double now) {
   }
 
   // the phones holding the remote right now: an icon, its little signal, its name
-  if (!phones.empty()) {
+  if (!phones.empty() && h / a >= 250) {
     std::vector<std::pair<std::string, int>> groups;
     for (auto& ph : phones) {
       auto it = std::find_if(groups.begin(), groups.end(), [&](auto& g) { return g.first == ph; });
@@ -229,7 +222,7 @@ void RemoteView::render(Canvas& c, double now) {
       total += 5 + 6 + text_w(labels.back(), 1) + 12;
     }
     int x = w / 2 - (total - 12) * a / 2;
-    int y = 8 * a;
+    int y = w / a < 500 ? 26 * a : 8 * a;
     for (size_t i = 0; i < groups.size(); ++i) {
       c.bitmap(bmp("phone"), x, y + 2 * a, s, p.fg);
       // the signal: one pixel blinking beside the phone, each phone on its own beat
@@ -277,6 +270,7 @@ void RemoteView::render(Canvas& c, double now) {
       f.render(c, clamp01(ke * 1.6));
       // the address types itself out; the code line follows
       int s1 = (int)std::lround(s * 1.5);
+      while (s1 > 1 && text_w(address, s1) > w - 24 * a) --s1;
       int ty = tile_.b() + (addr_gap_ + 2) * a;
       double ka = reduce_motion() ? 1.0 : clamp01((t0 - 0.5) / 0.4);
       size_t shown = (size_t)std::ceil(address.size() * ka);
@@ -375,6 +369,7 @@ void RemoteView::render(Canvas& c, double now) {
     double kt = kk(0.62, 0.3);
     std::string head = tr(str::remote_phone_connected);
     int s2 = (int)std::lround(s * 2);
+    while (s2 > 1 && text_w(head, s2) > w - 24 * a) --s2;
     int lift = (int)std::lround((1 - kt) * 6) * a;
     text(c, head, w / 2 - text_w(head, s2) / 2, ty + lift, s2, p.fg, kt);
     std::string who = device_.empty() ? std::string(tr(str::remote_phone)) : device_;

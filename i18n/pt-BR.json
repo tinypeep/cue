@@ -1,9 +1,7 @@
 {
   "_language": "pt-BR",
   "_note": "Texto de referência do Cue. Tom: minúsculas, curto, sem ponto final, sem exclamação. Placeholders entre chaves não se traduzem.",
-
   "number.decimal": ",",
-
   "home.open_file": "abra um arquivo",
   "home.drop_here": "solte aqui",
   "home.recents": "Recentes",
@@ -22,11 +20,9 @@
   "home.update_preparing": "preparando a atualização",
   "notice.open_failed": "não deu pra abrir",
   "notice.open_video_first": "abra um vídeo antes",
-
   "engine.missing_dll": "falta o libmpv-2.dll",
   "engine.too_old": "libmpv antiga demais",
   "engine.failed": "motor de vídeo não iniciou",
-
   "tip.volume": "volume",
   "tip.rewind": "voltar 15s",
   "tip.forward": "avançar 15s",
@@ -43,13 +39,11 @@
   "tip.unmute": "tirar do mudo",
   "flash.loop_on": "repetir",
   "flash.loop_off": "sem repetir",
-
   "cc.none": "nenhuma legenda",
   "cc.toggle": "legenda",
   "cc.load": "carregar legenda",
   "cc.style": "estilo",
   "cc.sync": "sincronia",
-
   "style.title": "estilo",
   "style.original": "original",
   "style.mine": "meu estilo",
@@ -68,7 +62,6 @@
   "style.restored": "legenda de volta ao padrão",
   "style.undone": "voltou como estava",
   "style.saved": "salvo",
-
   "more.open": "abrir arquivo",
   "more.close_video": "fechar vídeo",
   "more.close_audio": "fechar áudio",
@@ -85,16 +78,12 @@
   "size.large": "grande",
   "size.larger": "maior",
   "size.now": "tamanho: {size}",
-
   "language.title": "idioma",
   "language.auto": "automático · seguir o Windows",
-
   "about.licenses": "licenças",
   "speed.title": "velocidade",
-
   "ctx.file_info": "sobre o arquivo",
   "ctx.save_frame": "salvar frame",
-
   "info.title": "sobre o arquivo",
   "info.loading": "carregando...",
   "info.file": "arquivo",
@@ -111,13 +100,15 @@
   "info.no_audio_track": "sem faixa selecionada",
   "info.stereo": "estéreo",
   "info.mono": "mono",
-  "info.channels_n": { "one": "{n} canal", "other": "{n} canais" },
+  "info.channels_n": {
+    "one": "{n} canal",
+    "other": "{n} canais"
+  },
   "unit.b": "B",
   "unit.kb": "KB",
   "unit.mb": "MB",
   "unit.gb": "GB",
   "unit.tb": "TB",
-
   "update.check": "procurar atualizações",
   "update.checking": "procurando atualizações…",
   "update.to": "atualizar para {version}",
@@ -132,14 +123,12 @@
   "update.rate_limited": "o GitHub pediu uma pausa, tente daqui a pouco",
   "update.bad_response": "o GitHub não respondeu direito agora",
   "update.offline": "sem conexão com o GitHub agora",
-
   "toast.frame_saved": "frame salvo",
   "toast.frame_failed": "não deu pra salvar o frame",
   "toast.sub_delay": "sub {delay}",
   "toast.sub_on": "legenda ligada",
   "toast.sub_off": "legenda desligada",
   "toast.link_failed": "não foi possível abrir o link",
-
   "track.n": "faixa {n}",
   "track.forced": "forçada",
   "lang.ro": "romeno",
@@ -157,7 +146,6 @@
   "lang.vi": "vietnamita",
   "lang.id": "indonésio",
   "lang.ms": "malaio",
-
   "ob.intro": "oi, sou o Cue",
   "ob.ambient_title": "iluminação dinâmica",
   "ob.ambient_line": "a janela brilha com as cores do vídeo",
@@ -178,7 +166,6 @@
   "ob.start": "começar",
   "ob.skip": "pular",
   "ob.back": "voltar",
-
   "win.open_title": "abrir arquivo",
   "win.subtitle_title": "adicionar legenda",
   "win.filter_media": "Vídeos e áudios",
@@ -188,7 +175,6 @@
   "win.progid": "Mídia do Cue",
   "win.crash": "O Cue fechou por um erro.\nOs detalhes ficaram em {path}",
   "win.forward_failed": "Não foi possível abrir o vídeo na janela do Cue.\nFeche o Cue e tente novamente.",
-
   "lic.title": "Cue · licenças e créditos",
   "lic.sources": "códigos-fonte",
   "lic.close": "fechar",
@@ -200,7 +186,6 @@
   "lic.read_failed": "Não foi possível ler este documento. Confira se a pasta do Cue foi extraída inteira.",
   "lic.sources_missing": "A pasta fontes não foi encontrada. Os códigos-fonte estão em {url}.",
   "lic.viewer_failed": "Não foi possível abrir o leitor de licenças.",
-
   "setup.title_install": "Instalar o Cue",
   "setup.title_uninstall": "Desinstalar o Cue",
   "setup.reinstall": "reinstalar",
@@ -249,7 +234,6 @@
   "setup.needs_admin": "essa pasta precisa de permissão de administrador. escolha outra pasta",
   "setup.choose_folder": "Onde instalar o Cue",
   "setup.shortcut": "Player de vídeo leve e local",
-
   "remote.title": "controle remoto",
   "remote.menu": "menu",
   "remote.subtitles": "legendas",
@@ -293,6 +277,7 @@
   "remote.reconnecting": "tentando de novo",
   "remote.empty_folder": "nada pra tocar aqui",
   "remote.back": "voltar",
+  "remote.close_folders": "fechar pastas",
   "remote.play_pause": "tocar ou pausar",
   "remote.rewind": "voltar 15 s",
   "remote.forward": "avançar 15 s",
@@ -308,7 +293,6 @@
   "remote.phone_connected": "celular conectado",
   "remote.linked": "conectado!",
   "remote.linked_hint": "pronto, pode deitar",
-
   "news.title": "saiu do forno",
   "news.line": "o que chegou nesta versão",
   "news.remote_title": "controle no celular",
@@ -319,5 +303,8 @@
   "news.subs_title": "legenda de volta ao padrão",
   "news.audio_line": "jogo, microfone e Discord do OBS tocando juntos. você escolhe quais.",
   "news.audio_title": "várias faixas de áudio",
-  "news.try": "experimentar"
+  "news.try": "experimentar",
+  "player.up_next": "A seguir em",
+  "player.up_next_manual": "A seguir",
+  "remote.up_next": "a seguir · {name}"
 }

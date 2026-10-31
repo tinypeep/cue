@@ -14,6 +14,8 @@
 #include "../core/playback_warmup.h"
 #include "../core/preview_session.h"
 #include "../core/overlay_buffers.h"
+#include "../core/frame_cache.h"
+#include "../core/episode_advance.h"
 #include "../core/media_geometry.h"
 #include "../ui/home.h"
 #include "../ui/onboarding.h"
@@ -26,6 +28,7 @@
 #include "vsync.h"
 #include "updater.h"
 #include "remote_server.h"
+#include "file_thumbnail.h"
 #include "remote_scene.h"
 #include "overlay.h"
 #include "../ui/news_view.h"
@@ -143,7 +146,7 @@ class App {
   bool audio_only_ = false, waveform_active_ = false, waveform_fallback_ = false;
   void on_end_file(const mpv_event_end_file* e);
 
-  void open(const std::string& path, std::vector<std::string> subs = {});
+  void open(std::string path, std::vector<std::string> subs = {});
   void handle_files(const std::vector<std::string>& files);
   void go_home();
   void refresh_recents(bool check = true);
@@ -154,10 +157,8 @@ class App {
   PreviewSession preview_;
   double thumb_want_ = -1, thumb_seek_t_ = -1;
   int thumb_shown_ = INT_MIN;
-  struct ThumbImg { std::vector<uint32_t> px; int w = 0, h = 0; };
-  std::map<int, ThumbImg> thumb_cache_;  // slice of the timeline -> frame
-  std::vector<double> thumb_order_;      // background fill, coarse to fine
-  size_t thumb_order_pos_ = 0;
+  using ThumbImg = FrameCache::Image;
+  FrameCache thumb_cache_;  // on-demand timeline frames, bounded by bytes and count
   double thumb_step() const;
   int thumb_key(double t) const;
   bool first_frame_ = false, reveal_pending_ = false, swallow_next_ = false;
@@ -165,8 +166,6 @@ class App {
   void try_start_iris();
   void thumb_request(double t);  // t < 0: just keep filling in the background
   void thumb_next();
-  bool prefetch_on_ = false;
-  double last_prefetch_t_ = -10;
   void thumb_store(std::vector<uint32_t>&& px, int w, int h);
   void on_thumb(ThumbMsg* m);
   void thumb_stop();
@@ -302,12 +301,20 @@ class App {
   RemoteServer remote_;
   RemoteScene scene_;
   std::string remote_code_;
+  double remote_pair_deadline_ = 0;
   int remote_timer_ = 0;               // 0 off, -1 the end of this episode, else minutes
   double remote_timer_end_ = 0;
   double what_until_ = -1;             // "what did they say?": subtitles shown until here
   int64_t what_sid_ = 0;               // ... then given back as they were
   bool what_vis_ = true;
   double what_restored_at_ = -10;      // its own echo is not the person's choice
+  std::shared_ptr<FileThumbnailJob> next_thumb_job_;
+  bool next_thumb_requested_ = false;
+  bool next_auto_ = false, next_cancelled_ = false;
+  int next_count_ = -1;
+  bool media_idle_ = false;
+  EpisodeAdvance next_advance_;
+  bool queue_next_episode();
   std::string next_ep_;                // the next file of this series, or ""
   double remote_toast_at_ = -1000;
   int remote_ticks_ = 0;

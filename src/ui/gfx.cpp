@@ -104,6 +104,7 @@ static const GlyphDef* fallback_glyph(uint32_t cp) {
   if (it != cache.end()) return it->second ? &it->second->first : nullptr;
   const uint32_t* end = kFallbackCp + kFallbackCount;
   const uint32_t* at = std::lower_bound(kFallbackCp, end, cp, [](uint32_t v, uint32_t c) { return (v & 0xFFFFFF) < c; });
+  if (at == end || (*at & 0xFFFFFF) != cp) return nullptr;
   std::unique_ptr<std::pair<GlyphDef, std::string>> g;
   if (at != end && (*at & 0xFFFFFF) == cp) {
     int w = (int)(*at >> 24);

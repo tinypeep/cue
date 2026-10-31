@@ -14,9 +14,14 @@ namespace remote {
 constexpr int kPort = 7878;          // tried first; the next few if it is taken
 constexpr int kPortTries = 12;
 constexpr size_t kMaxRequest = 16 * 1024;
-constexpr size_t kMaxFrame = 64 * 1024;
-constexpr int kCodeDigits = 4;
+constexpr size_t kMaxFrame = 8 * 1024;
+constexpr double kPairLifetime = 120;
+constexpr int kCodeDigits = 6;
 constexpr size_t kMaxTokens = 8;     // phones remembered; the oldest is forgotten past this
+constexpr size_t kMaxEvents = 256;
+constexpr size_t kAuthEventLimit = 192; // reserve space for disconnects of all 24 clients
+inline bool event_room(size_t queued, bool command) { return queued < (command ? 128 : kMaxEvents); }
+inline bool auth_event_room(size_t queued) { return queued < kAuthEventLimit; }
 
 // ── HTTP ────────────────────────────────────────────────────────────
 struct Request {
@@ -25,9 +30,18 @@ struct Request {
 };
 // 1 complete (header_len set), 0 needs more bytes, -1 malformed or too large
 int parse_request(std::string_view buf, Request& out, size_t& header_len);
+bool valid_authority(std::string_view host);
+bool valid_ws_key(std::string_view key);
+bool valid_token(std::string_view token);
+// Small token bucket; each connection has its own bounded budget.
+struct RateLimit {
+  double credit = 40, last = -1;
+  bool take(double now, double rate = 20, double burst = 40);
+};
 std::string url_decode(std::string_view s);
 std::string url_encode(std::string_view s);
-std::string http_response(int status, std::string_view type, std::string_view body, bool cache = false);
+std::string http_response(int status, std::string_view type, std::string_view body, bool cache = false,
+                          std::string_view nonce = {}, std::string_view authority = {});
 
 // ── WebSocket (RFC 6455, text frames, no extensions) ────────────────
 std::string sha1(std::string_view data);  // 20 raw bytes
@@ -63,9 +77,11 @@ inline bool is_playable_name(std::string_view n) { return is_video_name(n) || is
 // Natural order, case-insensitive: "ep 2" before "ep 10".
 bool natural_less(std::string_view a, std::string_view b);
 // "S01E03", "s1e3", "1x03", "Ep 3", "E03" -> season/episode (season 0 when unnamed)
-bool episode_of(std::string_view name, int& season, int& episode);
+bool episode_of(std::string_view name, int& season, int& episode, size_t* marker = nullptr);
 // The file after `current` among its siblings: by season/episode when both have one, else by
 // natural order. Only playable files count. "" when it is the last one.
+bool same_series(std::string_view a, std::string_view b);
+std::string next_file(std::string_view current, const std::vector<std::string>& siblings);
 std::string next_episode(std::string_view current, const std::vector<std::string>& siblings);
 // Two or more playable files numbered as episodes: shown as a series (a stack, not a folder).
 bool looks_like_series(const std::vector<std::string>& names);
@@ -86,6 +102,7 @@ struct State {
   int audio_mix = 0;                      // how many play together (when audio_index is -1)
   int timer = 0;                 // 0 off, -1 end of the episode, else minutes
   double timer_left = 0;         // seconds, for minutes
+  bool next_auto = false;
   std::string next;              // the next episode's name, or ""
   std::string color = "#a0508f"; // the film's light (the phone glows with it)
 };

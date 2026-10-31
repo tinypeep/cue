@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <vector>
+#include <limits>
 
 #include "json.h"
 
@@ -22,7 +23,12 @@ void split(const std::string& v, std::vector<long>& nums, std::string& pre) {
     if (j == std::string::npos) j = core.size();
     std::string part = core.substr(i, j - i);
     long n = 0;
-    for (char ch : part) if (std::isdigit((unsigned char)ch)) n = n * 10 + (ch - '0'); else break;
+    for (char ch : part) {
+      if (!std::isdigit((unsigned char)ch)) break;
+      int digit = ch - '0';
+      if (n > (std::numeric_limits<long>::max() - digit) / 10) { n = std::numeric_limits<long>::max(); break; }
+      n = n * 10 + digit;
+    }
     nums.push_back(n);
     i = j + 1;
   }
@@ -89,7 +95,8 @@ bool parse_release(const std::string& json, ReleaseInfo& out) {
   if (!best) return false;
   out.asset_name = (*best)["name"].str();
   out.asset_url = (*best)["browser_download_url"].str();
-  out.size = (int64_t)(*best)["size"].num(0);
+  out.size = (*best)["size"].integer<int64_t>(0);
+  if (out.size < 0 || out.size > 512ll * 1024 * 1024) return false;
   std::string digest = lower((*best)["digest"].str());  // "sha256:…"
   if (digest.rfind("sha256:", 0) == 0) {
     std::string hex = digest.substr(7);

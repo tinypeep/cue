@@ -1,4 +1,6 @@
 #include "store.h"
+#include "remote_proto.h"
+#include "file_io.h"
 
 #include <algorithm>
 #include <cmath>
@@ -23,15 +25,15 @@ std::string normalize_path(const std::string& p) {
 static SubStyle style_from(const JVal& j, const SubStyle& def) {
   SubStyle s = def;
   if (j.t != JVal::Obj) return s;
-  s.font = std::clamp((int)j["font"].num(def.font), 0, 2);
-  s.size = std::clamp((int)j["size"].num(def.size), 24, 80);
-  s.text_op = std::clamp((int)j["text"].num(def.text_op), 10, 100);
-  s.bg_op = std::clamp((int)j["bg"].num(def.bg_op), 0, 100);
+  s.font = std::clamp(j["font"].integer(def.font), 0, 2);
+  s.size = std::clamp(j["size"].integer(def.size), 24, 80);
+  s.text_op = std::clamp(j["text"].integer(def.text_op), 10, 100);
+  s.bg_op = std::clamp(j["bg"].integer(def.bg_op), 0, 100);
   s.pos = std::clamp(j["pos"].num(def.pos), kSubPosMin, kSubPosMax);
-  s.ass_mode = std::clamp((int)j["ass"].num(def.ass_mode), 0, 1);
-  s.outline = std::clamp((int)j["outline"].num(def.outline), 0, 6);
-  s.line_gap = std::clamp((int)j["lgap"].num(def.line_gap), kLineGapMin, kLineGapMax);
-  s.tracking = std::clamp((int)j["track"].num(def.tracking), -3, 10);
+  s.ass_mode = std::clamp(j["ass"].integer(def.ass_mode), 0, 1);
+  s.outline = std::clamp(j["outline"].integer(def.outline), 0, 6);
+  s.line_gap = std::clamp(j["lgap"].integer(def.line_gap), kLineGapMin, kLineGapMax);
+  s.tracking = std::clamp(j["track"].integer(def.tracking), -3, 10);
   return s;
 }
 
@@ -44,12 +46,12 @@ static std::string style_json(const SubStyle& s) {
 
 static void read_media(const JVal& r, RecentItem& it, const SubStyle& def) {
   it.path = r["path"].str();
-  it.pos = r["pos"].num(0);
-  it.dur = r["dur"].num(0);
-  it.last = (int64_t)r["last"].num(0);
+  it.pos = std::clamp(r["pos"].num(0), 0.0, 1e9);
+  it.dur = std::clamp(r["dur"].num(0), 0.0, 1e9);
+  it.last = r["last"].integer<int64_t>(0);
   if (r["style"].t == JVal::Obj) { it.has_style = true; it.style = style_from(r["style"], def); }
-  it.sid = (int64_t)r["sid"].num(-1);
-  it.aid = (int64_t)r["aid"].num(-1);
+  it.sid = r["sid"].integer<int64_t>(-1);
+  it.aid = r["aid"].integer<int64_t>(-1);
   it.sid_lang = r["slang"].str();
   it.aid_lang = r["alang"].str();
   it.sub_visible = r["subvis"].boolean(true);
@@ -60,14 +62,14 @@ static void read_media(const JVal& r, RecentItem& it, const SubStyle& def) {
 bool SettingsStore::parse(const std::string& text) {
   JVal j;
   if (!json_parse(text, j) || j.t != JVal::Obj) return false;
-  int schema = (int)j["schema"].num(1);
+  int schema = j["schema"].integer(1);
   // v1 kept everything at the top level; v2 groups it. Both read through the same names.
   const JVal& pf = schema >= 2 ? j["prefs"] : j;
   const JVal& ss = schema >= 2 ? j["session"] : j;
   default_style = style_from(pf["style"], SubStyle{});
   volume = std::clamp(pf["volume"].num(100), 0.0, kVolMax);
   muted = pf["muted"].boolean(false);
-  ui_scale = std::clamp((int)pf["ui_scale"].num(2), -1, 3);
+  ui_scale = std::clamp(pf["ui_scale"].integer(2), -1, 3);
   if (ui_scale == 1) ui_scale = 3;  // the old 1.5x "larger" (and 1.1's "huge") became the 1.25x larger
   if (schema < 4 && ui_scale == 0) ui_scale = -1; // migrate the former default once
   if (schema < 5 && ui_scale == -1) ui_scale = 2; // 1.0: médio became the default, small is a choice
@@ -92,25 +94,26 @@ bool SettingsStore::parse(const std::string& text) {
     if (!f["path"].str().empty() && remote_folders.size() < 16) remote_folders.push_back({f["path"].str(), f["on"].boolean(true)});
   remote_tokens.clear();
   for (auto& t : rm["tokens"].a)
-    if (t.str().size() == 32 && remote_tokens.size() < 8) remote_tokens.push_back(t.str());
+    if (remote::valid_token(t.str()) && remote_tokens.size() < 8) remote_tokens.push_back(t.str());
   const JVal& up = ss["update"];
-  update_checked = (int64_t)up["checked"].num(0);
+  update_checked = up["checked"].integer<int64_t>(0);
   update_available = up["available"].str();
   update_skipped = up["skipped"].str();
-  eggs_seen = (int)ss["eggs"].num(0);
+  eggs_seen = ss["eggs"].integer(0);
   const JVal& d = ss["dock"];
-  dock.anchor = (DockAnchor)std::clamp((int)d["anchor"].num(0), 0, 4);
+  dock.anchor = (DockAnchor)std::clamp(d["anchor"].integer(0), 0, 4);
   dock.fx = std::clamp(d["fx"].num(0.5), 0.0, 1.0);
   dock.fy = std::clamp(d["fy"].num(1.0), 0.0, 1.0);
   const JVal& wn = ss["window"];
   win = WinPlace{};
   if (wn.t == JVal::Obj) {
     win.has = true;
-    win.x = (int)wn["x"].num(0); win.y = (int)wn["y"].num(0);
-    win.w = (int)wn["w"].num(0); win.h = (int)wn["h"].num(0);
-    win.dpi = std::clamp((int)wn["dpi"].num(96), 48, 960);
+    win.x = wn["x"].integer(0); win.y = wn["y"].integer(0);
+    win.w = wn["w"].integer(0); win.h = wn["h"].integer(0);
+    win.dpi = std::clamp(wn["dpi"].integer(96), 48, 960);
     win.max = wn["max"].boolean(false);
-    if (win.w < 200 || win.h < 120) win.has = false;
+    if (win.w < 200 || win.h < 120 || win.w > 16384 || win.h > 16384 ||
+        win.x < -1000000 || win.x > 1000000 || win.y < -1000000 || win.y > 1000000) win.has = false;
   }
   recents.clear();
   for (auto& r : (schema >= 2 ? j["media"] : j["recents"]).a) {
@@ -124,22 +127,13 @@ bool SettingsStore::parse(const std::string& text) {
   return true;
 }
 
-static bool read_file(const std::filesystem::path& p, std::string& out) {
-  std::ifstream f(p, std::ios::binary);
-  if (!f) return false;
-  std::stringstream ss;
-  ss << f.rdbuf();
-  out = ss.str();
-  return true;
-}
-
 bool SettingsStore::load(const std::filesystem::path& path) {
   std::string text;
   std::filesystem::path bak = path;
   bak += ".bak";
-  if (!read_file(path, text)) {
+  if (!read_state_file(path, text)) {
     // no file yet (first run), or only the backup survived an interrupted write
-    if (read_file(bak, text) && parse(text)) { load_status = "recovered"; return true; }
+    if (read_state_file(bak, text) && parse(text)) { load_status = "recovered"; return true; }
     load_status = "missing";
     return false;
   }
@@ -150,7 +144,7 @@ bool SettingsStore::load(const std::filesystem::path& path) {
   bad += ".corrupt";
   std::filesystem::rename(path, bad, ec);
   *this = SettingsStore{};
-  if (read_file(bak, text) && parse(text)) { load_status = "recovered"; return true; }
+  if (read_state_file(bak, text) && parse(text)) { load_status = "recovered"; return true; }
   *this = SettingsStore{};
   load_status = "reset";
   return false;
@@ -210,10 +204,20 @@ bool SettingsStore::save(const std::filesystem::path& path) const {
     o += "}";
   }
   o += recents.empty() ? "]\n}\n" : "\n  ]\n}\n";
-  // safe write: a temporary file, the previous version kept as .bak, then an atomic swap
   std::filesystem::path tmp = path, bak = path;
   tmp += ".tmp";
   bak += ".bak";
+  // Unchanged state needs no main-file write. Seed/refresh a missing or old
+  // recovery copy once, then leave both files untouched on repeated saves.
+  if (file_contents_equal(path,o)) {
+    if (!file_contents_equal(bak,o)) {
+      std::error_code backup_error;
+      std::filesystem::copy_file(path,bak,std::filesystem::copy_options::overwrite_existing,backup_error);
+      return !backup_error;
+    }
+    return true;
+  }
+  // safe write: a temporary file, the previous version kept as .bak, then an atomic swap
   {
     std::ofstream f(tmp, std::ios::binary | std::ios::trunc);
     if (!f) return false;
@@ -252,11 +256,14 @@ RecentItem& SettingsStore::touch(const std::string& p, double dur, int64_t now) 
   return recents.front();
 }
 
-void SettingsStore::set_position(const std::string& p, double pos, double dur) {
+bool SettingsStore::set_position(const std::string& p, double pos, double dur) {
   RecentItem* r = find(p);
-  if (!r) return;
-  if (dur > 0) r->dur = dur;
+  if (!r) return false;
+  double next_duration = dur > 0 ? dur : r->dur;
+  if (r->pos == pos && r->dur == next_duration) return false;
+  r->dur = next_duration;
   r->pos = pos;
+  return true;
 }
 
 double SettingsStore::resume_point(const std::string& p) const {

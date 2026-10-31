@@ -3,6 +3,11 @@
 #include <algorithm>
 #include <cstring>
 #include <cstdlib>
+#include <thread>
+#include <mutex>
+#include <memory>
+#include <cmath>
+#include "../core/preview_commands.h"
 
 #include "mpv.h"
 #include "platform.h"
@@ -104,6 +109,7 @@ int thumb_host_main() {
     while (true) {
       if (!ReadFile(in, &ch, 1, &n, nullptr) || n == 0) { eof = true; break; }
       if (ch == '\n') break;
+      if (line.size() >= PreviewCommands::kMaxLine) return 2;
       line += ch;
     }
     if (eof || line == "q") break;
@@ -147,7 +153,7 @@ int thumb_host_main() {
           else if (!strcmp(k, "stride") && v.format == MPV_FORMAT_INT64) stride = v.u.int64;
           else if (!strcmp(k, "data") && v.format == MPV_FORMAT_BYTE_ARRAY) ba = (const mpv_byte_array*)v.u.ba;
         }
-        if (w > 0 && h > 0 && w <= 2048 && h <= 2048 && ba && stride >= w * 4 && ba->size >= (size_t)(stride * h)) {
+        if (w > 0 && h > 0 && w <= 2048 && h <= 2048 && ba && ba->data && stride >= w * 4 && (uint64_t)stride <= ba->size / (uint64_t)h) {
           const auto size = preview_size((int)w, (int)h, output_width);
           px.resize((size_t)size.w * size.h);
           for (int y = 0; y < size.h; ++y) {
@@ -160,10 +166,10 @@ int thumb_host_main() {
         } else {
           reply(out, ThumbMsg::NoFrame, id, t, 0, 0, nullptr, session);
         }
-        m.api().free_node_contents(&res);
       } else {
         reply(out, ThumbMsg::NoFrame, id, t, 0, 0, nullptr, session);
       }
+      m.api().free_node_contents(&res);  // also release unexpected result types
     } else if (line == "x") {
       const char* st[] = {"stop", nullptr};
       m.api().command(m.handle(), st);
@@ -175,116 +181,160 @@ int thumb_host_main() {
 }
 
 // ── player side ─────────────────────────────────────────────────────
+// Detached I/O workers own this state, never the UI's ThumbClient. Handles remain
+// valid until both workers exit, including when shutdown races a pending read/write.
+struct ThumbClient::State {
+  HANDLE proc = nullptr, job = nullptr, to = nullptr, from = nullptr;
+  HWND notify = nullptr;
+  UINT message = 0;
+  uint32_t epoch = 0;
+  std::atomic<uint32_t> session{0};
+  std::mutex mu;
+  bool stopped = false;
+  PreviewCommands commands;
+  ~State() {
+    if (to) CloseHandle(to);
+    if (from) CloseHandle(from);
+    if (job) CloseHandle(job);
+    if (proc) CloseHandle(proc);
+  }
+  void post(std::unique_ptr<ThumbMsg> m) {
+    std::lock_guard<std::mutex> lock(mu);
+    if (!stopped && PostMessageW(notify, message, 1, (LPARAM)m.get())) m.release();
+  }
+  void stop(bool report) {
+    std::lock_guard<std::mutex> lock(mu);
+    if (stopped) return;
+    if (report) {
+      std::unique_ptr<ThumbMsg> m(new(std::nothrow) ThumbMsg{});
+      if (m) {
+      m->type = ThumbMsg::Gone; m->process = epoch; m->session = session.load();
+      if (PostMessageW(notify, message, 1, (LPARAM)m.get())) m.release();
+      }
+    }
+    stopped = true;
+    commands.stop();
+    // Ending the child closes its pipe ends and releases blocked I/O workers.
+    if (proc) TerminateProcess(proc, 0);
+  }
+};
+
+ThumbClient::~ThumbClient() { shutdown(); }
+bool ThumbClient::running() const {
+  if (!state_) return false;
+  std::lock_guard<std::mutex> lock(state_->mu);
+  return !state_->stopped && state_->proc && WaitForSingleObject(state_->proc, 0) == WAIT_TIMEOUT;
+}
+
 bool ThumbClient::start(HWND notify, UINT msg) {
   if (running()) return true;
-  if (proc_) shutdown();  // close the dead process/reader handles before restarting
-  notify_ = notify;
-  msg_ = msg;
-  ++epoch_;
-  session_.store(0);
+  shutdown();
+  auto s = std::make_shared<State>();
+  s->notify = notify; s->message = msg; s->epoch = ++epoch_;
   SECURITY_ATTRIBUTES sa{sizeof(sa), nullptr, TRUE};
   HANDLE child_in = nullptr, child_out = nullptr;
-  if (!CreatePipe(&child_in, &to_, &sa, 1 << 12)) return false;
-  if (!CreatePipe(&from_, &child_out, &sa, 1 << 20)) { CloseHandle(child_in); CloseHandle(to_); to_ = nullptr; return false; }
-  SetHandleInformation(to_, HANDLE_FLAG_INHERIT, 0);    // our ends stay ours
-  SetHandleInformation(from_, HANDLE_FLAG_INHERIT, 0);
-  wchar_t exe[MAX_PATH];
-  GetModuleFileNameW(nullptr, exe, MAX_PATH);
+  if (!CreatePipe(&child_in, &s->to, &sa, 1 << 12)) return false;
+  if (!CreatePipe(&s->from, &child_out, &sa, 1 << 20)) { CloseHandle(child_in); return false; }
+  auto close_child = [&] { CloseHandle(child_in); CloseHandle(child_out); };
+  if (!SetHandleInformation(s->to, HANDLE_FLAG_INHERIT, 0) ||
+      !SetHandleInformation(s->from, HANDLE_FLAG_INHERIT, 0)) { close_child(); return false; }
+  wchar_t exe[32768]{};
+  DWORD len = GetModuleFileNameW(nullptr, exe, 32768);
+  if (!len || len >= 32768) { close_child(); return false; }
   std::wstring cmd = L"\"" + std::wstring(exe) + L"\" --thumb-host";
-  STARTUPINFOW si{sizeof(si)};
-  si.dwFlags = STARTF_USESTDHANDLES;
-  si.hStdInput = child_in;
-  si.hStdOutput = child_out;
-  si.hStdError = child_out;
+  STARTUPINFOEXW si{};
+  si.StartupInfo.cb = sizeof(si);
+  si.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+  si.StartupInfo.hStdInput = child_in;
+  si.StartupInfo.hStdOutput = si.StartupInfo.hStdError = child_out;
+  SIZE_T bytes = 0;
+  InitializeProcThreadAttributeList(nullptr, 1, 0, &bytes);
+  std::vector<unsigned char> attrs(bytes);
+  si.lpAttributeList = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(attrs.data());
+  if (!InitializeProcThreadAttributeList(si.lpAttributeList, 1, 0, &bytes)) { close_child(); return false; }
+  HANDLE inherit[] = {child_in, child_out};
+  BOOL attributes_ok = UpdateProcThreadAttribute(si.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+                                                 inherit, sizeof inherit, nullptr, nullptr);
   PROCESS_INFORMATION pi{};
-  BOOL ok = CreateProcessW(nullptr, cmd.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW | CREATE_SUSPENDED, nullptr,
-                           nullptr, &si, &pi);
-  CloseHandle(child_in);
-  CloseHandle(child_out);
-  if (!ok) { CloseHandle(to_); CloseHandle(from_); to_ = from_ = nullptr; return false; }
-  // the helper never outlives the player, even if the player crashes
-  job_ = CreateJobObjectW(nullptr, nullptr);
-  if (job_) {
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION li{};
-    li.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-    SetInformationJobObject(job_, JobObjectExtendedLimitInformation, &li, sizeof li);
-    AssignProcessToJobObject(job_, pi.hProcess);
+  BOOL ok = attributes_ok && CreateProcessW(exe, cmd.data(), nullptr, nullptr, TRUE,
+      CREATE_NO_WINDOW | CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT, nullptr, nullptr, &si.StartupInfo, &pi);
+  DeleteProcThreadAttributeList(si.lpAttributeList);
+  close_child();
+  if (!ok) return false;
+  s->proc = pi.hProcess;
+  s->job = CreateJobObjectW(nullptr, nullptr);
+  JOBOBJECT_EXTENDED_LIMIT_INFORMATION li{};
+  li.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+  if (!s->job || !SetInformationJobObject(s->job, JobObjectExtendedLimitInformation, &li, sizeof li) ||
+      !AssignProcessToJobObject(s->job, s->proc)) {
+    s->stop(false); CloseHandle(pi.hThread); return false;
   }
-  ResumeThread(pi.hThread);
+  state_ = s;
+  try {
+    std::thread([s] { read_loop(s); }).detach();
+    std::thread([s] {
+      try {
+        std::string line;
+        while (s->commands.take(line)) {
+          line += '\n';
+          if (!write_all(s->to, line.data(), line.size())) break;
+        }
+      } catch (...) { /* fail this optional helper, not the player */ }
+      s->stop(true);
+    }).detach();
+  } catch (...) {
+    s->stop(false); CloseHandle(pi.hThread); shutdown(); return false;
+  }
+  ok = ResumeThread(pi.hThread) != (DWORD)-1;
   CloseHandle(pi.hThread);
-  proc_ = pi.hProcess;
-  reader_ = CreateThread(nullptr, 0, read_loop, this, 0, nullptr);
+  if (!ok) { shutdown(); return false; }
   return true;
 }
 
-DWORD WINAPI ThumbClient::read_loop(void* p) {
-  auto* self = static_cast<ThumbClient*>(p);
-  const uint32_t process = self->epoch_;
-  while (true) {
-    Header hd;
-    if (!read_all(self->from_, &hd, sizeof hd) || hd.magic != 0x32565054 || hd.type == ThumbMsg::Gone) break;
-    auto* msg = new ThumbMsg();
-    msg->type = (ThumbMsg::Type)hd.type;
-    msg->id = hd.id;
-    msg->session = hd.session;
-    msg->process = process;
-    msg->t = hd.t;
-    if (hd.type == ThumbMsg::Frame) {
-      if (hd.w <= 0 || hd.h <= 0 || hd.w > 2048 || hd.h > 2048) { delete msg; break; }
-      msg->w = hd.w;
-      msg->h = hd.h;
-      msg->px.resize((size_t)hd.w * hd.h);
-      if (!read_all(self->from_, msg->px.data(), msg->px.size() * 4)) { delete msg; break; }
+void ThumbClient::read_loop(std::shared_ptr<State> s) {
+  try {
+    while (true) {
+      Header hd;
+      if (!read_all(s->from, &hd, sizeof hd) || hd.magic != 0x32565054 ||
+          hd.type < ThumbMsg::Ready || hd.type >= ThumbMsg::Gone || !std::isfinite(hd.t)) break;
+      auto m = std::make_unique<ThumbMsg>();
+      m->type = (ThumbMsg::Type)hd.type;
+      m->id = hd.id; m->session = hd.session; m->process = s->epoch; m->t = hd.t;
+      if (hd.type == ThumbMsg::Frame) {
+        if (hd.w <= 0 || hd.h <= 0 || hd.w > 2048 || hd.h > 2048) break;
+        m->w = hd.w; m->h = hd.h;
+        m->px.resize((size_t)hd.w * hd.h);
+        if (!read_all(s->from, m->px.data(), m->px.size() * 4)) break;
+      }
+      // Stale file responses never occupy the UI message queue with pixel buffers.
+      if (m->session == s->session.load()) s->post(std::move(m));
     }
-    if (!PostMessageW(self->notify_, self->msg_, 1, (LPARAM)msg)) delete msg;
-  }
-  auto* gone = new ThumbMsg();
-  gone->type = ThumbMsg::Gone;
-  gone->process = process;
-  gone->session = self->session_.load();
-  if (!PostMessageW(self->notify_, self->msg_, 1, (LPARAM)gone)) delete gone;
-  return 0;
+  } catch (...) { /* allocation/protocol failure only disables previews */ }
+  s->stop(true);
 }
 
-void ThumbClient::send(const std::string& line) {
-  if (!to_) return;
-  std::string l = line + "\n";
-  DWORD n = 0;
-  WriteFile(to_, l.data(), (DWORD)l.size(), &n, nullptr);  // tiny: fits the pipe, never blocks
+void ThumbClient::send(const std::string& line, bool replace) {
+  if (state_ && !state_->commands.push(line, replace)) state_->stop(true);
 }
-
 void ThumbClient::open(const std::string& path, int width, uint32_t session) {
-  session_.store(session);
-  send("o " + std::to_string(session) + " " + std::to_string(width) + " " + path);
+  if (!state_) return;
+  state_->session = session;
+  send("o " + std::to_string(session) + " " + std::to_string(width) + " " + path, true);
 }
-
 void ThumbClient::shot(uint32_t id, double t, int output_width) {
   char b[64];
   snprintf(b, sizeof b, "s %u %.3f %d", id, t, output_width);
   send(b);
 }
-
-void ThumbClient::close_file() { send("x"); }
-
+void ThumbClient::close_file() { send("x", true); }
 void ThumbClient::shutdown() {
-  if (!proc_) return;
-  send("q");
-  if (to_) { CloseHandle(to_); to_ = nullptr; }
-  if (WaitForSingleObject(proc_, 300) == WAIT_TIMEOUT) TerminateProcess(proc_, 0);
-  if (reader_) { WaitForSingleObject(reader_, 500); CloseHandle(reader_); reader_ = nullptr; }
-  if (from_) { CloseHandle(from_); from_ = nullptr; }
-  CloseHandle(proc_);
-  proc_ = nullptr;
-  if (job_) { CloseHandle(job_); job_ = nullptr; }
+  auto s = std::move(state_);
+  if (!s) return;
+  s->stop(false);  // no worker can post after this returns
+  // PostMessage transfers ownership, but destroying a window doesn't delete lParam.
+  // Called by the owning UI thread before restart/destruction.
+  MSG msg;
+  while (PeekMessageW(&msg, s->notify, s->message, s->message, PM_REMOVE))
+    if (msg.wParam == 1) delete reinterpret_cast<ThumbMsg*>(msg.lParam);
 }
-
-void ThumbClient::kill() {
-  if (!proc_) return;
-  TerminateProcess(proc_, 0);
-  if (to_) { CloseHandle(to_); to_ = nullptr; }
-  // the reader thread ends by itself on the broken pipe; nobody waits for it
-  if (reader_) { CloseHandle(reader_); reader_ = nullptr; }
-  CloseHandle(proc_);
-  proc_ = nullptr;
-  if (job_) { CloseHandle(job_); job_ = nullptr; }
-}
+void ThumbClient::kill() { shutdown(); }
