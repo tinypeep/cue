@@ -1,5 +1,5 @@
 // Interface language: resolution from Windows' display languages, the manual choice, fallback,
-// persistence, the five catalogs (complete, same placeholders, plural forms) and that every
+// persistence, the six catalogs (complete, same placeholders, plural forms) and that every
 // character the interface can show has a pixel glyph (nothing turns into a box or vanishes).
 #include <cassert>
 #include <cstdio>
@@ -28,6 +28,7 @@ int main() {
   for (auto t : {"en", "en-US", "en-GB", "en-AU", "en-IN", "EN-us", "en_CA"}) CHECK(maps(t, Lang::En));
   for (auto t : {"es", "es-ES", "es-MX", "es-419", "es-AR", "es-US"}) CHECK(maps(t, Lang::Es));
   for (auto t : {"fr", "fr-FR", "fr-CA", "fr-BE", "fr-CH", "fr-LU"}) CHECK(maps(t, Lang::Fr));
+  for (auto t : {"ru", "ru-RU", "ru-BY", "ru-KZ", "RU-ru", "ru_RU"}) CHECK(maps(t, Lang::Ru));
   for (auto t : {"pt-BR", "pt-PT", "pt", "pt-AO", "pt_br"}) CHECK(maps(t, Lang::PtBR));  // pt-PT uses the Brazilian text
   for (auto t : {"zh-Hans", "zh-CN", "zh-SG", "zh-Hans-CN", "zh-Hans-SG", "zh-Hans-HK", "ZH-cn", "zh"}) CHECK(maps(t, Lang::ZhHans));
   // Traditional Chinese is never shown Simplified
@@ -38,6 +39,7 @@ int main() {
   CHECK(i18n::resolve("auto", {"de-DE", "zh-TW", "es-AR", "en-US"}) == Lang::Es);
   CHECK(i18n::resolve("auto", {"fr-CA", "pt-BR"}) == Lang::Fr);
   CHECK(i18n::resolve("auto", {"pt-BR", "fr-CA"}) == Lang::PtBR);
+  CHECK(i18n::resolve("auto", {"de-DE", "ru-RU"}) == Lang::Ru);
   CHECK(i18n::resolve("auto", {"zh-TW", "zh-HK"}) == Lang::En);           // nothing supported: English
   CHECK(i18n::resolve("auto", {"zh-HK", "zh-CN"}) == Lang::ZhHans);       // keeps looking past Traditional
   CHECK(i18n::resolve("auto", {"de-DE", "ja-JP"}) == Lang::En);
@@ -48,11 +50,12 @@ int main() {
   CHECK(i18n::resolve("", {"es-MX"}) == Lang::Es);                        // empty = automatic
   CHECK(i18n::resolve("xx-YY", {"es-MX"}) == Lang::Es);                   // unknown = automatic
   CHECK(i18n::normalize_pref("PT-br") == "pt-BR" && i18n::normalize_pref("ZH-HANS") == "zh-Hans");
+  CHECK(i18n::normalize_pref("RU") == "ru" && i18n::normalize_pref("ru-RU") == "auto");
   CHECK(i18n::normalize_pref("auto") == "auto" && i18n::normalize_pref("") == "auto" && i18n::normalize_pref("en-US") == "auto");
 
   // ── the choice is saved, survives a restart and an update ──────
   auto path = std::filesystem::temp_directory_path() / "cue-i18n-test.json";
-  for (std::string pref : {"auto", "pt-BR", "en", "es", "fr", "zh-Hans"}) {
+  for (std::string pref : {"auto", "pt-BR", "en", "es", "fr", "zh-Hans", "ru"}) {
     Store a; a.language = pref; a.ui_scale = 3; CHECK(a.save(path));
     Store b; CHECK(b.load(path)); CHECK(b.language == pref); CHECK(b.ui_scale == 3);
     // the next start resolves from it before Windows is consulted
@@ -117,6 +120,13 @@ int main() {
   CHECK(i18n::plural(str::info_channels_n, 1) == "1 canal" && i18n::plural(str::info_channels_n, 3) == "3 canales");
   i18n::set_language(Lang::ZhHans);
   CHECK(i18n::plural(str::info_channels_n, 1) == "1 \xe5\xa3\xb0\xe9\x81\x93");  // 1 声道
+  i18n::set_language(Lang::Ru);
+  CHECK(i18n::plural(str::info_channels_n, 1) == "1 \xd0\xba\xd0\xb0\xd0\xbd\xd0\xb0\xd0\xbb");      // 1 канал
+  CHECK(i18n::plural(str::info_channels_n, 2) == "2 \xd0\xba\xd0\xb0\xd0\xbd\xd0\xb0\xd0\xbb\xd0\xb0");  // 2 канала
+  CHECK(i18n::plural(str::info_channels_n, 5) == "5 \xd0\xba\xd0\xb0\xd0\xbd\xd0\xb0\xd0\xbb\xd0\xbe\xd0\xb2");  // 5 каналов
+  CHECK(i18n::plural(str::info_channels_n, 11) == "11 \xd0\xba\xd0\xb0\xd0\xbd\xd0\xb0\xd0\xbb\xd0\xbe\xd0\xb2");  // 11 каналов
+  CHECK(i18n::plural(str::info_channels_n, 21) == "21 \xd0\xba\xd0\xb0\xd0\xbd\xd0\xb0\xd0\xbb");  // 21 канал
+  CHECK(i18n::plural(str::info_channels_n, 22) == "22 \xd0\xba\xd0\xb0\xd0\xbd\xd0\xb0\xd0\xbb\xd0\xb0");  // 22 канала
   // numbers follow the language's decimal mark
   i18n::set_language(Lang::PtBR); CHECK(fmt_delay(0.3) == "+0,3 s" && i18n::decimal(23.976, 2) == "23,98");
   i18n::set_language(Lang::En);   CHECK(fmt_delay(-1.2) == "-1.2 s" && fmt_delay(0) == "0.0 s" && i18n::decimal(1.5, 2) == "1.5");
@@ -161,10 +171,9 @@ int main() {
   };
   for (int li = 0; li < i18n::kLangCount; ++li) {
     scan(i18n::native_name((Lang)li));
-    for (int i = 0; i < str::kCount; ++i) {
-      if (auto t = i18n::raw((Lang)li, (str::Id)i)) scan(t);
-      if (auto t = i18n::raw((Lang)li, (str::Id)i, true)) scan(t);
-    }
+    for (int i = 0; i < str::kCount; ++i)
+      for (int f = 0; f < i18n::kPluralFormCount; ++f)
+        if (auto t = i18n::raw((Lang)li, (str::Id)i, (i18n::PluralForm)f)) scan(t);
   }
   for (uint32_t cp : missing) std::printf("  no glyph for U+%04X\n", cp);
   CHECK(missing.empty());
@@ -189,7 +198,7 @@ int main() {
   }
 
   std::printf(failures ? "%d failures\n" : "i18n: Windows UI language order, Simplified/Traditional Chinese, manual priority, "
-              "English fallback, persistence across restart/update, 5 complete catalogs (%d keys), placeholders, plurals, "
+              "English fallback, persistence across restart/update, 6 complete catalogs (%d keys), placeholders, plurals, "
               "decimals and full glyph coverage passed\n", failures ? failures : (int)str::kCount);
   return failures ? 1 : 0;
 }

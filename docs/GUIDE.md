@@ -45,7 +45,7 @@ The **…** menu contains ambient lighting, interface size, control background, 
 
 Ambient lighting follows scene colors and fades in after playback starts. It is hidden on the home screen and in fullscreen or maximized mode.
 
-Cue supports Brazilian Portuguese, English, Spanish, French, and Simplified Chinese. Automatic mode follows Windows display-language preferences, then falls back to English. Change the language in **… → language**, or the **…** beside Recent on the home screen. Changes apply immediately and are saved.
+Cue supports Brazilian Portuguese, English, Spanish, French, Simplified Chinese, and Russian. Automatic mode follows Windows display-language preferences, then falls back to English. Change the language in **… → language**, or the **…** beside Recent on the home screen. Changes apply immediately and are saved.
 
 ## Phone remote
 

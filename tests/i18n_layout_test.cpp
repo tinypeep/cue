@@ -212,6 +212,6 @@ int main() {
     check_setup();
   }
   if (failures) { std::printf("%d of %d layout checks failed\n", failures, checks); return 1; }
-  std::printf("Layout: %d checks in 5 languages x 4 sizes x 10 windows (DPI 100-250%%, full screen, portrait) for every "
+  std::printf("Layout: %d checks in 6 languages x 4 sizes x 10 windows (DPI 100-250%%, full screen, portrait) for every "
               "player panel, tooltips, toasts, the home and its menu, the welcome and the installer passed\n", checks);
 }

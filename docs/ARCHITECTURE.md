@@ -10,7 +10,7 @@ Cue uses **C++20, Win32, and dynamically loaded libmpv**. Portable UI/core code 
 | `src/ui/` | Pixel renderer, Omni assets, animation, home, onboarding, playback panels |
 | `src/win/` | Windowing, DPI, input, dialogs, clipboard, libmpv, updater, preview host |
 | `installer/` | Native installer, uninstaller, LZMA unpacking |
-| `i18n/` | Five translation catalogs |
+| `i18n/` | Six translation catalogs |
 | `assets/`, `res/` | Fonts, icons, the phone remote's page, executable resources |
 | `tools/`, `tests/` | Generators, previews, packaging, portable and engine tests |
 

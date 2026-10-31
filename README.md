@@ -15,7 +15,7 @@ A free, open-source video and audio player for Windows. Lightweight, local, and 
 - Dynamic ambient lighting that follows the scene.
 - Audio-only playback with a reactive pixel waveform.
 - One window, saved playback positions, and timeline previews.
-- Five languages, selected automatically from Windows or changed in the app.
+- Six languages, selected automatically from Windows or changed in the app.
 - A phone remote with a throwback click wheel: pair with a QR code, no app to install.
 
 ## Get started

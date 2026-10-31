@@ -7,7 +7,7 @@ This is a condensed record of the supplied release review, not a new certificati
 - Version 1.1 centralized in `src/core/version.h`; expected release tag `v1.1`.
 - Windows x64 cross-build without warnings and 25 portable tests passing.
 - Installer, silent install, uninstall, onboarding, playback, subtitle controls, fullscreen, live language switching, saved preferences, and the distributed audio engine exercised in Wine 9.
-- Language tests cover resolution, Traditional/Simplified Chinese distinction, fallback, catalogs, placeholders, plurals, persistence, and glyph coverage. Layout tests recorded roughly 27,000 checks over five languages, four sizes, DPI/window combinations, fullscreen, and vertical video.
+- Language tests cover resolution, Traditional/Simplified Chinese distinction, fallback, catalogs, placeholders, plurals, persistence, and glyph coverage. Layout tests recorded roughly 32,000 checks over six languages, four sizes, DPI/window combinations, fullscreen, and vertical video.
 - The earlier engine review checked API exports, DLL imports, hashes, codecs/filters, source archives, build recipes, and notices. The author confirmed engine build 1.1.4 working on Windows.
 - The supplied code review reported no credentials, tokens, personal paths, or logs in the release source. `.gitignore` excludes build output, logs, and local state.
 - Asset origin declarations and licenses are recorded in [ASSETS.md](ASSETS.md); engine source details are in [SOURCES.md](../third_party/libmpv/SOURCES.md).
