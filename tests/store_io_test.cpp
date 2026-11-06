@@ -41,6 +41,14 @@ int main() {
   std::string large(12000,'x');{ std::ofstream f(dir/"large",std::ios::binary);f<<large; }
   assert(file_contents_equal(dir/"large",large));large[8000]='y';assert(!file_contents_equal(dir/"large",large));
   Store loaded;assert(loaded.load(path) && loaded.volume==72);
+  // Backup copy failure aborts before renaming over the good file: make the
+  // backup path a non-empty directory so remove() + copy_file() both fail.
+  store.volume=73;
+  std::filesystem::remove_all(backup); std::filesystem::create_directories(backup/"x");
+  { std::ofstream f(backup/"x"/"y"); f<<"z"; }
+  auto before_backup_fail=bytes(path);
+  assert(!store.save(path));  // must not rename without a backup
+  assert(bytes(path)==before_backup_fail);  // good file untouched
   std::filesystem::remove_all(dir);
   std::puts("Settings I/O: after recovery-copy warm-up, 1100 unchanged saves skip file writes/backup rotation; changed settings remain atomic, recoverable and loadable");
 }

@@ -521,6 +521,7 @@ void RemoteServer::Impl::handle_http(size_t idx, const remote::Request& r) {
         resp = remote::http_response(st, st == 200 ? "application/json; charset=utf-8" : "text/plain", st == 200 ? body : "");
       } else if (cover) {
         std::string img, k = lower_path(path) + "#cover";
+        bool gate_busy = false;
         if (!thumbs_ref->get(k, img)) {
           if (gate_ref->enter(3, generation_ref, epoch)) {
             struct Leave { Gate* gate; ~Leave() { gate->leave(); } } leave{gate_ref.get()};
@@ -528,13 +529,14 @@ void RemoteServer::Impl::handle_http(size_t idx, const remote::Request& r) {
               img = make_cover(path, kCoverPx);
               if (*generation_ref == epoch) thumbs_ref->put(k, img);
             }
-          }
+          } else if (*generation_ref == epoch) gate_busy = true;
         }
-        resp = img.empty() ? remote::http_response(404, "text/plain", "") : remote::http_response(200, "image/bmp", img);
+        resp = gate_busy ? remote::http_response(503, "text/plain", "") : (img.empty() ? remote::http_response(404, "text/plain", "") : remote::http_response(200, "image/bmp", img));
       } else if (!queue_song && (!root_of(roots_copy, path) || !remote_path_allowed(root_of(roots_copy, path)->path, path) || !remote::is_playable_name(path))) {
         resp = remote::http_response(403, "text/plain", "");
       } else {
         std::string img, k = lower_path(path);
+        bool gate_busy = false;
         if (!thumbs_ref->get(k, img)) {
           if (gate_ref->enter(3, generation_ref, epoch)) {
             struct Leave { Gate* gate; ~Leave() { gate->leave(); } } leave{gate_ref.get()};
@@ -542,9 +544,9 @@ void RemoteServer::Impl::handle_http(size_t idx, const remote::Request& r) {
               img = make_thumb(path, remote::is_audio_name(path));  // a song: its square cover, centred
               if (*generation_ref == epoch) thumbs_ref->put(k, img);
             }
-          }
+          } else if (*generation_ref == epoch) gate_busy = true;
         }
-        resp = img.empty() ? remote::http_response(404, "text/plain", "") : remote::http_response(200, "image/bmp", img);
+        resp = gate_busy ? remote::http_response(503, "text/plain", "") : (img.empty() ? remote::http_response(404, "text/plain", "") : remote::http_response(200, "image/bmp", img));
       }
       if (*generation_ref == epoch) send_all(s, resp);
       shutdown(s, SD_SEND);
