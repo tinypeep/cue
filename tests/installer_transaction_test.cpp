@@ -1,10 +1,12 @@
 // g++ -std=c++20 tests/installer_transaction_test.cpp -o installer_transaction_test
 #include "../installer/file_transaction.h"
+#include <algorithm>
 #include <cassert>
 #include <chrono>
 #include <fstream>
 #include <iterator>
 #include <string>
+#include <vector>
 namespace fs = std::filesystem;
 static void put(const fs::path& p, const std::string& value) {
   fs::create_directories(p.parent_path());
@@ -13,6 +15,21 @@ static void put(const fs::path& p, const std::string& value) {
 static std::string get(const fs::path& p) {
   std::ifstream in(p, std::ios::binary);
   return {std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+}
+// Full-tree snapshot (directories + file contents), excluding the staging
+// folder: a failed commit must leave the installed tree byte-for-byte intact.
+static std::string snapshot(const fs::path& root) {
+  std::vector<std::string> entries;
+  for (const auto& e : fs::recursive_directory_iterator(root)) {
+    fs::path rel = fs::relative(e.path(), root);
+    if (rel.begin() != rel.end() && rel.begin()->string() == "stage") continue;
+    std::string key = rel.generic_string();
+    entries.push_back(e.is_directory() ? "dir:" + key : key + "=" + get(e.path()));
+  }
+  std::sort(entries.begin(), entries.end());
+  std::string out;
+  for (const auto& s : entries) { out += s; out += '\n'; }
+  return out;
 }
 int main() {
   auto root = fs::temp_directory_path() / ("cue-transaction-test-" +
@@ -61,31 +78,40 @@ int main() {
     FileTransaction tx(root, root / "stage");
     put(tx.staged("blocked.dll"), "new blocked"); tx.add("blocked.dll");
     fs::create_directories(root / "blocked.dll");
+    auto before = snapshot(root);
     std::error_code ec; assert(!tx.commit(ec)); assert(ec);
+    assert(snapshot(root) == before);
     assert(fs::is_directory(root / "blocked.dll"));
-    assert(get(root / "Cue.exe") == "new Cue.exe");
   }
+  assert(!fs::exists(root / "stage"));
   // A regular file where a parent directory should go also fails up front.
   {
     FileTransaction tx(root, root / "stage");
     // lib is a directory, but lib/engine.dll is a file: use it as the parent.
     put(tx.staged("lib/engine.dll/inner.dll"), "new inner"); tx.add("lib/engine.dll/inner.dll");
+    auto before = snapshot(root);
     std::error_code ec; assert(!tx.commit(ec)); assert(ec);
+    assert(snapshot(root) == before);
     assert(get(root / "lib/engine.dll") == "new lib/engine.dll");
   }
+  assert(!fs::exists(root / "stage"));
   // Duplicate destinations and escaping paths are rejected with nothing changed.
   {
     FileTransaction tx(root, root / "stage");
     put(tx.staged("Cue.exe"), "dup"); tx.add("Cue.exe"); tx.add("Cue.exe");
+    auto before = snapshot(root);
     std::error_code ec; assert(!tx.commit(ec)); assert(ec);
-    assert(get(root / "Cue.exe") == "new Cue.exe");
+    assert(snapshot(root) == before);
   }
+  assert(!fs::exists(root / "stage"));
   {
     FileTransaction tx(root, root / "stage");
     put(tx.staged("../evil.dll"), "evil"); tx.add("../evil.dll");
+    auto before = snapshot(root);
     std::error_code ec; assert(!tx.commit(ec)); assert(ec);
+    assert(snapshot(root) == before);
     assert(!fs::exists(root.parent_path() / "evil.dll"));
-    assert(get(root / "Cue.exe") == "new Cue.exe");
   }
+  assert(!fs::exists(root / "stage"));
   fs::remove_all(root);
 }
