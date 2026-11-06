@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <condition_variable>
 #include <cstdio>
@@ -173,8 +174,22 @@ struct Gate {
   std::mutex mu;
   std::condition_variable cv;
   int busy = 0;
-  void enter(int limit) { std::unique_lock<std::mutex> l(mu); cv.wait(l, [&] { return busy < limit; }); ++busy; }
+  // Wait for a free slot, but never queue forever: a generation change (stop() /
+  // share or token change) cancels immediately, and an 8s timeout matches the
+  // request socket timeout so one dead share cannot hold all other workers.
+  bool enter(int limit, const std::shared_ptr<std::atomic<uint64_t>>& generation, uint64_t epoch) {
+    std::unique_lock<std::mutex> l(mu);
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(8);
+    while (busy >= limit) {
+      if (*generation != epoch) return false;
+      if (cv.wait_until(l, deadline) == std::cv_status::timeout) return false;
+    }
+    if (*generation != epoch) return false;
+    ++busy;
+    return true;
+  }
   void leave() { { std::lock_guard<std::mutex> l(mu); --busy; } cv.notify_one(); }
+  void wake_all() { cv.notify_all(); }
 };
 
 struct ThumbCache {
@@ -507,11 +522,12 @@ void RemoteServer::Impl::handle_http(size_t idx, const remote::Request& r) {
       } else if (cover) {
         std::string img, k = lower_path(path) + "#cover";
         if (!thumbs_ref->get(k, img)) {
-          gate_ref->enter(3);
-          struct Leave { Gate* gate; ~Leave() { gate->leave(); } } leave{gate_ref.get()};
-          if (*generation_ref == epoch && !thumbs_ref->get(k, img)) {
-            img = make_cover(path, kCoverPx);
-            if (*generation_ref == epoch) thumbs_ref->put(k, img);
+          if (gate_ref->enter(3, generation_ref, epoch)) {
+            struct Leave { Gate* gate; ~Leave() { gate->leave(); } } leave{gate_ref.get()};
+            if (*generation_ref == epoch && !thumbs_ref->get(k, img)) {
+              img = make_cover(path, kCoverPx);
+              if (*generation_ref == epoch) thumbs_ref->put(k, img);
+            }
           }
         }
         resp = img.empty() ? remote::http_response(404, "text/plain", "") : remote::http_response(200, "image/bmp", img);
@@ -520,11 +536,12 @@ void RemoteServer::Impl::handle_http(size_t idx, const remote::Request& r) {
       } else {
         std::string img, k = lower_path(path);
         if (!thumbs_ref->get(k, img)) {
-          gate_ref->enter(3);
-          struct Leave { Gate* gate; ~Leave() { gate->leave(); } } leave{gate_ref.get()};
-          if (*generation_ref == epoch && !thumbs_ref->get(k, img)) {
-            img = make_thumb(path, remote::is_audio_name(path));  // a song: its square cover, centred
-            if (*generation_ref == epoch) thumbs_ref->put(k, img);
+          if (gate_ref->enter(3, generation_ref, epoch)) {
+            struct Leave { Gate* gate; ~Leave() { gate->leave(); } } leave{gate_ref.get()};
+            if (*generation_ref == epoch && !thumbs_ref->get(k, img)) {
+              img = make_thumb(path, remote::is_audio_name(path));  // a song: its square cover, centred
+              if (*generation_ref == epoch) thumbs_ref->put(k, img);
+            }
           }
         }
         resp = img.empty() ? remote::http_response(404, "text/plain", "") : remote::http_response(200, "image/bmp", img);
@@ -798,6 +815,7 @@ void RemoteServer::stop(bool tell_phones) {
   if (!d_->running) return;
   d_->tell = tell_phones;
   ++*d_->generation;
+  d_->gate->wake_all();
   d_->quit = true;
   if (d_->th.joinable()) d_->th.join();
   closesocket(d_->lsock);
@@ -861,6 +879,7 @@ void RemoteServer::set_roots(std::vector<Root> roots) {
   std::lock_guard<std::mutex> l(d_->mu);
   d_->roots = std::move(roots);
   ++*d_->generation;
+  d_->gate->wake_all();
 }
 
 void RemoteServer::set_progress(std::vector<std::pair<std::string, Progress>> items) {
@@ -875,6 +894,7 @@ void RemoteServer::set_tokens(std::vector<std::string> tokens) {
   d_->tokens.clear();
   for (const auto& t : tokens) if (remote::valid_token(t) && d_->tokens.size() < remote::kMaxTokens) d_->tokens.insert(t);
   ++*d_->generation;
+  d_->gate->wake_all();
 }
 
 void RemoteServer::set_pairing(bool open, const std::string& code) {

@@ -280,5 +280,9 @@ DWORD WINAPI cleanup_updates(void*) {
 }
 void update_cleanup_async() {
   HANDLE worker=CreateThread(nullptr,0,cleanup_updates,nullptr,CREATE_SUSPENDED,nullptr);
-  if(worker){SetThreadPriority(worker,THREAD_PRIORITY_BELOW_NORMAL);ResumeThread(worker);CloseHandle(worker);}
+  if(worker){
+    SetThreadPriority(worker,THREAD_PRIORITY_BELOW_NORMAL);
+    if(ResumeThread(worker)==(DWORD)-1) TerminateThread(worker,0);
+    CloseHandle(worker);
+  }
 }

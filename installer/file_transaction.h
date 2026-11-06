@@ -61,6 +61,25 @@ class FileTransaction {
     return true;
   }
   bool commit(std::error_code& error) {
+    // Pre-validate every destination up front (and every staged source) before any
+    // rename, so a bad entry (a directory or reparse point where a file should go)
+    // fails with nothing changed instead of leaving a mixed new/old install.
+    for (auto& e : entries_) {
+      auto dst = root_ / e.rel;
+      bool dst_exists = std::filesystem::exists(dst, error);
+      if (error) return fail(error);
+      if (dst_exists && !std::filesystem::is_regular_file(dst, error)) {
+        if (!error) error = std::make_error_code(std::errc::invalid_argument);
+        return fail(error);
+      }
+      if (!e.remove) {
+        auto src = staged(e.rel);
+        if (!std::filesystem::is_regular_file(src, error)) {
+          if (!error) error = std::make_error_code(std::errc::no_such_file_or_directory);
+          return fail(error);
+        }
+      }
+    }
     for (auto& e : entries_) {
       auto dst = root_ / e.rel, backup = work_ / "old" / e.rel;
       bool exists = std::filesystem::exists(dst, error);

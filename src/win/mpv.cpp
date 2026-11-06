@@ -39,7 +39,7 @@ bool Mpv::load(const std::wstring& dir, std::string* err) {
   sym(dll_, "mpv_command_ret", api_.command_ret);  // optional
   // every symbol above exists since client API 1.100 (mpv 0.28); newer options fall back by name
   unsigned long v = api_.client_api_version();
-  if (v < ((1ul << 16) | 100)) { if (err) *err = i18n::key_name(str::engine_too_old); return false; }
+  if (v < ((1ul << 16) | 100)) { if (err) *err = i18n::key_name(str::engine_too_old); FreeLibrary(dll_); dll_ = nullptr; api_ = MpvApi{}; return false; }
   return true;
 }
 

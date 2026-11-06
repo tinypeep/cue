@@ -47,16 +47,26 @@ bool decode_image(const std::string& encoded, std::vector<uint32_t>& px, int& w,
       double k = std::min(1.0, (double)max_side / std::max(fw, fh));
       UINT tw = std::max(1u, (UINT)std::lround(fw * k)), th = std::max(1u, (UINT)std::lround(fh * k));
       IWICBitmapSource* src = frame;
-      if ((tw != fw || th != fh) && SUCCEEDED(wic->CreateBitmapScaler(&scaler)) &&
-          SUCCEEDED(scaler->Initialize(frame, tw, th, WICBitmapInterpolationModeFant)))
-        src = scaler;
-      else { tw = fw; th = fh; }
+      const bool needs_scale = (tw != fw || th != fh);
+      bool scaler_failed = false;
+      if (needs_scale) {
+        // Fail closed when scaling is required but unavailable: falling back to the
+        // full frame would allocate up to 16384x16384 pixels (~1 GiB) for one crafted cover.
+        if (!SUCCEEDED(wic->CreateBitmapScaler(&scaler)) ||
+            !SUCCEEDED(scaler->Initialize(frame, tw, th, WICBitmapInterpolationModeFant)))
+          scaler_failed = true;
+        else
+          src = scaler;
+      }
+      // Defense in depth: never assign an unbounded pixel buffer.
+      if (!scaler_failed && (uint64_t)tw * th <= (1ull << 26)) {  // 67M px ~= 256 MiB BGRA
       if (SUCCEEDED(wic->CreateFormatConverter(&conv)) &&
           SUCCEEDED(conv->Initialize(src, GUID_WICPixelFormat32bppBGRA, WICBitmapDitherTypeNone, nullptr, 0, WICBitmapPaletteTypeCustom))) {
         px.assign((size_t)tw * th, 0);
         if (SUCCEEDED(conv->CopyPixels(nullptr, tw * 4, (UINT)(px.size() * 4), reinterpret_cast<BYTE*>(px.data())))) {
           w = (int)tw; h = (int)th; ok = true;
         }
+      }
       }
     }
   }

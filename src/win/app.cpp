@@ -1760,8 +1760,19 @@ void App::configure_audio_mode() {
     if (cover && cover_vid_ > 0 && cover_job_) {
       // the bars were looked for since the song was opened (usually done by now); the engine is
       // waiting for this graph, so not for long. Only when it is the same picture the engine has.
+      // Pump while waiting so paint/input stay responsive instead of freezing on Sleep(1).
       const ULONGLONG until = GetTickCount64() + 60;
-      while (!cover_job_->done.load() && GetTickCount64() < until) Sleep(1);
+      while (!cover_job_->done.load() && GetTickCount64() < until) {
+        const DWORD remaining = (DWORD)std::max<ULONGLONG>(1, until - GetTickCount64());
+        const DWORD waited = MsgWaitForMultipleObjects(0, nullptr, FALSE, remaining, QS_ALLINPUT);
+        if (waited == WAIT_OBJECT_0) {
+          MSG msg{};
+          while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
+            TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+          }
+        }
+      }
       const auto& j = *cover_job_;
       int tw = 0, th = 0;
       for (auto& t : tracks) if (t.id == cover_vid_) { tw = t.demux_w; th = t.demux_h; }

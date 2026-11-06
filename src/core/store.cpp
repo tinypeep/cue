@@ -1,5 +1,11 @@
 #include <chrono>
 #include <thread>
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <fcntl.h>
+#include <unistd.h>
+#endif
 #include "store.h"
 #include "remote_proto.h"
 #include "file_io.h"
@@ -234,12 +240,29 @@ bool SettingsStore::save(const std::filesystem::path& path) const {
     f << o;
     f.flush();
     if (!f) return false;
+    f.close();
+    if (!f) return false;
+    // Push the temp file to disk before it replaces the good state, so a power
+    // loss cannot leave a torn .tmp behind a missing .bak.
+#ifdef _WIN32
+    HANDLE flush_h = CreateFileW(tmp.native().c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr,
+                                 OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (flush_h != INVALID_HANDLE_VALUE) { FlushFileBuffers(flush_h); CloseHandle(flush_h); }
+#else
+    int flush_fd = ::open(tmp.native().c_str(), O_RDONLY);
+    if (flush_fd >= 0) { ::fsync(flush_fd); ::close(flush_fd); }
+#endif
   }
   std::error_code ec;
-  if (std::filesystem::exists(path, ec)) {
+  bool had_path = std::filesystem::exists(path, ec);
+  if (ec) return false;
+  if (had_path) {
     // the previous good version becomes the backup (remove first: overwrite is unreliable on some runtimes)
-    std::filesystem::remove(bak, ec);
-    std::filesystem::copy_file(path, bak, ec);
+    std::error_code remove_ec;
+    std::filesystem::remove(bak, remove_ec);  // missing backup is fine; copy below reports real errors
+    std::error_code copy_ec;
+    std::filesystem::copy_file(path, bak, copy_ec);
+    if (copy_ec) return false;  // never rename over the good file without a backup
   }
   // atomic replace on the same volume; something reading the file for a moment (an antivirus,
   // the search indexer, a Cue being started) can refuse it: a few short tries, then give up
