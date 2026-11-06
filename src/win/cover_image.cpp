@@ -25,7 +25,10 @@ bool cover_image(const std::string& path, std::vector<uint32_t>& px, int& w, int
 }
 
 bool decode_image(const std::string& encoded, std::vector<uint32_t>& px, int& w, int& h, int max_side, int* full_w, int* full_h) {
-  if (encoded.empty()) return false;
+  if (encoded.empty() || max_side <= 0) return false;
+  // InitializeFromMemory takes a DWORD length: a larger input would be
+  // silently truncated and decoded as a different (prefix) image.
+  if (encoded.size() > 0xFFFFFFFFull) return false;
   std::string data = encoded;
   bool ok = false;
   IWICImagingFactory* wic = nullptr;
@@ -58,15 +61,26 @@ bool decode_image(const std::string& encoded, std::vector<uint32_t>& px, int& w,
         else
           src = scaler;
       }
-      // Defense in depth: never assign an unbounded pixel buffer.
-      if (!scaler_failed && (uint64_t)tw * th <= (1ull << 26)) {  // 67M px ~= 256 MiB BGRA
-      if (SUCCEEDED(wic->CreateFormatConverter(&conv)) &&
-          SUCCEEDED(conv->Initialize(src, GUID_WICPixelFormat32bppBGRA, WICBitmapDitherTypeNone, nullptr, 0, WICBitmapPaletteTypeCustom))) {
-        px.assign((size_t)tw * th, 0);
-        if (SUCCEEDED(conv->CopyPixels(nullptr, tw * 4, (UINT)(px.size() * 4), reinterpret_cast<BYTE*>(px.data())))) {
-          w = (int)tw; h = (int)th; ok = true;
+      // Defense in depth: never assign an unbounded pixel buffer. The intended
+      // output is at most max_side px a side (k scales down to it), so the
+      // pixel count can never legitimately exceed max_side^2; the absolute
+      // 67M px (~256 MiB BGRA) ceiling additionally bounds large max_side
+      // callers.
+      const uint64_t cap = std::min<uint64_t>(1ull << 26, (uint64_t)max_side * (uint64_t)max_side);
+      if (!scaler_failed && (uint64_t)tw * th <= cap) {
+        if (SUCCEEDED(wic->CreateFormatConverter(&conv)) &&
+            SUCCEEDED(conv->Initialize(src, GUID_WICPixelFormat32bppBGRA, WICBitmapDitherTypeNone, nullptr, 0, WICBitmapPaletteTypeCustom))) {
+          try {
+            px.assign((size_t)tw * th, 0);
+          } catch (...) {
+            px.clear();
+            for (IUnknown* u : std::initializer_list<IUnknown*>{conv, scaler, frame, dec, stream, wic}) if (u) u->Release();
+            return false;
+          }
+          if (SUCCEEDED(conv->CopyPixels(nullptr, tw * 4, (UINT)(px.size() * 4), reinterpret_cast<BYTE*>(px.data())))) {
+            w = (int)tw; h = (int)th; ok = true;
+          }
         }
-      }
       }
     }
   }

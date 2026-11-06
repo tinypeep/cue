@@ -25,6 +25,7 @@
 #include "platform.h"
 #include "../core/json.h"
 #include "cover_image.h"
+#include "remote_gate.h"
 
 namespace {
 #include "remote_page.inc"
@@ -170,27 +171,7 @@ std::string make_thumb(const std::string& path, bool square) {
 std::string make_cover(const std::string& path, int n) { return make_image(path, n, n, n); }
 constexpr int kCoverPx = 72;  // shown at 2x: big, honest pixels, like the eyes it replaces
 
-struct Gate {
-  std::mutex mu;
-  std::condition_variable cv;
-  int busy = 0;
-  // Wait for a free slot, but never queue forever: a generation change (stop() /
-  // share or token change) cancels immediately, and an 8s timeout matches the
-  // request socket timeout so one dead share cannot hold all other workers.
-  bool enter(int limit, const std::shared_ptr<std::atomic<uint64_t>>& generation, uint64_t epoch) {
-    std::unique_lock<std::mutex> l(mu);
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(8);
-    while (busy >= limit) {
-      if (*generation != epoch) return false;
-      if (cv.wait_until(l, deadline) == std::cv_status::timeout) return false;
-    }
-    if (*generation != epoch) return false;
-    ++busy;
-    return true;
-  }
-  void leave() { { std::lock_guard<std::mutex> l(mu); --busy; } cv.notify_one(); }
-  void wake_all() { cv.notify_all(); }
-};
+// Gate lives in remote_gate.h so its concurrency contract is testable on its own.
 
 struct ThumbCache {
   std::mutex mu;

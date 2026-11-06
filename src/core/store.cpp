@@ -234,45 +234,76 @@ bool SettingsStore::save(const std::filesystem::path& path) const {
     return true;
   }
   // safe write: a temporary file, the previous version kept as .bak, then an atomic swap
+  auto abandon_tmp = [&]() {
+    std::error_code cleanup_ec;
+    std::filesystem::remove(tmp, cleanup_ec);  // a failed save must not leave a stale .tmp behind
+    return false;
+  };
   {
     std::ofstream f(tmp, std::ios::binary | std::ios::trunc);
-    if (!f) return false;
+    if (!f) return abandon_tmp();
     f << o;
     f.flush();
-    if (!f) return false;
+    if (!f) return abandon_tmp();
     f.close();
-    if (!f) return false;
+    if (!f) return abandon_tmp();
     // Push the temp file to disk before it replaces the good state, so a power
-    // loss cannot leave a torn .tmp behind a missing .bak.
+    // loss cannot leave a torn .tmp behind a missing .bak. Fail closed: a flush
+    // that cannot be performed must not be silently skipped.
 #ifdef _WIN32
     HANDLE flush_h = CreateFileW(tmp.native().c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr,
                                  OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (flush_h != INVALID_HANDLE_VALUE) { FlushFileBuffers(flush_h); CloseHandle(flush_h); }
+    if (flush_h == INVALID_HANDLE_VALUE) return abandon_tmp();
+    BOOL flushed = FlushFileBuffers(flush_h);
+    CloseHandle(flush_h);
+    if (!flushed) return abandon_tmp();
 #else
-    int flush_fd = ::open(tmp.native().c_str(), O_RDONLY);
-    if (flush_fd >= 0) { ::fsync(flush_fd); ::close(flush_fd); }
+    // O_RDWR: fsync on an O_RDONLY descriptor is EBADF on some platforms.
+    int flush_fd = ::open(tmp.native().c_str(), O_RDWR);
+    if (flush_fd < 0) return abandon_tmp();
+    int flushed = ::fsync(flush_fd);
+    ::close(flush_fd);
+    if (flushed != 0) return abandon_tmp();
 #endif
   }
   std::error_code ec;
   bool had_path = std::filesystem::exists(path, ec);
-  if (ec) return false;
+  if (ec) return abandon_tmp();
   if (had_path) {
     // the previous good version becomes the backup (remove first: overwrite is unreliable on some runtimes)
     std::error_code remove_ec;
     std::filesystem::remove(bak, remove_ec);  // missing backup is fine; copy below reports real errors
     std::error_code copy_ec;
     std::filesystem::copy_file(path, bak, copy_ec);
-    if (copy_ec) return false;  // never rename over the good file without a backup
+    if (copy_ec) return abandon_tmp();  // never rename over the good file without a backup
   }
   // atomic replace on the same volume; something reading the file for a moment (an antivirus,
   // the search indexer, a Cue being started) can refuse it: a few short tries, then give up
   for (int attempt = 0; attempt < 6; ++attempt) {
     ec.clear();
     std::filesystem::rename(tmp, path, ec);
-    if (!ec) return true;
+    if (!ec) {
+      // Best effort: make the rename itself durable. Ignoring failure here is
+      // safe (the file is already in place); failing the save would be wrong.
+#ifdef _WIN32
+      std::filesystem::path parent = path.parent_path();
+      if (!parent.empty()) {
+        HANDLE dir_h = CreateFileW(parent.native().c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                   nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+        if (dir_h != INVALID_HANDLE_VALUE) { FlushFileBuffers(dir_h); CloseHandle(dir_h); }
+      }
+#else
+      {
+        std::filesystem::path parent = path.parent_path();
+        int dir_fd = parent.empty() ? ::open(".", O_RDONLY) : ::open(parent.native().c_str(), O_RDONLY);
+        if (dir_fd >= 0) { ::fsync(dir_fd); ::close(dir_fd); }
+      }
+#endif
+      return true;
+    }
     std::this_thread::sleep_for(std::chrono::milliseconds(15 + 15 * attempt));
   }
-  return false;
+  return abandon_tmp();
 }
 
 RecentItem* SettingsStore::find(const std::string& p) {

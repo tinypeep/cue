@@ -49,6 +49,7 @@ int main() {
   auto before_backup_fail=bytes(path);
   assert(!store.save(path));  // must not rename without a backup
   assert(bytes(path)==before_backup_fail);  // good file untouched
+  assert(!std::filesystem::exists(dir/"state.json.tmp"));  // failed save leaves no stale .tmp
   std::filesystem::remove_all(dir);
   std::puts("Settings I/O: after recovery-copy warm-up, 1100 unchanged saves skip file writes/backup rotation; changed settings remain atomic, recoverable and loadable");
 }

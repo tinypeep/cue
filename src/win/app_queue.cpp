@@ -90,7 +90,16 @@ void App::queue_folder(const std::string& path,bool replace,bool from_remote) {
   HANDLE worker=CreateThread(nullptr,0,scan_folder,context,CREATE_SUSPENDED,nullptr);
   if(!worker) {delete context;say(tr(str::notice_open_failed));queue_notice(tr(str::notice_open_failed),3);return;}
   SetThreadPriority(worker,THREAD_PRIORITY_BELOW_NORMAL);
-  folder_scan_=job; ResumeThread(worker); CloseHandle(worker);
+  if(ResumeThread(worker)==(DWORD)-1) {
+    // The thread never ran: terminate the suspended worker, release the job
+    // it owned, and do not leave folder_scan_ waiting on a scan that cannot
+    // finish (the timer would spin on a job that never becomes done).
+    TerminateThread(worker,0);
+    CloseHandle(worker);
+    delete context;
+    say(tr(str::notice_open_failed));queue_notice(tr(str::notice_open_failed),3);return;
+  }
+  folder_scan_=job; CloseHandle(worker);
   SetTimer(hwnd_,T_FOLDER,50,nullptr); say(tr(str::queue_reading));queue_notice(tr(str::queue_reading));
 }
 

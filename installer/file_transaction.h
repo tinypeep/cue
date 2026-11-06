@@ -60,23 +60,91 @@ class FileTransaction {
     for (const auto& e : entries_) if (e.backed_up || e.installed) return false;
     return true;
   }
+  // Defense in depth (the installer checks this too): a transaction must
+  // never be able to escape root_/work_ or address a non-file component.
+  static bool safe_rel(const std::filesystem::path& rel) {
+    if (rel.empty() || rel.has_root_path() || rel.is_absolute()) return false;
+    for (const auto& part : rel) {
+      if (part.empty() || part == "." || part == "..") return false;
+      // Char-level check on the native representation (no encoding conversion):
+      // ':' marks a drive/ADS component, NUL can never be a real name.
+      for (auto c : part.native()) if (c == ':' || c == '\0') return false;
+    }
+    return true;
+  }
+  // Case-folded (ASCII) lexical duplicate check, on native paths.
+  static bool same_rel(const std::filesystem::path& a, const std::filesystem::path& b) {
+    auto na = a.lexically_normal().native(), nb = b.lexically_normal().native();
+    if (na.size() != nb.size()) return false;
+    for (size_t i = 0; i < na.size(); ++i) {
+      auto ca = na[i], cb = nb[i];
+      if (ca >= 'A' && ca <= 'Z') ca = (char)(ca + ('a' - 'A'));
+      if (cb >= 'A' && cb <= 'Z') cb = (char)(cb + ('a' - 'A'));
+      if (ca != cb) return false;
+    }
+    return true;
+  }
+  // Every existing ancestor of base/rel (excluding the file itself) must be a
+  // real directory, not a file or a link: otherwise create_directories()
+  // would fail in the middle of commit, after earlier entries were moved.
+  static bool ancestors_are_dirs(const std::filesystem::path& base, const std::filesystem::path& rel,
+                                 std::error_code& ec) {
+    std::filesystem::path cur = base;
+    for (const auto& part : rel.parent_path()) {
+      cur /= part;
+      ec.clear();
+      auto st = std::filesystem::symlink_status(cur, ec);
+      if (st.type() == std::filesystem::file_type::not_found) { ec.clear(); continue; }
+      if (ec) return false;
+      // A link in the middle of the path could redirect the commit outside
+      // root_/work_; a file there makes create_directories() fail mid-commit.
+      if (std::filesystem::is_symlink(st) || !std::filesystem::is_directory(st)) {
+        ec = std::make_error_code(std::errc::invalid_argument);
+        return false;
+      }
+    }
+    ec.clear();
+    return true;
+  }
   bool commit(std::error_code& error) {
+    error.clear();
     // Pre-validate every destination up front (and every staged source) before any
     // rename, so a bad entry (a directory or reparse point where a file should go)
     // fails with nothing changed instead of leaving a mixed new/old install.
-    for (auto& e : entries_) {
-      auto dst = root_ / e.rel;
-      bool dst_exists = std::filesystem::exists(dst, error);
-      if (error) return fail(error);
-      if (dst_exists && !std::filesystem::is_regular_file(dst, error)) {
-        if (!error) error = std::make_error_code(std::errc::invalid_argument);
-        return fail(error);
-      }
-      if (!e.remove) {
-        auto src = staged(e.rel);
-        if (!std::filesystem::is_regular_file(src, error)) {
-          if (!error) error = std::make_error_code(std::errc::no_such_file_or_directory);
+    {
+      std::vector<std::filesystem::path> seen;
+      for (auto& e : entries_) {
+        std::error_code check_ec;
+        if (!safe_rel(e.rel)) {
+          error = std::make_error_code(std::errc::invalid_argument);
           return fail(error);
+        }
+        // A duplicate destination would back up the file this same commit
+        // installed and lose the original: reject it before touching anything.
+        for (const auto& prev : seen) if (same_rel(prev, e.rel)) {
+          error = std::make_error_code(std::errc::invalid_argument);
+          return fail(error);
+        }
+        seen.push_back(e.rel);
+        if (!ancestors_are_dirs(root_, e.rel, check_ec) ||
+            !ancestors_are_dirs(work_ / "old", e.rel, check_ec)) {
+          error = check_ec ? check_ec : std::make_error_code(std::errc::invalid_argument);
+          return fail(error);
+        }
+        auto dst = root_ / e.rel;
+        bool dst_exists = std::filesystem::exists(dst, check_ec);
+        if (check_ec) { error = check_ec; return fail(error); }
+        if (dst_exists && !std::filesystem::is_regular_file(dst, check_ec)) {
+          error = check_ec ? check_ec : std::make_error_code(std::errc::invalid_argument);
+          return fail(error);
+        }
+        if (!e.remove) {
+          auto src = staged(e.rel);
+          check_ec.clear();
+          if (!std::filesystem::is_regular_file(src, check_ec)) {
+            error = check_ec ? check_ec : std::make_error_code(std::errc::no_such_file_or_directory);
+            return fail(error);
+          }
         }
       }
     }

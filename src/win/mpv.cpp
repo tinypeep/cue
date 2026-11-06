@@ -13,6 +13,8 @@ static bool sym(HMODULE m, const char* name, F& out) {
 }
 
 bool Mpv::load(const std::wstring& dir, std::string* err) {
+  if (dll_) return true;  // already loaded: never overwrite (and leak) the module handle
+  api_ = MpvApi{};        // no dangling pointers from a previous failed load
   const wchar_t* names[] = {L"libmpv-2.dll", L"mpv-2.dll", L"mpv-1.dll", L"mpv.dll"};
   for (auto n : names) {
     std::wstring full = dir + L"\\" + n;
@@ -35,7 +37,7 @@ bool Mpv::load(const std::wstring& dir, std::string* err) {
             sym(dll_, "mpv_set_wakeup_callback", api_.set_wakeup_callback) && sym(dll_, "mpv_free", api_.free) &&
             sym(dll_, "mpv_free_node_contents", api_.free_node_contents) && sym(dll_, "mpv_hook_add", api_.hook_add) &&
             sym(dll_, "mpv_hook_continue", api_.hook_continue) && sym(dll_, "mpv_error_string", api_.error_string);
-  if (!ok) { if (err) *err = i18n::key_name(str::engine_too_old); FreeLibrary(dll_); dll_ = nullptr; return false; }
+  if (!ok) { if (err) *err = i18n::key_name(str::engine_too_old); FreeLibrary(dll_); dll_ = nullptr; api_ = MpvApi{}; return false; }
   sym(dll_, "mpv_command_ret", api_.command_ret);  // optional
   // every symbol above exists since client API 1.100 (mpv 0.28); newer options fall back by name
   unsigned long v = api_.client_api_version();

@@ -1761,19 +1761,29 @@ void App::configure_audio_mode() {
       // the bars were looked for since the song was opened (usually done by now); the engine is
       // waiting for this graph, so not for long. Only when it is the same picture the engine has.
       // Pump while waiting so paint/input stay responsive instead of freezing on Sleep(1).
+      // Snapshot the job: a dispatched message may replace cover_job_ (a new
+      // file opened while pumping), and the crop below must still describe
+      // the picture this graph was built for. Bound the messages handled per
+      // wait so a flood cannot stretch the wait past its deadline, and stop
+      // if the app is closing (WM_CLOSE dispatched above).
+      auto job = cover_job_;
       const ULONGLONG until = GetTickCount64() + 60;
-      while (!cover_job_->done.load() && GetTickCount64() < until) {
+      while (!job->done.load() && !closing_app_ && GetTickCount64() < until) {
         const DWORD remaining = (DWORD)std::max<ULONGLONG>(1, until - GetTickCount64());
         const DWORD waited = MsgWaitForMultipleObjects(0, nullptr, FALSE, remaining, QS_ALLINPUT);
         if (waited == WAIT_OBJECT_0) {
           MSG msg{};
-          while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
+          int handled = 0;
+          while (handled < 64 && PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
+            ++handled;
             TranslateMessage(&msg);
             DispatchMessageW(&msg);
+            if (closing_app_) break;
           }
         }
       }
-      const auto& j = *cover_job_;
+      if (closing_app_) return;
+      const auto& j = *job;
       int tw = 0, th = 0;
       for (auto& t : tracks) if (t.id == cover_vid_) { tw = t.demux_w; th = t.demux_h; }
       if (j.done.load() && j.found && tw > 0 && th > 0 && j.full_w > 0 && j.full_h > 0 &&
