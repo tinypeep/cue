@@ -41,7 +41,7 @@ More controls and settings: [User guide](docs/GUIDE.md).
 
 ## Build
 
-Use `build.bat` in an MSVC x64 developer prompt, `make CROSS=` with MinGW-w64, or `make` on Linux with `g++-mingw-w64-x86-64`.
+Use `build.bat` in an MSVC x64 developer prompt, `make CROSS=` with MinGW-w64, or `make` on Linux with `g++-mingw-w64-x86-64`. Builds are parallel by default (`make JOBS=8` to limit); `make dev` is a faster `-O1` no-LTO iteration build.
 Place the release's `libmpv-2.dll` in `build/Cue/`. Run `make setup` to build the installer.
 
 Portable tests: `bash tools/test.sh`. Playback and native interactions require Windows validation.

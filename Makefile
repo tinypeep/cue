@@ -5,8 +5,29 @@ CXX := $(CROSS)g++
 CC := $(CROSS)gcc
 WINDRES := $(CROSS)windres
 OFFICIAL ?= 0
-CXXFLAGS = -DCUE_OFFICIAL_BUILD=$(OFFICIAL)  -MMD -MP -std=c++20 -O2 -flto -ffunction-sections -fdata-sections -Wall -Wextra -Wno-missing-field-initializers -DUNICODE -D_UNICODE -DWIN32_LEAN_AND_MEAN -D_WIN32_WINNT=0x0A00 -DNOMINMAX
-LDFLAGS = -flto=2 -Wl,--gc-sections -municode -mwindows -static -static-libgcc -static-libstdc++ -s
+# Parallel build by default. Override with e.g. `make JOBS=8` (and
+# LTO_JOBS=4 to limit link-time optimisation threads on small machines).
+# An explicit -j/--jobs on the command line always wins.
+# When clean is among the goals, stay serial: `rm -rf build` would race
+# with compiles writing dependency files into build/ ("opening
+# dependency file ... no such file or directory").
+JOBS ?= $(shell nproc 2>/dev/null || echo 4)
+LTO_JOBS ?= $(JOBS)
+ifeq ($(filter clean,$(MAKECMDGOALS)),)
+ifeq ($(findstring -j,$(MAKEFLAGS))$(findstring --jobs,$(MAKEFLAGS)),)
+MAKEFLAGS += -j$(JOBS)
+endif
+endif
+# `make dev` is a fast iteration profile: -O1 without LTO.
+# Switching PROFILE rewrites build/identity, which forces a full
+# rebuild, so release and dev objects never mix.
+ifeq ($(PROFILE),dev)
+CXXFLAGS = -DCUE_OFFICIAL_BUILD=$(OFFICIAL)  -MMD -MP -std=c++20 -O1 -pipe -ffunction-sections -fdata-sections -Wall -Wextra -Wno-missing-field-initializers -DUNICODE -D_UNICODE -DWIN32_LEAN_AND_MEAN -D_WIN32_WINNT=0x0A00 -DNOMINMAX
+LDFLAGS = -Wl,--gc-sections -municode -mwindows -static -static-libgcc -static-libstdc++ -s
+else
+CXXFLAGS = -DCUE_OFFICIAL_BUILD=$(OFFICIAL)  -MMD -MP -std=c++20 -O2 -flto -pipe -ffunction-sections -fdata-sections -Wall -Wextra -Wno-missing-field-initializers -DUNICODE -D_UNICODE -DWIN32_LEAN_AND_MEAN -D_WIN32_WINNT=0x0A00 -DNOMINMAX
+LDFLAGS = -flto=$(LTO_JOBS) -Wl,--gc-sections -municode -mwindows -static -static-libgcc -static-libstdc++ -s
+endif
 LIBS = -ldwmapi -lole32 -lshell32 -luuid -lshcore -lcomdlg32 -lwinmm -lwindowscodecs -lwinhttp -lbcrypt -lws2_32 -liphlpapi
 SRC = $(wildcard src/core/*.cpp) $(wildcard src/ui/*.cpp) $(wildcard src/win/*.cpp)
 OBJ = $(patsubst src/%.cpp,build/obj/%.o,$(SRC)) build/obj/res.o
@@ -18,7 +39,7 @@ all: build/Cue/Cue.exe
 .PHONY: FORCE
 build/identity: FORCE
 	@mkdir -p build
-	@echo $(OFFICIAL) | cmp -s - $@ || echo $(OFFICIAL) > $@
+	@echo '$(OFFICIAL) $(PROFILE)' | cmp -s - $@ || echo '$(OFFICIAL) $(PROFILE)' > $@
 
 $(OBJ) $(SETUP_OBJ): build/identity src/core/build_identity.h
 
@@ -80,11 +101,17 @@ setup: build/Cue/Cue.exe build/setup/stub.exe
 clean:
 	rm -rf build
 
+# Fast local iteration build (-O1, no LTO). No clean needed: the
+# build/identity stamp already forces a full rebuild when PROFILE
+# changes, so release and dev objects never mix.
+dev:
+	$(MAKE) all PROFILE=dev
+
 # ── translations ───────────────────────────────────────────────────
 # i18n/*.json -> src/core/strings.h + src/core/i18n_catalog.inc (checked in, like assets.inc)
 i18n:
 	python3 tools/gen_i18n.py
 
-.PHONY: all clean setup i18n
+.PHONY: all clean setup i18n dev
 
 -include $(OBJ:.o=.d) $(SETUP_OBJ:.o=.d)
