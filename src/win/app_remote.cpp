@@ -32,7 +32,7 @@ bool App::remote_start() {
     return false;
   }
   trace("remote on port " + std::to_string(remote_.port()));
-  remote_.set_tokens(store_.remote_tokens);
+  remote_.set_credentials(store_.remote_credentials);
   remote_queue_revision_=~uint64_t(0);
   remote_boot();
   remote_roots();
@@ -50,7 +50,7 @@ void App::remote_stop(bool tell_phones) {
   remote_verified_path_.clear();
   if (folder_scan_ && folder_scan_->remote) folder_scan_->cancelled = true;
   remote_.stop(tell_phones);
-  if (tell_phones) { store_.remote_tokens.clear(); remote_.set_tokens({}); save_state(); }
+  if (tell_phones) { store_.remote_credentials.clear(); remote_.set_credentials({}); save_state(); }
   remote_devices_.clear();
   if (scene_.visible()) scene_.view.phones.clear();
   if (!remote_timer_) KillTimer(hwnd_, T_REMOTE);
@@ -206,9 +206,10 @@ void App::remote_events() {
   for (auto& e : remote_.take_events()) {
     if (e.kind == RemoteServer::Event::Command) { remote_command(e.cmd); continue; }
     if (e.kind == RemoteServer::Event::Paired) {
-      store_.remote_tokens.push_back(e.token);
-      while (store_.remote_tokens.size() > remote::kMaxTokens) store_.remote_tokens.erase(store_.remote_tokens.begin());
-      remote_.set_tokens(store_.remote_tokens);
+      // The server hands over the credential itself; it is encrypted from here on.
+      store_.remote_credentials.push_back(e.key);
+      while (store_.remote_credentials.size() > remote::kMaxTokens) store_.remote_credentials.erase(store_.remote_credentials.begin());
+      remote_.set_credentials(store_.remote_credentials);
       save_state();
     }
     if (e.kind == RemoteServer::Event::Disconnected) {
@@ -304,7 +305,7 @@ void App::remote_command(const remote::Command& c) {
   double t = now();
   PlayInput& in = play_.in;
   const std::string& k = c.c;
-  if ((!c.credential.empty() && std::find(store_.remote_tokens.begin(), store_.remote_tokens.end(), c.credential) == store_.remote_tokens.end()) ||
+  if ((!c.credential.empty() && std::find(store_.remote_credentials.begin(), store_.remote_credentials.end(), c.credential) == store_.remote_credentials.end()) ||
       (c.has_media && c.media != remote_media_epoch_)) { remote_publish(); return; }
   if (!c.path_validated && (k == "open" || k == "next" || k == "queue-play" || k == "queue-add" || k == "queue-folder")) {
     remote_validate(c); return;

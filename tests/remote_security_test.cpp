@@ -10,6 +10,20 @@ using namespace remote;
 int main() {
   assert(kCodeDigits == 6 && valid_token(std::string(64,'a')));
   assert(!valid_token(std::string(32,'a')) && !valid_token(std::string(64,'g')));
+  // the hash of a token: the server keeps this, never the token. SHA-256 against
+  // the published test vectors, so a mistake in the hash is caught here.
+  assert(hex(sha256("abc")) == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+  assert(hex(sha256("")) == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+  {
+    const std::string token = std::string(64,'a');
+    const std::string hash = token_hash(token);
+    assert(valid_token_hash(hash) && hash != token && hash == token_hash(token));
+    assert(token_hash(std::string(64,'b')) != hash);
+  }
+  // a secret is compared without an early exit: the time must not say how much
+  // of it was right
+  assert(same_secret("123456", "123456") && !same_secret("123456", "123457"));
+  assert(!same_secret("123456", "1234567") && !same_secret("", "0"));
   for (auto h : {"192.168.31.226:7878", "127.0.0.1:7878", "localhost:7878"}) assert(valid_authority(h));
   for (auto h : {"evil.test:7878", "192.168.1.300:7878", "192.168.1.1.evil", "1.2.3:7878", "192.168.1.1:0", "192.168.1.1:65536", "010.0.0.1", "1.2.3.4:80:81"}) assert(!valid_authority(h));
   assert(valid_ws_key("dGhlIHNhbXBsZSBub25jZQ=="));
@@ -62,5 +76,5 @@ int main() {
     Canvas canvas; view.render(canvas,3);
     assert(canvas.w==dims.first && canvas.h==dims.second);
   }
-  std::puts("Remote security: strict HTTP/WS/JSON, credential migration, path attacks, command ranges, rate limits, 12000 malformed inputs and portrait/landscape pointer routes passed");
+  std::puts("Remote security: strict HTTP/WS/JSON, hashed credentials, credential migration, path attacks, command ranges, rate limits, 12000 malformed inputs and portrait/landscape pointer routes passed");
 }

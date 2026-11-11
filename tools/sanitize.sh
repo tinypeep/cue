@@ -13,10 +13,12 @@ for src in src/core/*.cpp src/ui/*.cpp installer/setup_ui.cpp; do
 done
 export ASAN_OPTIONS=${ASAN_OPTIONS:-detect_leaks=1} UBSAN_OPTIONS=${UBSAN_OPTIONS:-print_stacktrace=1}
 bad=0
+CRYPT32=
+if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* || "$OSTYPE" == win* ]]; then CRYPT32=-lcrypt32; fi
 for t in tests/*_test.cpp; do
   [[ $t == tests/*_engine_test.cpp || $t == tests/ui_language_win_test.cpp ]] && continue
   n=$(basename "${t%.cpp}")
-  g++ $F "$t" "${objs[@]}" -o "$out/bin/$n" || { echo "FAILED compile $n"; bad=1; continue; }
+  g++ $F "$t" "${objs[@]}" $CRYPT32 -o "$out/bin/$n" || { echo "FAILED compile $n"; bad=1; continue; }
   if ! timeout 1800 "$out/bin/$n" > "$out/$n.log" 2>&1 || grep -q "Sanitizer\|runtime error" "$out/$n.log"; then
     echo "FAILED $n: $(grep -m2 -E 'ERROR|runtime error|Assertion' "$out/$n.log" | tr '\n' ' ')"; bad=1
   fi

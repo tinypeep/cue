@@ -443,7 +443,55 @@ if (!linkReady || S.view !== 'play' || S.paused || S.ended) return S.pos;
 return Math.min(S.dur, S.pos + (performance.now() - stamp) / 1000 * (S.speed || 1));
 }
 
-var ws = null, token = null, retry = 0, offlineT = 0, retryT = 0;
+function sha256(bytes) {
+var k = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+var bytes = bytes instanceof Array ? bytes.slice() : stringToBytes(bytes);
+var len = bytes.length * 8;
+bytes.push(0x80);
+while (bytes.length % 64 !== 56) bytes.push(0);
+var hi = Math.floor(len / 4294967296), lo = len >>> 0;
+for (var i = 3; i >= 0; --i) bytes.push((hi >>> (i * 8)) & 0xff);
+for (var i = 3; i >= 0; --i) bytes.push((lo >>> (i * 8)) & 0xff);
+function rotr(x, n) { return ((x >>> n) | (x << (32 - n))) >>> 0; }
+var h = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+for (var off = 0; off < bytes.length; off += 64) {
+var w = [];
+for (var i = 0; i < 16; ++i) w.push(((bytes[off+i*4] << 24) | (bytes[off+i*4+1] << 16) | (bytes[off+i*4+2] << 8) | bytes[off+i*4+3]) >>> 0);
+for (var i = 16; i < 64; ++i) {
+var s0 = rotr(w[i-15],7) ^ rotr(w[i-15],18) ^ (w[i-15] >>> 3);
+var s1 = rotr(w[i-2],17) ^ rotr(w[i-2],19) ^ (w[i-2] >>> 10);
+w.push((w[i-16] + s0 + w[i-7] + s1) >>> 0);
+}
+var a=h[0],b=h[1],c=h[2],d=h[3],e=h[4],f=h[5],g=h[6],hh=h[7];
+for (var i = 0; i < 64; ++i) {
+var S1 = rotr(e,6) ^ rotr(e,11) ^ rotr(e,25);
+var ch = (e & f) ^ (~e & g);
+var t1 = (hh + S1 + ch + k[i] + w[i]) >>> 0;
+var S0 = rotr(a,2) ^ rotr(a,13) ^ rotr(a,22);
+var maj = (a & b) ^ (a & c) ^ (b & c);
+var t2 = (S0 + maj) >>> 0;
+hh=g; g=f; f=e; e=(d+t1)>>>0; d=c; c=b; b=a; a=(t1+t2)>>>0;
+}
+h = [(h[0]+a)>>>0,(h[1]+b)>>>0,(h[2]+c)>>>0,(h[3]+d)>>>0,(h[4]+e)>>>0,(h[5]+f)>>>0,(h[6]+g)>>>0,(h[7]+hh)>>>0];
+}
+var out = '';
+for (var i = 0; i < 8; ++i) out += ('0000000' + (h[i] >>> 0).toString(16)).slice(-8);
+return out;
+}
+function stringToBytes(s) { var b = []; for (var i = 0; i < s.length; ++i) b.push(s.charCodeAt(i) & 0xff); return b; }
+function hexToBytes(hex) { var b = []; for (var i = 0; i < hex.length; i += 2) b.push(parseInt(hex.substr(i, 2), 16)); return b; }
+function hmacSha256(key, message) {
+var block = new Array(64);
+var kb = stringToBytes(key);
+if (kb.length > 64) kb = stringToBytes(sha256(kb));
+for (var i = 0; i < 64; ++i) block[i] = i < kb.length ? kb[i] : 0;
+var inner = block.slice(), outer = block.slice();
+for (var i = 0; i < 64; ++i) { inner[i] ^= 0x36; outer[i] ^= 0x5c; }
+return sha256(outer.concat(hexToBytes(sha256(inner.concat(stringToBytes(message))))));
+}
+function credentialKid(key) { return sha256(key).substr(0, 16); }
+
+var ws = null, retry = 0, offlineT = 0, retryT = 0, nonce = null;
 var linkReady = false, linkStopped = false, heartbeatT = 0, deadlineT = 0;
 var pendingCode = null, codeUntil = 0, linkFrozen = false, lastPacket = 0, connectAt = 0;
 var linkInstance = Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -472,7 +520,8 @@ armDeadline(socket);
 try { socket.send('{"t":"ping"}'); } catch (e) { linkFailed(); }
 }, 15000);
 }
-try { token = localStorage.getItem('cue.token.v2'); } catch (e) {}
+var cred = null, sid = null, sk = null, reqCount = 0;
+try { cred = localStorage.getItem('cue.key.v2'); } catch (e) {}
 var codeFromLink = (location.hash.match(/(?:^#|&)c=(\d{6})(?:&|$)/) || [])[1] || null;
 if (codeFromLink) history.replaceState(null, '', location.pathname);
 function connect(code) {
@@ -482,14 +531,13 @@ if (ws && (ws.readyState === 0 || ws.readyState === 1)) return;
 if (pendingCode && Date.now() >= codeUntil) pendingCode = null;
 code = pendingCode;
 clearTimeout(retryT); retryT = 0; linkReady = false;
-if (!code && !token) { clearTimeout(offlineT); showPair(''); return; }
+if (!code && !cred) { clearTimeout(offlineT); showPair(''); return; }
 var socket;
 try { socket = ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws'); } catch (e) { ws = null; scheduleRetry(); return; }
 connectAt = Date.now(); armDeadline(socket);
 socket.onopen = function () {
 if (ws !== socket) return;
-try { socket.send(JSON.stringify(code ? {t:'auth',c:code,i:linkInstance} : {t:'auth',k:token,i:linkInstance})); }
-catch (e) { linkFailed(); }
+if (!cred && !pendingCode) { try { socket.close(); } catch (e) {} linkStopped = true; retireLink(); return; }
 };
 socket.onerror = function () { if (ws === socket) linkFailed(); };
 socket.onmessage = function (ev) {
@@ -498,9 +546,21 @@ var m; try { m = JSON.parse(ev.data); } catch (e) { return; }
 if (!linkAvailable()) return;
 lastPacket = Date.now();
 if (m.t === 'pong') { if (linkReady) { clearTimeout(deadlineT); heartbeat(socket); } return; }
+if (m.t === 'chal') {
+if (linkReady) return;             // the server sends one per connection
+if (code) { try { socket.send(JSON.stringify({t:'auth',c:code,i:linkInstance})); } catch (e) { linkFailed(); } return; }
+if (!cred) return;
+var proof;
+try { proof = hmacSha256(cred, m.n); } catch (e) { return; }
+if (!(m.n && String(m.n).length === 32)) return;
+var frame = {t:'auth', k: credentialKid(cred), r: proof, i: linkInstance};
+try { socket.send(JSON.stringify(frame)); } catch (e) { linkFailed(); }
+return;
+}
 if (m.t === 'hello') {
 clearTimeout(deadlineT); pendingCode = null; linkReady = true; retry = 0; hold = {}; heartbeat(socket);
-if (m.token) { token = m.token; try { localStorage.setItem('cue.token.v2', token); } catch (e) {} }
+sid = m.sid || null; sk = m.sk || null; reqCount = 0;
+if (m.key) { cred = m.key; try { localStorage.setItem('cue.key.v2', cred); } catch (e) {} }
 var wasOff = !$('offline').classList.contains('hide');
 hidePair(); setOffline(false); resumeRemoteWork();
 if (code) linked(m.pc || '');
@@ -520,7 +580,7 @@ if (!U.scrub || document.hidden || !linkReady) return;
 var n = m.n, epoch = peekEpoch;
 if (peekFetch) peekFetch.abort();
 peekFetch = new AbortController();
-fetch('/peek?n=' + n, {headers: authHeaders(), cache:'no-store', signal:peekFetch.signal})
+fetch('/peek?n=' + n, {headers: authHeaders('/peek?n=' + n), cache:'no-store', signal:peekFetch.signal})
 .then(function(r) { if (!r.ok) throw Error(); return r.blob(); })
 .then(function(blob) {
 if (!U.scrub || epoch !== peekEpoch || n < peekShown) return;
@@ -537,7 +597,7 @@ linkStopped = true; retireLink(); clearTimeout(retryT); setOffline(true, t('remo
 socket.onclose = function (ev) {
 if (ws !== socket) return;
 retireLink();
-if (ev.code === 4001) { pendingCode = null; linkStopped = true; token = null; try { localStorage.removeItem('cue.token.v2'); } catch (e) {} showPair(code ? t('remote.code_wrong') : ''); return; }
+if (ev.code === 4001) { pendingCode = null; linkStopped = true; cred = sid = sk = null; try { localStorage.removeItem('cue.key.v2'); } catch (e) {} showPair(code ? t('remote.code_wrong') : ''); return; }
 if (ev.code === 4002) { pendingCode = null; linkStopped = true; showPair(t('remote.code_closed')); return; }
 if (ev.code === 4003) { pendingCode = null; linkStopped = true; showPair(t('remote.locked')); return; }
 scheduleRetry();
@@ -554,7 +614,7 @@ clearTimeout(retryT);
 retryT = setTimeout(function () { retryT = 0; if (!ws && linkAvailable() && !linkStopped) connect(null); }, wait);
 }
 function wakeLink() {
-if (!linkAvailable() || linkStopped || (!token && !pendingCode)) return;
+if (!linkAvailable() || linkStopped || (!cred && !pendingCode)) return;
 var age = Date.now() - (linkReady ? lastPacket : connectAt);
 if (ws && (ws.readyState === 0 || ws.readyState === 1) && age < (linkReady ? 20000 : 10000)) return;
 retireLink(); retry = 0; connect(null);
@@ -588,7 +648,8 @@ if (writeCommand(o)) { sendAt = now; if (key === 'peek') peekAt = now; }
 if (sendPending.size) sendTimer = setTimeout(drainSends, 80);
 }
 function send(o, throttle) {
-if (/^(toggle|skip|seek|what|peek|next|sub|subdelay|subsize|subpos|audio)$/.test(o.c) && S.media !== undefined) o.media = S.media;
+)CUEPAGE",
+R"CUEPAGE(if (/^(toggle|skip|seek|what|peek|next|sub|subdelay|subsize|subpos|audio)$/.test(o.c) && S.media !== undefined) o.media = S.media;
 if (!ws || ws.readyState !== 1 || !linkReady || document.hidden) return false;
 if (throttle) {
 sendPending.set(o.c, o);
@@ -681,8 +742,7 @@ raf = keep.length ? requestAnimationFrame(stepAnim) : 0;
 function relocalize(lang) {
 if (!lang || lang === BOOT.lang) { try { sessionStorage.removeItem('cue.lang'); } catch (e) {} return false; }
 var tried = null;
-)CUEPAGE",
-R"CUEPAGE(try { tried = sessionStorage.getItem('cue.lang'); sessionStorage.setItem('cue.lang', lang); } catch (e) { return false; }
+try { tried = sessionStorage.getItem('cue.lang'); sessionStorage.setItem('cue.lang', lang); } catch (e) { return false; }
 if (tried === lang) return false;  // already reloaded for it: never loop
 location.reload();
 return true;
@@ -738,7 +798,12 @@ $('peekImg').removeAttribute('src');
 $('scrub').classList.remove('peeking');
 peekShown = 0;
 }
-function authHeaders() { return {Authorization: 'Bearer ' + (token || '')}; }
+function authHeaders(path) {
+if (!sid || !sk) return {};
+var n = ++reqCount;
+var payload = sid + '\nGET\n' + path + '\n' + n;
+return {Authorization: 'Cue ' + sid + ':' + n + ':' + hmacSha256(sk, payload)};
+}
 function scrubStart() { clearPeek(); U.turns = 0; }
 function peek() { if (S.audioOnly) return; send({ c: 'peek', v: Math.round(U.prev * 10) / 10 }, true); }  // audio has no picture
 var thumbObserver = null, thumbQueue = [], thumbBusy = 0, thumbURLs = [], thumbRequests = new Set(), thumbEpoch = 0;
@@ -759,7 +824,7 @@ thumbBusy++;
 (function(img) {
 if (!img.classList.contains('sq')) img.insertAdjacentHTML('beforebegin',pixelThumb({path:img.dataset.thumb},0));
 var epoch = thumbEpoch, controller = new AbortController(); thumbRequests.add(controller);
-fetch('/thumb?p=' + encodeURIComponent(img.dataset.thumb), {headers:authHeaders(), cache:'no-store', signal:controller.signal})
+fetch('/thumb?p=' + encodeURIComponent(img.dataset.thumb), {headers:authHeaders('/thumb?p=' + encodeURIComponent(img.dataset.thumb)), cache:'no-store', signal:controller.signal})
 .then(function(r) { if (!r.ok) throw Error(); return r.blob(); })
 .then(function(blob) {
 if (controller.signal.aborted || epoch !== thumbEpoch || !img.isConnected || U.browse === null) return;
@@ -864,7 +929,8 @@ else if (U.glance) { ox = U.glance * 6; oy = 0; }
 var cy = nv ? 84 : 108;
 place('eyeL', L, 135, cy, ox, oy);
 place('eyeR', R, 255, cy, ox, oy);
-var z = $('zzz');
+)CUEPAGE",
+R"CUEPAGE(var z = $('zzz');
 if (U.sleep === 2) {
 if (z.classList.contains('hide')) {
 z.innerHTML = [0, .8, 1.6].map(function (d, i) { return '<span class="zz" style="left:' + [0, 10, 4][i] + 'px;top:' + [0, -6, -12][i] + 'px;animation-delay:' + d + 's">' + svgIcon(P.zed, 9, 15, 3, '#787878') + '</span>'; }).join('');
@@ -933,8 +999,7 @@ dotEls = Array.prototype.slice.call($('dots').children);
 })();
 
 var TIMERS = [0, -1, 30, 60];
-)CUEPAGE",
-R"CUEPAGE(function timerText(m) { return m === 0 ? t('remote.timer_off') : m === -1 ? t('remote.timer_end') : t('remote.timer_min', { n: m }); }
+function timerText(m) { return m === 0 ? t('remote.timer_off') : m === -1 ? t('remote.timer_end') : t('remote.timer_min', { n: m }); }
 function subPosText() { return Math.abs(S.sub.pos - S.sub.posDefault) < .5 ? t('remote.default') : Math.round(100 - S.sub.pos) + '%'; }
 function subSizeText() { return Math.round(S.sub.size / 44 * 100) + '%'; }
 function rows() {
@@ -1011,7 +1076,7 @@ U.browseError=false;
 U.browse = path === undefined ? '' : path;
 U.list = null; U.sel = 0; U.menu = null; U.edit = null;
 render();
-fetch('/list?p=' + encodeURIComponent(U.browse), {headers:authHeaders(), cache:'no-store', signal:browseFetch.signal})
+fetch('/list?p=' + encodeURIComponent(U.browse), {headers:authHeaders('/list?p=' + encodeURIComponent(U.browse)), cache:'no-store', signal:browseFetch.signal})
 .then(function (r) { if (!r.ok) throw Error(); return r.json(); })
 .then(function (j) {
 if (request !== browseRequest) return;
@@ -1091,7 +1156,8 @@ var inner = it.audio ? '<span style="position:absolute;left:50%;top:50%;margin:-
 var queued = queueAddMode && queueAdded.has(it.path);
 var badge = queueAddMode ? '<span class="q-badge" aria-hidden="true">' + (queued ? svgIcon(P.check, 21, 15, 3) : svgIcon(P.plus, 15, 15, 3)) + '</span>' : '';
 files += '<button class="ftile rise' + (queued ? ' queued' : '') + '" style="animation-delay:' + Math.min(i,6)*18 + 'ms" data-i="' + i + '"' + (queueAddMode ? ' aria-pressed="' + queued + '"' : '') + '><span class="thumb">' + inner + badge +
-(pct > 0 ? '<span class="prog' + (done ? ' done' : '') + '" style="width:' + pct + '%"></span>' : '') +
+)CUEPAGE",
+R"CUEPAGE((pct > 0 ? '<span class="prog' + (done ? ' done' : '') + '" style="width:' + pct + '%"></span>' : '') +
 '</span><span class="ell" style="color:' + (done ? 'var(--dim)' : 'var(--fg)') + '">' + esc(it.name) + '</span></button>';
 }
 });
@@ -1146,8 +1212,7 @@ document.documentElement.classList.toggle('sheet-lock',on);document.body.classLi
 if(!on&&sheetLocked)window.scrollTo(0,sheetScroll);sheetLocked=on;
 }
 function queueHeader(){
-)CUEPAGE",
-R"CUEPAGE($('queueTitle').textContent=t('queue.title')+(queueData.length>1?' · '+queueData.length:'');
+$('queueTitle').textContent=t('queue.title')+(queueData.length>1?' · '+queueData.length:'');
 var addLabel=svgIcon(P.plus,15,15,3)+'<span class="ell">'+esc(t('queue.add_short'))+'</span>';if($('queueAdd').__html!==addLabel){$('queueAdd').innerHTML=addLabel;$('queueAdd').__html=addLabel;}
 var folderLabel=svgIcon(P.plus,15,15,3)+'<span class="ell">'+esc(t('queue.add_folder'))+'</span>';if($('browseAddFolder').__html!==folderLabel){$('browseAddFolder').innerHTML=folderLabel;$('browseAddFolder').__html=folderLabel;}
 $('browseDone').textContent=t('queue.done');
@@ -1183,7 +1248,7 @@ var img=queueImages.shift(),id=+img.dataset.queueThumb;
 if(!img.isConnected||img.dataset.requested==='yes')continue;
 img.dataset.requested='yes';var epoch=queueThumbEpoch,controller=new AbortController();img.queueController=controller;queueRequests.add(controller);++queueThumbBusy;
 (function(img,id,epoch,controller){
-fetch('/queue-thumb?id='+id,{headers:authHeaders(),cache:'no-store',signal:controller.signal})
+fetch('/queue-thumb?id='+id,{headers:authHeaders('/queue-thumb?id='+id),cache:'no-store',signal:controller.signal})
 .then(function(r){if(!r.ok)throw Error();return r.blob();})
 .then(function(blob){
 if(!queueOpen||epoch!==queueThumbEpoch||!img.isConnected)return;
@@ -1245,7 +1310,8 @@ var list=$('queueItems'),scale=queueScale(),bounds=list.getBoundingClientRect(),
 if(!poses)queueRows.forEach(function(row,id){if(row.offsetTop+row.offsetHeight>=list.scrollTop-100&&row.offsetTop<=list.scrollTop+list.clientHeight+100){var r=row.getBoundingClientRect();if(r.bottom>bounds.top&&r.top<bounds.bottom)old.set(id,r);}});
 var next=new Set(items.map(function(it){return +it.id;})),stagger=0,clearing=!items.length&&had>0,lastExit=0;
 Array.from(queueRows.entries()).sort(function(a,b){return a[1].offsetTop-b[1].offsetTop;}).forEach(function(entry){var row=entry[1],id=entry[0];if(next.has(id))return;
-queueRows.delete(id);var img=row.querySelector('img');if(img&&queueObserver)queueObserver.unobserve(img);queueVisible.delete(id);
+)CUEPAGE",
+R"CUEPAGE(queueRows.delete(id);var img=row.querySelector('img');if(img&&queueObserver)queueObserver.unobserve(img);queueVisible.delete(id);
 var rect=old.get(id);
 if(rect&&!reduced&&queueGhosts.size<12){
 row.querySelectorAll('button').forEach(function(b){b.disabled=true;b.tabIndex=-1;b.removeAttribute('data-qcmd');b.removeAttribute('data-qid');});
@@ -1291,8 +1357,7 @@ function closeQueue(restoreFocus){
 if(!queueOpen)return;queueOpen=false;var epoch=++queueEpoch;if(queueFetch)queueFetch.abort();queueFetch=null;
 cancelQueueDrag();cancelQueueAnimations();clearQueueGhosts();
 ++queueThumbEpoch;if(queueObserver)queueObserver.disconnect();queueObserver=null;queueImages=[];
-)CUEPAGE",
-R"CUEPAGE(queueRequests.forEach(function(c){c.abort();});queueRequests.clear();
+queueRequests.forEach(function(c){c.abort();});queueRequests.clear();
 $('queueSheet').inert=true;$('queueSheet').setAttribute('aria-hidden','true');$('queueSheet').style.pointerEvents='none';
 syncSheets();
 qAnimate($('queueSheet'),[{opacity:1,transform:'translateY(0)'},{opacity:0,transform:'translateY(16px)'}],200,function(){
@@ -1310,7 +1375,7 @@ loadQueue();$('queueClose').focus({preventScroll:true});
 function loadQueue(){
 if(document.hidden||!linkReady||!queueOpen||queueFetch||queueLoaded===S.queueRevision)return;
 var epoch=++queueEpoch,revision=S.queueRevision;queueFetch=new AbortController();
-fetch('/queue',{headers:authHeaders(),cache:'no-store',signal:queueFetch.signal})
+fetch('/queue',{headers:authHeaders('/queue'),cache:'no-store',signal:queueFetch.signal})
 .then(function(r){if(!r.ok)throw Error();return r.json();})
 .then(function(j){if(!queueOpen||epoch!==queueEpoch||revision!==S.queueRevision)return;queueLoaded=revision;reconcileQueue(j.items.slice(0,512));})
 .catch(function(e){if(queueOpen&&epoch===queueEpoch&&e.name!=='AbortError'){$('queueStatus').textContent=t('remote.offline');$('queueStatus').classList.remove('hide');}})
@@ -1389,7 +1454,8 @@ $('queueClose').setAttribute('aria-label',t('remote.back'));
 $('queueEmpty').textContent=t('queue.empty');
 
 if(U.mode==='tracks'&&!S.queueActive){U.mode='tempo';U.pick=-1;}
-if(U.mode==='tracks'&&trackRev!==S.queueRevision)loadTracks();
+)CUEPAGE",
+R"CUEPAGE(if(U.mode==='tracks'&&trackRev!==S.queueRevision)loadTracks();
 syncCover();
 var tracks=(U.mode==='tracks'||musicSteps())&&S.view==='play';
 if($('icoRew').__d!==(tracks?'p':'r')){$('icoRew').__d=tracks?'p':'r';$('icoRew').setAttribute('d',tracks?P.prevFile:P.rew);$('icoFwd').setAttribute('d',tracks?P.nextFile:P.fwd);
@@ -1433,8 +1499,7 @@ var timeOnly = !!(U.scrub && S.audioOnly && !spin);  // audio: only the time, ne
 $('scrub').classList.toggle('bare', timeOnly); $('stage').classList.toggle('timeonly', timeOnly);
 if (U.menu && !subEdit) {
 $('menuTitleText').textContent = U.menu === 'subs' ? t('remote.subtitles') : t('remote.menu');
-)CUEPAGE",
-R"CUEPAGE(var h = '', key = U.menu + '|' + (U.menu === 'subs' ? 1 : 0), fresh = U.menuShown !== key;
+var h = '', key = U.menu + '|' + (U.menu === 'subs' ? 1 : 0), fresh = U.menuShown !== key;
 U.menuShown = key;
 rows().forEach(function (r, j) {
 var on = j === U.idx, cls = (fresh ? ' rise' : '') + (U.flash === j ? ' flash' : ''), st = fresh ? ' style="animation-delay:' + j * 20 + 'ms"' : '';
@@ -1558,7 +1623,8 @@ var g = $('grid'), els = g.querySelectorAll('[data-i]'), cur = g.querySelector('
 if (!cur || !els.length) return;
 var n = els.length, next = -1;
 if (dir === 'left' || dir === 'right') {
-var s = U.sel + (dir === 'left' ? -1 : 1);
+)CUEPAGE",
+R"CUEPAGE(var s = U.sel + (dir === 'left' ? -1 : 1);
 if (s >= 0 && s < n) next = s;
 } else {
 var a = cur.getBoundingClientRect(), ax = a.left + a.width / 2, best = 1e9;
@@ -1626,8 +1692,7 @@ if (r) { tick(); act(+r.getAttribute('data-row')); }
 $('subMinus').addEventListener('click', function () { tick(); adjust(U.edit, -1); });
 $('subPlus').addEventListener('click', function () { tick(); adjust(U.edit, 1); });
 function togglePlay() {
-)CUEPAGE",
-R"CUEPAGE(if (S.view !== 'play' || !send({ c: 'toggle' })) return;
+if (S.view !== 'play' || !send({ c: 'toggle' })) return;
 var pos = S.ended ? 0 : livePos();
 if (S.paused || S.ended) { S.paused = false; S.ended = false; anim('hop'); } else S.paused = true;
 S.pos = pos; stamp = performance.now();
@@ -1666,7 +1731,7 @@ function wheelModes() { return S.queueActive ? ['tempo', 'volume', 'tracks'] : [
 function loadTracks(then) {
 if (trackFetch || document.hidden || !linkReady) return;
 var rev = S.queueRevision, controller = trackFetch = new AbortController();
-fetch('/queue', {headers:authHeaders(), cache:'no-store', signal:trackFetch.signal})
+fetch('/queue', {headers:authHeaders('/queue'), cache:'no-store', signal:trackFetch.signal})
 .then(function (r) { if (!r.ok) throw Error(); return r.json(); })
 .then(function (j) { if (controller.signal.aborted || rev !== S.queueRevision) return; trackItems = j.items.slice(0, 512); trackRev = rev; if (U.pick >= trackItems.length) U.pick = trackItems.length - 1; if (then) then(); render(); })
 .catch(function () {})
@@ -1740,7 +1805,7 @@ if (coverURL) { URL.revokeObjectURL(coverURL); coverURL = ''; }
 $('coverImg').onload = null; $('coverImg').removeAttribute('src'); disc.src = null; disc.key = '';
 if (!want) return;
 var controller = coverFetch = new AbortController();
-fetch('/cover?r=' + want, {headers:authHeaders(), cache:'no-store', signal:coverFetch.signal})
+fetch('/cover?r=' + want, {headers:authHeaders('/cover?r=' + want), cache:'no-store', signal:coverFetch.signal})
 .then(function (r) { if (!r.ok) throw Error(); return r.blob(); })
 .then(function (b) {
 if (controller.signal.aborted || coverRev !== want) return;
@@ -1776,7 +1841,7 @@ var it = trackItems[U.pick]; if (!it || !it.preview) { clearPeek(); return; }  /
 var epoch = ++peekEpoch;
 pickT = setTimeout(function () {
 pickFetch = new AbortController();
-fetch('/queue-thumb?id=' + it.id, {headers:authHeaders(), cache:'no-store', signal:pickFetch.signal})
+fetch('/queue-thumb?id=' + it.id, {headers:authHeaders('/queue-thumb?id=' + it.id), cache:'no-store', signal:pickFetch.signal})
 .then(function (r) { if (!r.ok) throw Error(); return r.blob(); })
 .then(function (b) { if (epoch !== peekEpoch || U.pick < 0) return; if (peekURL) URL.revokeObjectURL(peekURL); peekURL = URL.createObjectURL(b); $('peekImg').src = peekURL; $('scrub').classList.add('peeking'); render(); })
 .catch(function () {});
@@ -1786,7 +1851,8 @@ function stepTrack(dir) {
 if (!trackItems.length) { loadTracks(function () { stepTrack(dir); }); return; }
 var at = currentTrack(), to = at + dir;
 if (dir > 0 && S.next) { tick(); send({ c: 'next' }); if (!S.audioOnly) toast(stem(S.next)); anim('dart', { dir: 1 }); return; }
-if (at < 0 || to < 0 || to >= trackItems.length) { tick('edge'); anim('shake'); return; }
+)CUEPAGE",
+R"CUEPAGE(if (at < 0 || to < 0 || to >= trackItems.length) { tick('edge'); anim('shake'); return; }
 tick(); send({ c: 'queue-play', v: trackItems[to].id }); if (!S.audioOnly) toast(stem(trackItems[to].name)); anim('dart', { dir: dir });
 }
 
@@ -1876,8 +1942,7 @@ if (d < -180) d += 360;
 drag.last = g.a;
 if (drag.direct) {
 drag.travel += d;
-)CUEPAGE",
-R"CUEPAGE(U.prev = Math.max(0, Math.min(S.dur, drag.start + drag.travel / 360 * S.dur));
+U.prev = Math.max(0, Math.min(S.dur, drag.start + drag.travel / 360 * S.dur));
 U.ang = g.a; peek(); render(); return;
 }
 drag.acc += d;

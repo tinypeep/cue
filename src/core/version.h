@@ -11,5 +11,11 @@
 #define CUE_NEWS_VERSION "1.3"
 // Releases are published on GitHub. The update check reads the latest release of this repo.
 #define CUE_UPDATE_REPO "tinypeep/cue"
+// The publisher certificate an official update must carry: the thumbprint (the
+// SHA-1 of the certificate) of the signing certificate, lowercase hex, no
+// spaces. Several may be listed, separated by commas. Empty means the project
+// does not sign its releases yet: the update is then checked by its digest
+// only, and the log says that it is unsigned.
+#define CUE_PUBLISHER_THUMBPRINTS ""
 // The project's contact address, shown in About (mailto: link, copied when no mail app answers).
 #define CUE_CONTACT_EMAIL "tinypeepstudio@gmail.com"

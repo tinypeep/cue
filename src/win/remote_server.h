@@ -3,9 +3,10 @@
 // thumbnails, and relays commands to the UI thread (WM_APP message + take_events). Nothing here
 // touches the player: App decides what every command does.
 //
-// Who may connect: only private IPv4 peers (the same home network), with a token a phone got by
-// typing the six-digit, short-lived, one-use pairing code (or scanning its QR code) while the pairing screen
-// was open. A few wrong codes lock pairing for a minute. Hosts that are names, not addresses,
+// Who may connect: only private IPv4 peers (the same home network), with a credential a phone
+// got by typing the six-digit, short-lived, one-use pairing code while the pairing screen was
+// open (or scanning its QR code). The credential proves itself by answering a challenge, never
+// by being sent. A few wrong codes lock pairing for that address for a minute. Hosts that are names, not addresses,
 // are refused. Browser origins must match the actual local endpoint.
 #pragma once
 #include <windows.h>
@@ -23,7 +24,7 @@ class RemoteServer {
     enum Kind { Command, Connected, Disconnected, Paired } kind = Command;
     remote::Command cmd;
     std::string device;  // "iPhone", "Android", "" (Connected / Paired)
-    std::string token;   // Paired: remember it
+    std::string key;     // Paired: the credential the phone must keep
   };
   struct Root { std::string name, path; };  // a shared folder, as the phone shows it
   struct Progress { double pos = 0, dur = 0; bool seen = false; };
@@ -45,7 +46,7 @@ class RemoteServer {
   void set_boot(const std::string& script);     // `window.CUE = {...};` (strings, language)
   void set_roots(std::vector<Root> roots);
   void set_progress(std::vector<std::pair<std::string, Progress>> items);  // saved positions
-  void set_tokens(std::vector<std::string> tokens);
+  void set_credentials(std::vector<std::string> credentials);  // the phones that may pair
   void set_pairing(bool open, const std::string& code);  // the code is accepted only while open
   // the timeline frame a phone asked for while turning the wheel (0x00RRGGBB pixels)
   void set_peek(double at, const std::vector<uint32_t>& px, int w, int h);

@@ -10,8 +10,38 @@
 #include "../core/version.h"
 #include "platform.h"
 
+#include <wintrust.h>
+#include <softpub.h>
+
 namespace {
 struct Url { std::wstring host, path; INTERNET_PORT port = INTERNET_DEFAULT_HTTPS_PORT; bool https = true; };
+
+// The publisher certificate an update must carry. Empty while the project is
+// unsigned: the digest is then the only check, and the log says so.
+std::vector<std::string> publisher_thumbprints() {
+  std::vector<std::string> out;
+  const std::string all = CUE_PUBLISHER_THUMBPRINTS;
+  std::string part;
+  for (char c : all) {
+    if (c == ',' || c == ';' || c == ' ') {
+      if (!part.empty()) out.push_back(part);
+      part.clear();
+    } else part += (char)std::tolower((unsigned char)c);
+  }
+  if (!part.empty()) out.push_back(part);
+  return out;
+}
+
+// The update comes from GitHub and nowhere else. A release that points its
+// asset at another host is not followed: the digest of a release is published
+// by the same account as the file, so the trust is in the host as much as in
+// the hash.
+bool allowed_host(const std::wstring& host) {
+  return _wcsicmp(host.c_str(), L"github.com") == 0 ||
+         _wcsicmp(host.c_str(), L"api.github.com") == 0 ||
+         _wcsicmp(host.c_str(), L"objects.githubusercontent.com") == 0 ||
+         _wcsicmp(host.c_str(), L"release-assets.githubusercontent.com") == 0;
+}
 
 bool crack(const std::wstring& url, Url& out) {
   URL_COMPONENTS uc{sizeof(uc)};
@@ -34,28 +64,47 @@ template <class Sink>
 bool http_get(const std::wstring& url, const wchar_t* accept, Sink sink, std::string& err, int64_t* total = nullptr) {
   Url u;
   if (!crack(url, u)) { err = "bad url"; return false; }
+  if (!allowed_host(u.host)) { err = "host not allowed"; return false; }
   std::wstring agent = L"Cue/" + widen(CUE_VERSION) + L" (Windows; +https://github.com/" + widen(CUE_UPDATE_REPO) + L")";
   HINTERNET ses = WinHttpOpen(agent.c_str(), WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME,
-                              WINHTTP_NO_PROXY_BYPASS, 0);
+                              WINHTTP_NO_PROXY_NAME, 0);
   if (!ses) ses = WinHttpOpen(agent.c_str(), WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME,
                               WINHTTP_NO_PROXY_BYPASS, 0);  // before Windows 8.1
   if (!ses) { err = "open"; return false; }
   WinHttpSetTimeouts(ses, 8000, 8000, 15000, 30000);
-  DWORD redirect = WINHTTP_OPTION_REDIRECT_POLICY_DISALLOW_HTTPS_TO_HTTP;
+  // The redirects are followed here, one at a time: a redirect to a host we do
+  // not know must not be taken.
+  DWORD redirect = WINHTTP_OPTION_REDIRECT_POLICY_NEVER;
   WinHttpSetOption(ses, WINHTTP_OPTION_REDIRECT_POLICY, &redirect, sizeof redirect);
   bool ok = false;
-  HINTERNET con = WinHttpConnect(ses, u.host.c_str(), u.port, 0);
-  HINTERNET req = con ? WinHttpOpenRequest(con, L"GET", u.path.c_str(), nullptr, WINHTTP_NO_REFERER,
-                                           WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE)
-                      : nullptr;
-  if (req) {
+  std::wstring current = url;
+  for (int hop = 0; hop < 6 && !ok; ++hop) {
+    if (!crack(current, u)) { err = "bad url"; break; }
+    if (!allowed_host(u.host)) { err = "host not allowed"; break; }
+    HINTERNET con = WinHttpConnect(ses, u.host.c_str(), u.port, 0);
+    HINTERNET req = con ? WinHttpOpenRequest(con, L"GET", u.path.c_str(), nullptr, WINHTTP_NO_REFERER,
+                                             WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE)
+                        : nullptr;
+    if (!req) { err = "request"; if (con) WinHttpCloseHandle(con); break; }
     std::wstring headers = std::wstring(L"Accept: ") + accept + L"\r\nX-GitHub-Api-Version: 2022-11-28\r\n";
+    DWORD status = 0, len = sizeof status;
     if (WinHttpSendRequest(req, headers.c_str(), (DWORD)-1, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) &&
         WinHttpReceiveResponse(req, nullptr)) {
-      DWORD status = 0, len = sizeof status;
       WinHttpQueryHeaders(req, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX,
                           &status, &len, WINHTTP_NO_HEADER_INDEX);
-      if (status == 200) {
+      if (status == 301 || status == 302 || status == 307 || status == 308) {
+        // GitHub sends the file on to its own download host: an absolute
+        // https address, and one we know.
+        wchar_t location[2048] = {};
+        DWORD loc_len = sizeof location;
+        if (WinHttpQueryHeaders(req, WINHTTP_QUERY_LOCATION | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX,
+                                 location, &loc_len, WINHTTP_NO_HEADER_INDEX) && loc_len > 1) {
+          std::wstring next(location);
+          Url check;
+          if (crack(next, check) && allowed_host(check.host)) current = next;
+          else err = "redirect not allowed";
+        } else err = "redirect";
+      } else if (status == 200) {
         if (total) {
           wchar_t cl[32] = {};
           DWORD cll = sizeof cl;
@@ -72,9 +121,10 @@ bool http_get(const std::wstring& url, const wchar_t* accept, Sink sink, std::st
         }
       } else err = "http " + std::to_string(status);
     } else err = "send " + std::to_string(GetLastError());
-  } else err = "request";
-  if (req) WinHttpCloseHandle(req);
-  if (con) WinHttpCloseHandle(con);
+    WinHttpCloseHandle(req);
+    WinHttpCloseHandle(con);
+  }
+  if (err.empty() && !ok) err = "no response";
   WinHttpCloseHandle(ses);
   return ok;
 }
@@ -105,6 +155,89 @@ void post(HWND hwnd, UINT msg, UpdateMsg* m) {
   if (!PostMessageW(hwnd, msg, 0, (LPARAM)m)) delete m;
 }
 
+// The Authenticode signature of a file.
+//
+// Returns:
+//   1  the file carries a valid signature (and, when thumbprints are
+//      configured, one of them)
+//   0  the file carries no signature at all
+//  -1  the file carries a signature that is not trusted, or not one of ours
+// `who` gets the name of the signer, for the log.
+int publisher_signature(const std::wstring& file, std::string& who) {
+  who.clear();
+  WINTRUST_FILE_INFO fi{sizeof fi};
+  fi.pcwszFilePath = file.c_str();
+  WINTRUST_DATA td{sizeof td};
+  td.dwUIChoice = WTD_UI_NONE;
+  td.fdwRevocationChecks = WTD_REVOKE_NONE;  // the check must not need the network
+  td.dwUnionChoice = WTD_CHOICE_FILE;
+  td.pFile = &fi;
+  td.dwStateAction = WTD_STATEACTION_VERIFY;
+  GUID action = WINTRUST_ACTION_GENERIC_VERIFY_V2;
+  const LONG status = WinVerifyTrust(nullptr, &action, &td);
+  int result = -1;
+  if (status != 0) {
+    // no signature at all is not a failure, it is the state of an unsigned build
+    if (GetLastError() == (DWORD)TRUST_E_NOSIGNATURE) result = 0;
+  } else {
+    // The signer's certificate: its thumbprint is what we compare, its name
+    // goes to the log. The state is still open here, which is when the helpers
+    // can read it.
+    auto* state = WTHelperProvDataFromStateData(&td);
+    auto* signer = state ? WTHelperGetProvSignerFromChain(state, 0, FALSE, 0) : nullptr;
+    auto* cert = signer ? WTHelperGetProvCertFromChain(signer, 0) : nullptr;
+    if (cert) {
+      CERT_NAME_BLOB subject{};
+      subject.pbData = cert->pCert->pCertInfo->Subject.pbData;
+      subject.cbData = cert->pCert->pCertInfo->Subject.cbData;
+      const DWORD name_size = CertNameToStrA(X509_ASN_ENCODING, &subject, CERT_X500_NAME_STR, nullptr, 0);
+      if (name_size) {
+        std::vector<char> name(name_size);
+        if (CertNameToStrA(X509_ASN_ENCODING, &subject, CERT_X500_NAME_STR, name.data(), (DWORD)name.size()))
+          who = name.data();
+      }
+      char hash[64] = {};
+      DWORD hash_size = sizeof hash;
+      if (CertGetCertificateContextProperty(cert->pCert, CERT_SHA1_HASH_PROP_ID, hash, &hash_size) && hash_size <= sizeof hash) {
+        std::string thumb;
+        for (DWORD i = 0; i + 1 < hash_size; ++i) {
+          char b[4];
+          std::snprintf(b, sizeof b, "%02x", (unsigned char)hash[i]);
+          thumb += b;
+        }
+        const auto wanted = publisher_thumbprints();
+        if (wanted.empty()) result = 1;  // signed, but by whom we do not pin
+        else for (const auto& w : wanted) if (w == thumb) result = 1;
+      }
+    }
+  }
+  td.dwStateAction = WTD_STATEACTION_CLOSE;
+  WinVerifyTrust(nullptr, &action, &td);
+  return result;
+}
+
+// The update before it is run: its digest matched, and now its publisher.
+// `err` gets the reason when the update must not be run.
+bool publisher_ok(const std::wstring& file, std::string& err, std::string& note) {
+  std::string who;
+  const int signature = publisher_signature(file, who);
+  const auto wanted = publisher_thumbprints();
+  if (signature < 0) {
+    err = signature == -1 && !who.empty() ? "the publisher is not trusted" : "the signature is not valid";
+    if (!who.empty()) err += " (" + who + ")";
+    return false;
+  }
+  if (signature == 0) {
+    if (!wanted.empty()) {
+      err = "the installer is not signed by a known publisher";
+      return false;
+    }
+    note = "the installer carries no signature (the project does not sign its releases)";
+    return true;
+  }
+  note = who.empty() ? "the installer is signed" : "the installer is signed by " + who;
+  return true;
+}
 struct Job { HWND hwnd; UINT msg; bool manual; ReleaseInfo rel; };
 
 DWORD WINAPI check_main(void* p) {
@@ -194,12 +327,21 @@ DWORD WINAPI download_main(void* p) {
   if (digest != rel.sha256) { DeleteFileW(part.c_str()); fail("sha256 mismatch"); delete job; return 0; }
   DeleteFileW(final_path.c_str());
   if (!MoveFileW(part.c_str(), final_path.c_str())) { fail("rename"); delete job; return 0; }
+  // The digest matched. Now the publisher: the file is only run if it is
+  // signed by one of ours (when the project signs its releases).
+  std::string why, note;
+  if (!publisher_ok(final_path, why, note)) {
+    DeleteFileW(final_path.c_str());
+    fail("publisher: " + why);
+    delete job;
+    return 0;
+  }
   auto* m = new UpdateMsg;
   m->kind = UpdateMsg::Downloaded;
   m->manual = true;
   m->rel = rel;
   m->file = final_path;
-  m->error = "verified sha256 " + digest;
+  m->error = "verified sha256 " + digest + "; " + note;
   post(job->hwnd, job->msg, m);
   delete job;
   return 0;

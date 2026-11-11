@@ -448,8 +448,63 @@ function livePos() {
   return Math.min(S.dur, S.pos + (performance.now() - stamp) / 1000 * (S.speed || 1));
 }
 
+// ── the challenge: SHA-256 and HMAC-SHA256 ─────────────────────────
+// Written by hand because the page is served from http:// (not a secure
+// context) and crypto.subtle is not available there. Verified against
+// RFC 4231 in tests/remote_lifecycle_test.cjs.
+function sha256(bytes) {
+  var k = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  var bytes = bytes instanceof Array ? bytes.slice() : stringToBytes(bytes);
+  var len = bytes.length * 8;
+  bytes.push(0x80);
+  while (bytes.length % 64 !== 56) bytes.push(0);
+  // the length as two 32-bit words, big-endian: `>>>` alone would mask the shift
+  var hi = Math.floor(len / 4294967296), lo = len >>> 0;
+  for (var i = 3; i >= 0; --i) bytes.push((hi >>> (i * 8)) & 0xff);
+  for (var i = 3; i >= 0; --i) bytes.push((lo >>> (i * 8)) & 0xff);
+  function rotr(x, n) { return ((x >>> n) | (x << (32 - n))) >>> 0; }
+  var h = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  for (var off = 0; off < bytes.length; off += 64) {
+    var w = [];
+    for (var i = 0; i < 16; ++i) w.push(((bytes[off+i*4] << 24) | (bytes[off+i*4+1] << 16) | (bytes[off+i*4+2] << 8) | bytes[off+i*4+3]) >>> 0);
+    for (var i = 16; i < 64; ++i) {
+      var s0 = rotr(w[i-15],7) ^ rotr(w[i-15],18) ^ (w[i-15] >>> 3);
+      var s1 = rotr(w[i-2],17) ^ rotr(w[i-2],19) ^ (w[i-2] >>> 10);
+      w.push((w[i-16] + s0 + w[i-7] + s1) >>> 0);
+    }
+    var a=h[0],b=h[1],c=h[2],d=h[3],e=h[4],f=h[5],g=h[6],hh=h[7];
+    for (var i = 0; i < 64; ++i) {
+      var S1 = rotr(e,6) ^ rotr(e,11) ^ rotr(e,25);
+      var ch = (e & f) ^ (~e & g);
+      var t1 = (hh + S1 + ch + k[i] + w[i]) >>> 0;
+      var S0 = rotr(a,2) ^ rotr(a,13) ^ rotr(a,22);
+      var maj = (a & b) ^ (a & c) ^ (b & c);
+      var t2 = (S0 + maj) >>> 0;
+      hh=g; g=f; f=e; e=(d+t1)>>>0; d=c; c=b; b=a; a=(t1+t2)>>>0;
+    }
+    h = [(h[0]+a)>>>0,(h[1]+b)>>>0,(h[2]+c)>>>0,(h[3]+d)>>>0,(h[4]+e)>>>0,(h[5]+f)>>>0,(h[6]+g)>>>0,(h[7]+hh)>>>0];
+  }
+  var out = '';
+  for (var i = 0; i < 8; ++i) out += ('0000000' + (h[i] >>> 0).toString(16)).slice(-8);
+  return out;
+}
+function stringToBytes(s) { var b = []; for (var i = 0; i < s.length; ++i) b.push(s.charCodeAt(i) & 0xff); return b; }
+function hexToBytes(hex) { var b = []; for (var i = 0; i < hex.length; i += 2) b.push(parseInt(hex.substr(i, 2), 16)); return b; }
+function hmacSha256(key, message) {
+  // key: the credential or session key (64-character hex string, as bytes).
+  // message: a string.
+  var block = new Array(64);
+  var kb = stringToBytes(key);
+  if (kb.length > 64) kb = stringToBytes(sha256(kb));
+  for (var i = 0; i < 64; ++i) block[i] = i < kb.length ? kb[i] : 0;
+  var inner = block.slice(), outer = block.slice();
+  for (var i = 0; i < 64; ++i) { inner[i] ^= 0x36; outer[i] ^= 0x5c; }
+  return sha256(outer.concat(hexToBytes(sha256(inner.concat(stringToBytes(message))))));
+}
+function credentialKid(key) { return sha256(key).substr(0, 16); }
+
 // ── link to the PC ────────────────────────────────────────────────
-var ws = null, token = null, retry = 0, offlineT = 0, retryT = 0;
+var ws = null, retry = 0, offlineT = 0, retryT = 0, nonce = null;
 var linkReady = false, linkStopped = false, heartbeatT = 0, deadlineT = 0;
 var pendingCode = null, codeUntil = 0, linkFrozen = false, lastPacket = 0, connectAt = 0;
 // A page keeps its identity across socket replacements, without sharing it with other tabs.
@@ -479,7 +534,10 @@ function heartbeat(socket) {
     try { socket.send('{"t":"ping"}'); } catch (e) { linkFailed(); }
   }, 15000);
 }
-try { token = localStorage.getItem('cue.token.v2'); } catch (e) {}
+// The credential this phone holds: it proves itself by answering the
+// challenge, never by being sent. sid/sk sign the HTTP requests.
+var cred = null, sid = null, sk = null, reqCount = 0;
+try { cred = localStorage.getItem('cue.key.v2'); } catch (e) {}
 var codeFromLink = (location.hash.match(/(?:^#|&)c=(\d{6})(?:&|$)/) || [])[1] || null;
 if (codeFromLink) history.replaceState(null, '', location.pathname);
 function connect(code) {
@@ -489,14 +547,15 @@ function connect(code) {
   if (pendingCode && Date.now() >= codeUntil) pendingCode = null;
   code = pendingCode;
   clearTimeout(retryT); retryT = 0; linkReady = false;
-  if (!code && !token) { clearTimeout(offlineT); showPair(''); return; }
+  if (!code && !cred) { clearTimeout(offlineT); showPair(''); return; }
   var socket;
   try { socket = ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws'); } catch (e) { ws = null; scheduleRetry(); return; }
   connectAt = Date.now(); armDeadline(socket);
   socket.onopen = function () {
     if (ws !== socket) return;
-    try { socket.send(JSON.stringify(code ? {t:'auth',c:code,i:linkInstance} : {t:'auth',k:token,i:linkInstance})); }
-    catch (e) { linkFailed(); }
+    // The server sends the challenge as soon as the connection is open; the
+    // answer is sent only when it arrives.
+    if (!cred && !pendingCode) { try { socket.close(); } catch (e) {} linkStopped = true; retireLink(); return; }
   };
   socket.onerror = function () { if (ws === socket) linkFailed(); };
   socket.onmessage = function (ev) {
@@ -505,9 +564,21 @@ function connect(code) {
     if (!linkAvailable()) return;
     lastPacket = Date.now();
     if (m.t === 'pong') { if (linkReady) { clearTimeout(deadlineT); heartbeat(socket); } return; }
+    if (m.t === 'chal') {
+      if (linkReady) return;             // the server sends one per connection
+      if (code) { try { socket.send(JSON.stringify({t:'auth',c:code,i:linkInstance})); } catch (e) { linkFailed(); } return; }
+      if (!cred) return;
+      var proof;
+      try { proof = hmacSha256(cred, m.n); } catch (e) { return; }
+      if (!(m.n && String(m.n).length === 32)) return;
+      var frame = {t:'auth', k: credentialKid(cred), r: proof, i: linkInstance};
+      try { socket.send(JSON.stringify(frame)); } catch (e) { linkFailed(); }
+      return;
+    }
     if (m.t === 'hello') {
       clearTimeout(deadlineT); pendingCode = null; linkReady = true; retry = 0; hold = {}; heartbeat(socket);
-      if (m.token) { token = m.token; try { localStorage.setItem('cue.token.v2', token); } catch (e) {} }
+      sid = m.sid || null; sk = m.sk || null; reqCount = 0;
+      if (m.key) { cred = m.key; try { localStorage.setItem('cue.key.v2', cred); } catch (e) {} }
       var wasOff = !$('offline').classList.contains('hide');
       hidePair(); setOffline(false); resumeRemoteWork();
       if (code) linked(m.pc || '');
@@ -527,7 +598,7 @@ function connect(code) {
       var n = m.n, epoch = peekEpoch;
       if (peekFetch) peekFetch.abort();
       peekFetch = new AbortController();
-      fetch('/peek?n=' + n, {headers: authHeaders(), cache:'no-store', signal:peekFetch.signal})
+      fetch('/peek?n=' + n, {headers: authHeaders('/peek?n=' + n), cache:'no-store', signal:peekFetch.signal})
         .then(function(r) { if (!r.ok) throw Error(); return r.blob(); })
         .then(function(blob) {
           if (!U.scrub || epoch !== peekEpoch || n < peekShown) return;
@@ -544,7 +615,7 @@ function connect(code) {
   socket.onclose = function (ev) {
     if (ws !== socket) return;
     retireLink();
-    if (ev.code === 4001) { pendingCode = null; linkStopped = true; token = null; try { localStorage.removeItem('cue.token.v2'); } catch (e) {} showPair(code ? t('remote.code_wrong') : ''); return; }
+    if (ev.code === 4001) { pendingCode = null; linkStopped = true; cred = sid = sk = null; try { localStorage.removeItem('cue.key.v2'); } catch (e) {} showPair(code ? t('remote.code_wrong') : ''); return; }
     if (ev.code === 4002) { pendingCode = null; linkStopped = true; showPair(t('remote.code_closed')); return; }
     if (ev.code === 4003) { pendingCode = null; linkStopped = true; showPair(t('remote.locked')); return; }
     scheduleRetry();
@@ -563,7 +634,7 @@ function scheduleRetry() {
 // Multiple resume/focus/pageshow events describe the same return to the page.
 // Keep one healthy attempt; an OPEN socket with no recent response is replaceable.
 function wakeLink() {
-  if (!linkAvailable() || linkStopped || (!token && !pendingCode)) return;
+  if (!linkAvailable() || linkStopped || (!cred && !pendingCode)) return;
   var age = Date.now() - (linkReady ? lastPacket : connectAt);
   if (ws && (ws.readyState === 0 || ws.readyState === 1) && age < (linkReady ? 20000 : 10000)) return;
   retireLink(); retry = 0; connect(null);
@@ -758,7 +829,14 @@ function clearPeek() {
   $('scrub').classList.remove('peeking');
   peekShown = 0;
 }
-function authHeaders() { return {Authorization: 'Bearer ' + (token || '')}; }
+// Every request is signed with the session of the connection: sid + counter,
+// HMAC of (sid, method, path, counter). The counter is fresh per request.
+function authHeaders(path) {
+  if (!sid || !sk) return {};
+  var n = ++reqCount;
+  var payload = sid + '\nGET\n' + path + '\n' + n;
+  return {Authorization: 'Cue ' + sid + ':' + n + ':' + hmacSha256(sk, payload)};
+}
 function scrubStart() { clearPeek(); U.turns = 0; }
 function peek() { if (S.audioOnly) return; send({ c: 'peek', v: Math.round(U.prev * 10) / 10 }, true); }  // audio has no picture
 // Authenticated, lazy, bounded thumbnail fetches; object URLs never contain a credential.
@@ -780,7 +858,7 @@ function pumpThumbs() {
     (function(img) {
       if (!img.classList.contains('sq')) img.insertAdjacentHTML('beforebegin',pixelThumb({path:img.dataset.thumb},0));
       var epoch = thumbEpoch, controller = new AbortController(); thumbRequests.add(controller);
-      fetch('/thumb?p=' + encodeURIComponent(img.dataset.thumb), {headers:authHeaders(), cache:'no-store', signal:controller.signal})
+      fetch('/thumb?p=' + encodeURIComponent(img.dataset.thumb), {headers:authHeaders('/thumb?p=' + encodeURIComponent(img.dataset.thumb)), cache:'no-store', signal:controller.signal})
         .then(function(r) { if (!r.ok) throw Error(); return r.blob(); })
         .then(function(blob) {
           if (controller.signal.aborted || epoch !== thumbEpoch || !img.isConnected || U.browse === null) return;
@@ -1044,7 +1122,7 @@ function openBrowse(path, from) {
   U.browse = path === undefined ? '' : path;
   U.list = null; U.sel = 0; U.menu = null; U.edit = null;
   render();
-  fetch('/list?p=' + encodeURIComponent(U.browse), {headers:authHeaders(), cache:'no-store', signal:browseFetch.signal})
+  fetch('/list?p=' + encodeURIComponent(U.browse), {headers:authHeaders('/list?p=' + encodeURIComponent(U.browse)), cache:'no-store', signal:browseFetch.signal})
     .then(function (r) { if (!r.ok) throw Error(); return r.json(); })
     .then(function (j) {
       if (request !== browseRequest) return;
@@ -1225,7 +1303,7 @@ function pumpQueueThumbs(){
     if(!img.isConnected||img.dataset.requested==='yes')continue;
     img.dataset.requested='yes';var epoch=queueThumbEpoch,controller=new AbortController();img.queueController=controller;queueRequests.add(controller);++queueThumbBusy;
     (function(img,id,epoch,controller){
-      fetch('/queue-thumb?id='+id,{headers:authHeaders(),cache:'no-store',signal:controller.signal})
+      fetch('/queue-thumb?id='+id,{headers:authHeaders('/queue-thumb?id='+id),cache:'no-store',signal:controller.signal})
         .then(function(r){if(!r.ok)throw Error();return r.blob();})
         .then(function(blob){
           if(!queueOpen||epoch!==queueThumbEpoch||!img.isConnected)return;
@@ -1358,7 +1436,7 @@ function showQueue(){
 function loadQueue(){
   if(document.hidden||!linkReady||!queueOpen||queueFetch||queueLoaded===S.queueRevision)return;
   var epoch=++queueEpoch,revision=S.queueRevision;queueFetch=new AbortController();
-  fetch('/queue',{headers:authHeaders(),cache:'no-store',signal:queueFetch.signal})
+  fetch('/queue',{headers:authHeaders('/queue'),cache:'no-store',signal:queueFetch.signal})
     .then(function(r){if(!r.ok)throw Error();return r.json();})
     .then(function(j){if(!queueOpen||epoch!==queueEpoch||revision!==S.queueRevision)return;queueLoaded=revision;reconcileQueue(j.items.slice(0,512));})
     .catch(function(e){if(queueOpen&&epoch===queueEpoch&&e.name!=='AbortError'){$('queueStatus').textContent=t('remote.offline');$('queueStatus').classList.remove('hide');}})
@@ -1743,7 +1821,7 @@ function wheelModes() { return S.queueActive ? ['tempo', 'volume', 'tracks'] : [
 function loadTracks(then) {
   if (trackFetch || document.hidden || !linkReady) return;
   var rev = S.queueRevision, controller = trackFetch = new AbortController();
-  fetch('/queue', {headers:authHeaders(), cache:'no-store', signal:trackFetch.signal})
+  fetch('/queue', {headers:authHeaders('/queue'), cache:'no-store', signal:trackFetch.signal})
     .then(function (r) { if (!r.ok) throw Error(); return r.json(); })
     .then(function (j) { if (controller.signal.aborted || rev !== S.queueRevision) return; trackItems = j.items.slice(0, 512); trackRev = rev; if (U.pick >= trackItems.length) U.pick = trackItems.length - 1; if (then) then(); render(); })
     .catch(function () {})
@@ -1825,7 +1903,7 @@ function syncCover() {
   $('coverImg').onload = null; $('coverImg').removeAttribute('src'); disc.src = null; disc.key = '';
   if (!want) return;
   var controller = coverFetch = new AbortController();
-  fetch('/cover?r=' + want, {headers:authHeaders(), cache:'no-store', signal:coverFetch.signal})
+  fetch('/cover?r=' + want, {headers:authHeaders('/cover?r=' + want), cache:'no-store', signal:coverFetch.signal})
     .then(function (r) { if (!r.ok) throw Error(); return r.blob(); })
     .then(function (b) {
       if (controller.signal.aborted || coverRev !== want) return;
@@ -1863,7 +1941,7 @@ function pickPreview() {
   var epoch = ++peekEpoch;
   pickT = setTimeout(function () {
     pickFetch = new AbortController();
-    fetch('/queue-thumb?id=' + it.id, {headers:authHeaders(), cache:'no-store', signal:pickFetch.signal})
+    fetch('/queue-thumb?id=' + it.id, {headers:authHeaders('/queue-thumb?id=' + it.id), cache:'no-store', signal:pickFetch.signal})
       .then(function (r) { if (!r.ok) throw Error(); return r.blob(); })
       .then(function (b) { if (epoch !== peekEpoch || U.pick < 0) return; if (peekURL) URL.revokeObjectURL(peekURL); peekURL = URL.createObjectURL(b); $('peekImg').src = peekURL; $('scrub').classList.add('peeking'); render(); })
       .catch(function () {});

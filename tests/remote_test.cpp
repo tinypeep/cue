@@ -8,6 +8,8 @@
 #include <cassert>
 #include <cstdio>
 #include <cstring>
+#include <fstream>
+#include <sstream>
 
 using namespace remote;
 
@@ -167,23 +169,62 @@ static void json_checks() {
 static void store_checks() {
   auto file = std::filesystem::temp_directory_path() / "cue-remote-store.json";
   Store a;
-  assert(!a.remote_on && a.remote_sound && !a.remote_folders_set && a.remote_tokens.empty());
+  assert(!a.remote_on && a.remote_sound && !a.remote_folders_set && a.remote_credentials.empty());
   assert(a.news_seen.empty());  // before 1.1 nobody saw a "what's new": an update shows it once
   a.news_seen = "1.1";
   a.remote_on = true;
   a.remote_sound = false;
   a.remote_folders_set = true;
   a.remote_folders = {{"C:\\Users\\a\\Vídeos", true}, {"D:\\Filmes", false}};
-  a.remote_tokens = {std::string(64, 'a'), std::string(64, 'b'), "short"};
+  a.remote_credentials = {std::string(64, 'a'), std::string(64, 'b'), "short"};
   assert(a.save(file));
   Store b;
   assert(b.load(file));
   assert(b.remote_on && !b.remote_sound && b.remote_folders_set && b.remote_folders.size() == 2);
   assert(b.remote_folders[0].path == "C:\\Users\\a\\Vídeos" && b.remote_folders[0].on && !b.remote_folders[1].on);
-  assert(b.remote_tokens.size() == 2);  // a malformed token is never trusted
+  assert(b.remote_credentials.size() == 2 && b.remote_credentials[0] == std::string(64, 'a') && b.remote_credentials[1] == std::string(64, 'b'));  // a malformed credential is never trusted
   assert(b.news_seen == "1.1");
+  // the credential is encrypted in the state file, never the plain key
+  {
+    std::ifstream f(file, std::ios::binary);
+    std::stringstream s;
+    s << f.rdbuf();
+    assert(s.str().find("credentials") != std::string::npos);
+    assert(s.str().find(std::string(64, 'a')) == std::string::npos);
+    assert(s.str().find(std::string(64, 'b')) == std::string::npos);
+    assert(s.str().find("\"tokens\"") == std::string::npos);  // the old key is gone
+  }
   std::filesystem::remove(file);
   std::filesystem::remove(file.string() + ".bak");
+
+  // a file from an older Cue is not used: the tokens are not the credentials
+  // this protocol proves, so those phones pair again
+  {
+    const std::string token = std::string(64, 'c');
+    std::ofstream f(file, std::ios::binary | std::ios::trunc);
+    f << "{\"schema\":2,\"prefs\":{\"remote\":{\"on\":true,\"tokens\":[\"" << token << "\"]}}}";
+    f.close();
+    Store legacy;
+    assert(legacy.load(file));
+    assert(legacy.remote_credentials.empty());
+    std::filesystem::remove(file);
+    std::filesystem::remove(file.string() + ".bak");
+  }
+
+  // a shared folder from the state file is not taken on trust: a drive root
+  // would share everything, and a folder without "on" is not shared at all
+  {
+    std::ofstream f(file, std::ios::binary | std::ios::trunc);
+    f << "{\"schema\":2,\"prefs\":{\"remote\":{\"folders\":[{\"path\":\"C:\\\\\"},{\"path\":\"D:\\\\Filmes\"}]}}}";
+    f.close();
+    Store untrusted;
+    assert(untrusted.load(file));
+    assert(untrusted.remote_folders.size() == 1);
+    assert(untrusted.remote_folders[0].path == "D:\\Filmes");
+    assert(!untrusted.remote_folders[0].on);  // sharing is a choice, not a default
+    std::filesystem::remove(file);
+    std::filesystem::remove(file.string() + ".bak");
+  }
 }
 
 static void sound_checks() {

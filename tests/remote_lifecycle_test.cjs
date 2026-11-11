@@ -1,9 +1,13 @@
 // Runs the production connection/command code with a deterministic clock and socket.
 // No browser/DOM library is required. Layout is covered by remote_*_browser.cjs.
-const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path'),crypto=require('crypto');
 const root=process.env.CUE_SOURCE_ROOT||path.join(__dirname,'..');
 const html=fs.readFileSync(path.join(root,'assets/remote/index.html'),'utf8');
 const code=html.slice(html.indexOf('// ── state '),html.indexOf('// ── pairing by code'));
+const credential='a'.repeat(64);
+const kid=crypto.createHash('sha256').update(credential).digest('hex').substr(0,16);
+const nonce='0'.repeat(32);
+const proof=crypto.createHmac('sha256',Buffer.from(credential,'utf8')).update(nonce).digest('hex');
 function fixture(){
  let now=1000,id=0,tasks=new Map(),sockets=[],nodes=new Map();
  const node=k=>{if(!nodes.has(k)){const set=new Set(['hide']);nodes.set(k,{textContent:'',classList:{contains:x=>set.has(x),toggle:(x,on)=>on?set.add(x):set.delete(x),add:x=>set.add(x),remove:x=>set.delete(x)}});}return nodes.get(k);};
@@ -26,9 +30,11 @@ function fixture(){
  const tail=html.slice(html.lastIndexOf("document.addEventListener('visibilitychange', function () {"),html.lastIndexOf('})();'));
  vm.runInContext(tail,ctx);
  function advance(ms){const until=now+ms;let count=0;while(true){let next;for(const [k,v]of tasks)if(v.at<=until&&(!next||v.at<next[1].at))next=[k,v];if(!next)break;assert(++count<10000,'timer loop');now=next[1].at;tasks.delete(next[0]);next[1].fn();}now=until;}
- function auth(){ctx.connect(null);const s=sockets.at(-1);s.open();s.receive({t:'hello',pc:'test'});return s;}
+ // open a socket and complete the challenge-and-hello handshake
+ function link(s){s.open();s.receive({t:'chal',n:nonce});const answer=s.sent.find(x=>x.t==='auth');assert(answer && answer.k===kid && answer.r===proof, 'the challenge must be answered with the credential proof');s.receive({t:'hello',pc:'test',sid:'01'.repeat(8),sk:'b'.repeat(64)});}
+ function auth(){ctx.connect(null);const s=sockets.at(-1);link(s);return s;}
  function fire(k){for(const fn of handlers[k]||[])fn({persisted:true});}
- return {ctx,sockets,tasks,advance,auth,node,fire,jump:ms=>{now+=ms;}};
+ return {ctx,sockets,tasks,advance,auth,link,node,fire,jump:ms=>{now+=ms;}};
 }
 {
  const f=fixture(),s=f.auth();
@@ -79,7 +85,7 @@ console.log('remote lifecycle: final command ordering, bounded coalescing, no re
  assert.strictEqual(f.tasks.size,0,'no connection timers while hidden');
  f.advance(3600000);f.ctx.document.hidden=false;f.fire('visibilitychange');f.fire('focus');f.fire('pageshow');
  assert.strictEqual(f.sockets.length,2,'resume event cascade must keep one attempt');
- const newer=f.sockets.at(-1);newer.open();newer.receive({t:'hello'});
+ const newer=f.sockets.at(-1);f.link(newer);
  assert.strictEqual(newer.sent[0].i,s.sent[0].i,'page identity must survive socket replacement');
 }
 {
@@ -93,14 +99,15 @@ console.log('remote lifecycle: final command ordering, bounded coalescing, no re
  f.ctx.navigator.onLine=true;f.fire('online');f.fire('focus');assert.strictEqual(f.sockets.length,2);
 }
 {
- const f=fixture();f.ctx.token=null;f.ctx.connect('123456');const first=f.sockets[0];first.open();
- first.onerror();f.advance(1000);const second=f.sockets.at(-1);second.open();
+ const f=fixture();f.ctx.cred=null;f.ctx.connect('123456');const first=f.sockets[0];first.open();
+ first.receive({t:'chal',n:nonce});first.onerror();f.advance(1000);const second=f.sockets.at(-1);second.open();
+ second.receive({t:'chal',n:nonce});
  assert.strictEqual(second.sent[0].c,'123456','transient failure must retain the unconfirmed pairing code');
- second.receive({t:'hello',token:'b'.repeat(64)});
- assert.strictEqual(f.ctx.pendingCode,null);assert.strictEqual(f.ctx.token,'b'.repeat(64));
+ second.receive({t:'hello',pc:'test',key:'b'.repeat(64)});
+ assert.strictEqual(f.ctx.pendingCode,null);assert.strictEqual(f.ctx.cred,'b'.repeat(64));
 }
 {
- const f=fixture();f.ctx.token=null;f.ctx.connect('123456');const first=f.sockets[0];
+ const f=fixture();f.ctx.cred=null;f.ctx.connect('123456');const first=f.sockets[0];
  first.onclose({code:1006});f.advance(1000);assert.strictEqual(f.sockets.length,2,'network close must not report a wrong code');
  const second=f.sockets[1];second.onclose({code:4002});f.advance(180000);
  assert.strictEqual(f.sockets.length,2,'expired pairing code must stop automatic attempts');
@@ -115,7 +122,7 @@ console.log('remote lifecycle: final command ordering, bounded coalescing, no re
  assert.strictEqual(f.sockets.length,1,'12 simulated hours of idle heartbeat must stay connected');
  for(let i=0;i<200;i++){
   f.ctx.document.hidden=true;f.fire('visibilitychange');assert.strictEqual(f.tasks.size,0);
-  f.ctx.document.hidden=false;f.fire('visibilitychange');s=f.sockets.at(-1);s.open();s.receive({t:'hello'});
+  f.ctx.document.hidden=false;f.fire('visibilitychange');s=f.sockets.at(-1);f.link(s);
  }
  assert.strictEqual(f.sockets.filter(x=>x.readyState===1).length,1,'repeated resumes must keep one live socket');
  assert.strictEqual(f.tasks.size,1,'repeated resumes must keep one heartbeat timer');
@@ -144,7 +151,7 @@ console.log('remote idle: paused UI rebuilds eliminated; cover retry and delayed
  lateMessage({data:'{"t":"bye"}'});assert.strictEqual(f.ctx.ws,newer);assert.strictEqual(f.ctx.linkStopped,false,'retired socket messages cannot stop a new attempt');
 }
 {
- const f=fixture();f.ctx.token=null;f.ctx.connect('123456');
+ const f=fixture();f.ctx.cred=null;f.ctx.connect('123456');
  f.ctx.document.hidden=true;f.fire('visibilitychange');f.advance(121000);
  f.ctx.document.hidden=false;f.fire('visibilitychange');
  assert.strictEqual(f.sockets.length,1,'expired unconfirmed code must not be retried');assert.strictEqual(f.tasks.size,0);

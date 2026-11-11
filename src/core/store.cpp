@@ -16,6 +16,21 @@
 #include "json.h"
 #include "i18n.h"
 
+// A shared folder read from the state file is not trusted: it must be a plain
+// drive path ("C:\Videos"), and not the root of a drive, which would share
+// everything on it. The name of a folder the person chose is not ours to
+// widen.
+static bool shared_folder_ok(const std::string& path) {
+  if (path.size() < 4 || path.size() > 400) return false;
+  if (path[0] < 'A' || path[0] > 'Z' || path[1] != ':') return false;  // a drive, not a UNC or a device
+  if (path.find(':') != 1) return false;                              // no second colon: no stream
+  if (path.find("..") != std::string::npos) return false;            // no way up
+  if (path.find('\\') == std::string::npos) return false;             // a real folder, not a drive root
+  if (path.back() == '\\') return false;                               // a drive root shares everything
+  for (char c : path) if ((unsigned char)c < 32) return false;
+  return true;
+}
+
 std::string normalize_path(const std::string& p) {
   std::string o = p;
 #ifdef _WIN32
@@ -108,11 +123,22 @@ bool SettingsStore::parse(const std::string& text) {
   remote_sound = rm["sound"].boolean(true);
   remote_folders.clear();
   remote_folders_set = rm["folders"].t == JVal::Arr;
-  for (auto& f : rm["folders"].a)
-    if (!f["path"].str().empty() && remote_folders.size() < 16) remote_folders.push_back({f["path"].str(), f["on"].boolean(true)});
-  remote_tokens.clear();
-  for (auto& t : rm["tokens"].a)
-    if (remote::valid_token(t.str()) && remote_tokens.size() < 8) remote_tokens.push_back(t.str());
+  for (auto& f : rm["folders"].a) {
+    // A shared folder from the state file is not trusted: it must be a plain
+    // drive path, and not the root of a drive (that would share everything).
+    // A folder without "on" is not shared: sharing is a choice, not a default.
+    const std::string path = f["path"].str();
+    if (shared_folder_ok(path) && remote_folders.size() < 16) remote_folders.push_back({path, f["on"].boolean(false)});
+  }
+  remote_credentials.clear();
+  // The credentials of the phones that may pair. On disk they are encrypted
+  // (DPAPI on Windows), in memory they are the plain credential: a state file
+  // that someone reads is not a set of keys. A file from an older Cue held
+  // hashes of tokens; those phones must pair again.
+  for (auto& t : rm["credentials"].a) {
+    const std::string plain = unprotect_blob(t.str());
+    if (remote::valid_token(plain) && remote_credentials.size() < 8) remote_credentials.push_back(plain);
+  }
   const JVal& up = ss["update"];
   update_checked = up["checked"].integer<int64_t>(0);
   update_available = up["available"].str();
@@ -201,8 +227,8 @@ bool SettingsStore::save(const std::filesystem::path& path) const {
       o += (i ? ", " : "") + std::string("{\"path\": ") + json_quote(remote_folders[i].path) + ", \"on\": " + (remote_folders[i].on ? "true" : "false") + "}";
     o += "]";
   }
-  o += ", \"tokens\": [";
-  for (size_t i = 0; i < remote_tokens.size(); ++i) o += (i ? ", " : "") + json_quote(remote_tokens[i]);
+  o += ", \"credentials\": [";
+  for (size_t i = 0; i < remote_credentials.size(); ++i) o += (i ? ", " : "") + json_quote(protect_blob(remote_credentials[i]));
   o += "]},\n";
   o += "    \"slang\": " + json_quote(slang) + ", \"alang\": " + json_quote(alang) + "\n  },\n";
   // session
@@ -241,6 +267,7 @@ bool SettingsStore::save(const std::filesystem::path& path) const {
     if (!file_contents_equal(bak,o)) {
       std::error_code backup_error;
       std::filesystem::copy_file(path,bak,std::filesystem::copy_options::overwrite_existing,backup_error);
+      if (!backup_error) flush_directory(path.parent_path());  // best effort: the copy is on the disk
       return !backup_error;
     }
     return true;
@@ -253,13 +280,19 @@ bool SettingsStore::save(const std::filesystem::path& path) const {
     return false;
   };
   {
-    std::ofstream f(tmp, std::ios::binary | std::ios::trunc);
-    if (!f) return abandon_tmp();
-    f << o;
-    f.flush();
-    if (!f) return abandon_tmp();
-    f.close();
-    if (!f) return abandon_tmp();
+    // The temporary file is created, never opened: a name that something else
+    // put there (a link to another file) must not be written through. A file
+    // left over from a crash is removed first; if something puts a name back
+    // in between, the save gives up rather than write through it.
+    std::error_code leftover_ec;
+    std::filesystem::remove(tmp, leftover_ec);
+    if (!write_new_file(tmp, o)) return abandon_tmp();
+    // Push the temporary file to the storage device before it replaces the good
+    // state. Without this the bytes are still in the page cache when the swap
+    // happens, so a power cut can leave a torn file behind a backup that has
+    // already been replaced. Fail closed: a flush that cannot be performed
+    // must not be silently skipped.
+    if (!flush_file_to_disk(tmp)) return abandon_tmp();
   }
   std::error_code ec;
 #ifdef _WIN32
@@ -271,7 +304,12 @@ bool SettingsStore::save(const std::filesystem::path& path) const {
     BOOL ok = std::filesystem::exists(path, ec)
                   ? ReplaceFileW(path.c_str(), tmp.c_str(), bak.c_str(), REPLACEFILE_IGNORE_MERGE_ERRORS | REPLACEFILE_IGNORE_ACL_ERRORS, nullptr, nullptr)
                   : MoveFileExW(tmp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING);
-    if (ok) return true;
+    if (ok) {
+      // Best effort: the rename itself must survive a power cut too. The file is
+      // already in place, so a refusal here is not a failed save.
+      flush_directory(path.parent_path());
+      return true;
+    }
     std::this_thread::sleep_for(std::chrono::milliseconds(30 + 30 * std::min(attempt, 5)));
   }
   return abandon_tmp();
@@ -291,7 +329,12 @@ bool SettingsStore::save(const std::filesystem::path& path) const {
   for (int attempt = 0; attempt < 6; ++attempt) {
     ec.clear();
     std::filesystem::rename(tmp, path, ec);
-    if (!ec) return true;
+    if (!ec) {
+      // Best effort: the rename itself must survive a power cut too. The file is
+      // already in place, so a refusal here is not a failed save.
+      flush_directory(path.parent_path());
+      return true;
+    }
     std::this_thread::sleep_for(std::chrono::milliseconds(15 + 15 * attempt));
   }
   return abandon_tmp();

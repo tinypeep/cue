@@ -33,6 +33,14 @@ int parse_request(std::string_view buf, Request& out, size_t& header_len);
 bool valid_authority(std::string_view host);
 bool valid_ws_key(std::string_view key);
 bool valid_token(std::string_view token);
+// The hash of a token, as the server keeps it: the phone sends the token, the
+// server compares hashes. A state file that someone reads must not hand over
+// the phones.
+std::string token_hash(std::string_view token);
+bool valid_token_hash(std::string_view hash);
+// Compares without an early exit: a secret must not leak through the time the
+// comparison takes.
+bool same_secret(std::string_view a, std::string_view b);
 // Small token bucket; each connection has its own bounded budget.
 struct RateLimit {
   double credit = 40, last = -1;
@@ -45,6 +53,13 @@ std::string http_response(int status, std::string_view type, std::string_view bo
 
 // ── WebSocket (RFC 6455, text frames, no extensions) ────────────────
 std::string sha1(std::string_view data);  // 20 raw bytes
+std::string sha256(std::string_view data);  // 32 raw bytes
+// HMAC-SHA256: the proof a phone gives that it holds the key, without ever
+// sending it.
+std::string hmac_sha256(std::string_view key, std::string_view message);
+// How the credential is named without revealing it: the first 8 bytes of its
+// hash, as hex. The server maps it to the credential it holds.
+std::string credential_kid(std::string_view credential);
 std::string base64(std::string_view data);
 std::string ws_accept(std::string_view key);
 std::string ws_handshake(std::string_view key);
@@ -59,14 +74,20 @@ bool private_ipv4(uint32_t host_order);  // 10/8, 172.16/12, 192.168/16, 169.254
 std::string ipv4_text(uint32_t host_order);
 std::string device_name(std::string_view user_agent);  // "iPhone", "iPad", "Android", or ""
 // Pairing codes are tried by hand: a few mistakes are fine, guessing is not.
+// The limit is a parameter: the server keeps one guard per address (a wrong
+// guess locks that address only) and one for everyone together (guessing from
+// many addresses at once).
 class CodeGuard {
  public:
+  CodeGuard() = default;
+  explicit CodeGuard(int max_fails) : max_fails_(max_fails) {}
   bool allowed(double now) const;  // false while locked
   void failed(double now);
   void succeeded() { fails_.clear(); }
  private:
   std::vector<double> fails_;
   double locked_until_ = -1;
+  int max_fails_ = 6;
 };
 std::string hex(std::string_view bytes);
 

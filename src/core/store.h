@@ -49,11 +49,12 @@ struct SettingsStore {
   int64_t update_checked = 0;
   std::string update_available, update_skipped;
   // the phone remote: on (its server starts with Cue), the pairing sound, the folders the phone
-  // may open, and the phones that paired (tokens; the oldest is forgotten past remote::kMaxTokens)
+  // may open, and the phones that may pair (their credentials, encrypted on disk, never in the
+  // clear; the oldest is forgotten past remote::kMaxTokens)
   struct RemoteFolder { std::string path; bool on = true; };
   bool remote_on = false, remote_sound = true, remote_folders_set = false;
   std::vector<RemoteFolder> remote_folders;
-  std::vector<std::string> remote_tokens;
+  std::vector<std::string> remote_credentials;
 
   // ── session ────────────────────────────────────────────────────
   DockPlace dock;

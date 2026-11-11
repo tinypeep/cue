@@ -283,8 +283,12 @@ struct Client {
   SOCKET s = INVALID_SOCKET;
   std::string in, out;
   bool ws = false, authenticated = false, closing = false;
-  std::string token, instance;
-  remote::RateLimit messages;
+  std::string credential, instance;  // the credential; never sent, only expected
+  uint32_t peer = 0;                // the address the phone is at, for the pairing lockout
+  std::string nonce;                // the challenge this connection must answer
+  std::string sid;                  // the session its HTTP requests sign with
+  remote::RateLimit messages;       // the phone's own messages (WebSocket frames)
+  remote::RateLimit requests;       // the phone's own requests (HTTP)
   double accepted = 0;
   std::string device;
   double last_rx = 0, last_ping = 0;
@@ -312,12 +316,21 @@ struct RemoteServer::Impl {
   bool page_dirty = true;
   Roots roots;
   ProgressMap progress;
-  std::set<std::string> tokens;
+  // The credentials the phones hold. The credential never crosses the wire
+  // after pairing: a connection proves it by answering a challenge. The
+  // state file holds it encrypted (DPAPI on Windows), the server sees it
+  // only to expect it.
+  std::unordered_map<std::string, std::string> credentials;  // kid -> credential
   bool pairing = false;
   std::string code;
   double pair_until = 0;
   std::shared_ptr<std::atomic<uint64_t>> generation = std::make_shared<std::atomic<uint64_t>>(0);
-  remote::CodeGuard guard;
+  remote::CodeGuard guard;                       // everyone together: guessing from many addresses
+  std::map<uint32_t, remote::CodeGuard> guards;  // per address: a wrong guess locks that address only
+  // The sessions the open connections hold. Every HTTP request is signed with
+  // the session of the connection that opened it; the session dies with it.
+  struct Session { std::string key; uint64_t last_counter = 0; std::set<uint64_t> used; };
+  std::unordered_map<std::string, Session> sessions;
   std::vector<Event> events;
   bool posted = false;
   std::shared_ptr<ThumbCache> thumbs = std::make_shared<ThumbCache>();
@@ -363,6 +376,33 @@ struct RemoteServer::Impl {
   }
   void handle_http(size_t idx, const remote::Request& r);
   void authenticate(Client& c, const std::string& payload);
+  // The credential a phone presents is proven by the challenge, never sent.
+  bool credential_ok(const std::string& kid, const std::string& proof, const std::string& nonce) const {
+    if (kid.size() != 16 || proof.size() != 64 || nonce.empty()) return false;
+    auto it = credentials.find(kid);
+    if (it == credentials.end()) return false;
+    return remote::same_secret(remote::hex(remote::hmac_sha256(it->second, nonce)), proof);
+  }
+  // Whether the credential is one of ours (a phone that was paired and is now
+  // turned off is forgotten at once).
+  bool known(const std::string& credential) const {
+    if (!remote::valid_token(credential)) return false;
+    return credentials.count(remote::credential_kid(credential)) != 0;
+  }
+  // A request is signed by the session of the connection that made it.
+  bool session_ok(const std::string& sid, uint64_t n, const std::string& proof, const std::string& payload) {
+    auto it = sessions.find(sid);
+    if (it == sessions.end()) return false;
+    auto& s = it->second;
+    if (n + 64 <= s.last_counter) return false;  // too old: the page has moved on
+    if (n > s.last_counter + 64) return false;   // too far ahead: not reachable
+    if (s.used.count(n)) return false;           // already used: a replay
+    if (!remote::same_secret(remote::hex(remote::hmac_sha256(s.key, payload)), proof)) return false;
+    s.used.insert(n);
+    if (n > s.last_counter) s.last_counter = n;
+    while (s.used.size() > 64) s.used.erase(s.used.begin());  // the oldest, first
+    return true;
+  }
   void handle_frames(Client& c);
   void loop();
   void drop(size_t idx);
@@ -371,6 +411,13 @@ struct RemoteServer::Impl {
 void RemoteServer::Impl::drop(size_t idx) {
   Client& c = clients[idx];
   if (c.s != INVALID_SOCKET) closesocket(c.s);
+  // The session dies with the connection: the phone cannot sign anything once
+  // it is gone, and it must prove itself again when it reconnects.
+  if (!c.sid.empty()) {
+    std::lock_guard<std::mutex> l(mu);
+    sessions.erase(c.sid);
+    c.sid.clear();
+  }
   if (c.authenticated) {
     --nclients;
     Event e;
@@ -393,7 +440,30 @@ void RemoteServer::Impl::handle_http(size_t idx, const remote::Request& r) {
   std::string origin = hdr("origin");
   if ((!origin.empty() && origin != "http://" + hdr("host")) || hdr("sec-fetch-site") == "cross-site")
     return reply(403, "text/plain", "forbidden");
+  // The page signs every request with the session of the connection that opened
+  // it: Authorization: Cue <sid>:<counter>:<hmac(sid|method|path|counter)>.
+  auto signed_ok = [&] {
+    std::string a = hdr("authorization");
+    if (a.rfind("Cue ", 0) != 0) return false;
+    a = a.substr(4);
+    const size_t p1 = a.find(':');
+    if (p1 == std::string::npos) return false;
+    const size_t p2 = a.find(':', p1 + 1);
+    if (p2 == std::string::npos) return false;
+    const std::string sid = a.substr(0, p1), nstr = a.substr(p1 + 1, p2 - p1 - 1), proof = a.substr(p2 + 1);
+    if (sid.size() != 16 || proof.size() != 64 || nstr.empty() || nstr.size() > 18) return false;
+    uint64_t n = 0;
+    for (char c : nstr) {
+      if (c < '0' || c > '9') return false;
+      n = n * 10 + (uint64_t)(c - '0');
+    }
+    std::lock_guard<std::mutex> l(mu);
+    return session_ok(sid, n, proof, sid + "\n" + r.method + "\n" + r.path + "\n" + nstr);
+  };
   if (r.method != "GET") return reply(405, "text/plain", "");
+  // Every phone has a budget for its requests: one that keeps asking for
+  // listings and thumbnails must not keep the workers and the disk busy.
+  if (!c.requests.take(clock_s(), 40, 120)) return reply(429, "text/plain", "");
   auto q = [&](const char* k) { auto it = r.query.find(k); return it == r.query.end() ? std::string() : it->second; };
 
   if (r.path == "/" || r.path == "/index.html") {
@@ -419,34 +489,34 @@ void RemoteServer::Impl::handle_http(size_t idx, const remote::Request& r) {
     c.ws = true;
     c.device = remote::device_name(hdr("user-agent"));
     c.last_rx = c.last_ping = clock_s();
+    // The challenge: the phone proves it holds the credential by answering it.
+    c.nonce = remote::hex(random_bytes(16));
+    if (c.nonce.size() == 32) queue(c, remote::ws_encode(remote::WS_TEXT, "{\"t\":\"chal\",\"n\":\"" + c.nonce + "\"}"));
     return;  // first masked text frame authenticates; no protected data before it
   }
-  auto bearer = [&] {
-    std::string auth = hdr("authorization");
-    return auth.rfind("Bearer ", 0) == 0 ? auth.substr(7) : std::string();
-  };
   if (r.path == "/peek") {
+    if (!signed_ok()) return reply(403, "text/plain", "");
     std::string img;
     {
       std::lock_guard<std::mutex> l(mu);
-      if (!tokens.count(bearer())) return reply(403, "text/plain", "");
       img = peek;
     }
     if (img.empty()) return reply(404, "text/plain", "");
     return reply(200, "image/bmp", img);
   }
   if(r.path=="/queue") {
+    if (!signed_ok()) return reply(403, "text/plain", "");
     std::string body;
-    {std::lock_guard<std::mutex> l(mu);if(!tokens.count(bearer()))return reply(403,"text/plain","");body=queue_json;}
+    {std::lock_guard<std::mutex> l(mu); body=queue_json;}
     return reply(200,"application/json; charset=utf-8",body);
   }
   if (r.path == "/list" || r.path == "/thumb" || r.path == "/queue-thumb" || r.path == "/cover") {
     Roots roots_copy;
     std::string queue_path;
     ProgressMap progress_copy;
+    if (!signed_ok()) return reply(403, "text/plain", "");
     {
       std::lock_guard<std::mutex> l(mu);
-      if (!tokens.count(bearer())) return reply(403, "text/plain", "");
       roots_copy = roots;
       if (r.path == "/cover") {
         queue_path = cover_path;  // only the song playing now, never a path the phone names
@@ -482,17 +552,20 @@ void RemoteServer::Impl::handle_http(size_t idx, const remote::Request& r) {
     auto gate_ref = gate;
     auto generation_ref = generation;
     uint64_t epoch = *generation_ref;
-    // Acquire before launching: stop() may release the server's reference before
-    // a newly scheduled worker gets its first CPU slice.
-    WSADATA wd{};
-    if (WSAStartup(MAKEWORD(2, 2), &wd) != 0) { closesocket(s); return; }
     ++*workers_ref;
     try { std::thread([s, path, list, cover, queue_song, roots_copy, progress_copy, workers_ref, thumbs_ref, gate_ref, generation_ref, epoch] {
+      // Winsock is paired on the thread that uses it: the worker holds its own
+      // reference, so the server stopping does not pull the socket out from
+      // under it.
+      WSADATA worker_wd{};
+      const bool worker_wsa = WSAStartup(MAKEWORD(2, 2), &worker_wd) == 0;
       struct Cleanup {
         SOCKET socket;
         std::shared_ptr<std::atomic<int>> workers;
-        ~Cleanup() { closesocket(socket); --*workers; WSACleanup(); }
-      } cleanup{s, workers_ref};
+        bool wsa;
+        ~Cleanup() { closesocket(socket); --*workers; if (wsa) WSACleanup(); }
+      } cleanup{s, workers_ref, worker_wsa};
+      if (!worker_wsa) return;
       try {
       if (*generation_ref != epoch) return;
       std::string resp;
@@ -535,7 +608,6 @@ void RemoteServer::Impl::handle_http(size_t idx, const remote::Request& r) {
     }).detach(); } catch (...) {
       closesocket(s);
       --*workers_ref;
-      WSACleanup();
     }
     return;
   }
@@ -548,27 +620,44 @@ void RemoteServer::Impl::authenticate(Client& c, const std::string& payload) {
   std::string fresh;
   if (payload.size() <= 256 && json_parse(payload, j) && j.t == JVal::Obj && j["t"].str() == "auth") {
     std::lock_guard<std::mutex> l(mu);
-    std::string token = j["k"].str(), attempt = j["c"].str(), instance = j["i"].str();
+    std::string attempt = j["c"].str(), kid = j["k"].str(), proof = j["r"].str(), instance = j["i"].str();
     if (instance.size() >= 8 && instance.size() <= 64 &&
         std::all_of(instance.begin(), instance.end(), [](unsigned char ch) {
           return (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9');
         })) c.instance = std::move(instance);
     double now = clock_s();
+    // The credential never crosses the wire: a connection proves it by
+    // answering the challenge. The pairing code is the only way in.
     if (!remote::auth_event_room(events.size())) refuse = 4003;
-    else if (remote::valid_token(token) && tokens.count(token)) { c.token = token; refuse = 0; }
     else if (!attempt.empty()) {
       if (!pairing || now >= pair_until || code.empty()) refuse = 4002;
-      else if (!guard.allowed(now)) refuse = 4003;
-      else if (attempt == code) {
+      else if (!guard.allowed(now)) refuse = 4003;                       // guessing from many addresses
+      else if (!guards[c.peer].allowed(now)) refuse = 4003;               // this address guessed too much
+      else if (remote::same_secret(attempt, code)) {                     // no early exit: no timing to read
         fresh = remote::hex(random_bytes(32));
         if (remote::valid_token(fresh)) {
           guard.succeeded();
-          tokens.insert(fresh);
-          c.token = fresh;
+          guards[c.peer].succeeded();
+          credentials[remote::credential_kid(fresh)] = fresh;
+          c.credential = fresh;
           pairing = false; code.clear(); // one use, even before the UI processes the event
           refuse = 0;
         }
-      } else { guard.failed(now); refuse = guard.allowed(now) ? 4001 : 4003; }
+      } else {
+        guard.failed(now);
+        // The per-address budgets are kept small: a network with many
+        // addresses must not make a list of every one of them.
+        if (guards.size() >= 32) guards.clear();
+        guards[c.peer].failed(now);
+        refuse = (guard.allowed(now) && guards[c.peer].allowed(now)) ? 4001 : 4003;
+      }
+    } else if (!kid.empty() && !proof.empty()) {
+      if (!credential_ok(kid, proof, c.nonce)) refuse = 4001;  // not one of ours, or not the answer
+      else {
+        auto it = credentials.find(kid);
+        c.credential = it->second;
+        refuse = 0;
+      }
     }
   }
   if (refuse) {
@@ -580,14 +669,29 @@ void RemoteServer::Impl::authenticate(Client& c, const std::string& payload) {
   // A reconnect from this page supersedes its old half-open TCP connection.
   // Other tabs and phones keep their own sessions; legacy clients omit the ID.
   if (!c.instance.empty()) for (auto& old : clients) {
-    if (&old == &c || !old.authenticated || old.token != c.token || old.instance != c.instance) continue;
+    if (&old == &c || !old.authenticated || old.credential != c.credential || old.instance != c.instance) continue;
     old.closing = true; old.in.clear(); old.out.clear();
+    if (!old.sid.empty()) {
+      std::lock_guard<std::mutex> l(mu);
+      sessions.erase(old.sid);
+      old.sid.clear();
+    }
     shutdown(old.s, SD_BOTH);
   }
   c.authenticated = true;
   ++nclients;
-  std::string hello = "{\"t\":\"hello\",\"pc\":" + remote::escape(pc);
-  if (!fresh.empty()) hello += ",\"token\":" + remote::escape(fresh);
+  // The session the HTTP requests this connection makes will sign with. The
+  // credential itself goes only to the phone that paired: it is what it must
+  // keep to prove itself next time.
+  const std::string sid = remote::hex(random_bytes(8));
+  const std::string sk = remote::hex(random_bytes(32));
+  {
+    std::lock_guard<std::mutex> l(mu);
+    sessions[sid] = Session{sk, 0, {}};
+  }
+  c.sid = sid;
+  std::string hello = "{\"t\":\"hello\",\"pc\":" + remote::escape(pc) + ",\"sid\":\"" + sid + "\",\"sk\":\"" + sk + "\"";
+  if (!fresh.empty()) hello += ",\"key\":" + remote::escape(fresh);
   queue(c, remote::ws_encode(remote::WS_TEXT, hello + "}"));
   {
     std::lock_guard<std::mutex> l(mu);
@@ -598,7 +702,7 @@ void RemoteServer::Impl::authenticate(Client& c, const std::string& payload) {
   Event e;
   e.kind = fresh.empty() ? Event::Connected : Event::Paired;
   e.device = c.device;
-  e.token = fresh;
+  e.key = fresh;
   post(e);
 }
 
@@ -620,7 +724,7 @@ void RemoteServer::Impl::handle_frames(Client& c) {
     }
     {
       std::lock_guard<std::mutex> l(mu);
-      if (!tokens.count(c.token)) { c.closing = true; return; }
+      if (!known(c.credential)) { c.closing = true; return; }
     }
     if (f.opcode == remote::WS_PING) queue(c, remote::ws_encode(remote::WS_PONG, f.payload));
     else if (f.opcode == remote::WS_CLOSE) { queue(c, remote::ws_encode(remote::WS_CLOSE, "")); c.closing = true; return; }
@@ -629,7 +733,7 @@ void RemoteServer::Impl::handle_frames(Client& c) {
         queue(c, remote::ws_encode(remote::WS_TEXT, "{\"t\":\"pong\"}")); continue;
       }
       Event e;
-      if (remote::parse_command(f.payload, e.cmd)) { e.cmd.credential = c.token; e.kind = Event::Command; e.device = c.device; post(e); }
+      if (remote::parse_command(f.payload, e.cmd)) { e.cmd.credential = c.credential; e.kind = Event::Command; e.device = c.device; post(e); }
     }
   }
 }
@@ -664,6 +768,7 @@ void RemoteServer::Impl::loop() {
           setsockopt(s, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<const char*>(&nodelay), sizeof nodelay);
           Client c;
           c.s = s;
+          c.peer = ntohl(peer.sin_addr.s_addr);
           c.accepted = c.last_rx = clock_s();
           clients.push_back(std::move(c));
         }
@@ -709,7 +814,7 @@ void RemoteServer::Impl::loop() {
       if (!c.authenticated || c.closing || c.s == INVALID_SOCKET) continue;
       {
         std::lock_guard<std::mutex> l(mu);
-        if (!tokens.count(c.token)) { c.closing = true; continue; }
+        if (!known(c.credential)) { c.closing = true; continue; }
       }
       if (c.sent_rev != rev && !state_frame.empty() && c.out.empty()) { queue(c, state_frame); c.sent_rev = rev; }
       if (c.peek_sent != prev && c.out.empty()) {
@@ -782,10 +887,21 @@ bool RemoteServer::start(HWND notify, UINT msg, const std::wstring& font_path, s
   BOOL excl = TRUE;
   setsockopt(s, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, reinterpret_cast<const char*>(&excl), sizeof excl);
   int port = 0;
+  // Bind to the network address itself, not to every adapter: a machine with a
+  // public interface must not listen for the world on it. The peer filter
+  // (private addresses only) stays as the second layer. Without a network
+  // address there is nothing better to bind to, and the peer filter still
+  // refuses anyone who is not on a private network.
+  uint32_t bind_addr = htonl(INADDR_ANY);
+  const std::string lan = lan_address();
+  if (!lan.empty()) {
+    in_addr parsed{};
+    if (InetPtonA(AF_INET, lan.c_str(), &parsed) == 1) bind_addr = parsed.S_un.S_addr;
+  }
   for (int p = remote::kPort; p < remote::kPort + remote::kPortTries; ++p) {
     sockaddr_in a{};
     a.sin_family = AF_INET;
-    a.sin_addr.s_addr = htonl(INADDR_ANY);
+    a.sin_addr.s_addr = bind_addr;
     a.sin_port = htons((u_short)p);
     if (bind(s, reinterpret_cast<sockaddr*>(&a), sizeof a) == 0) { port = p; break; }
   }
@@ -891,10 +1007,15 @@ void RemoteServer::set_progress(std::vector<std::pair<std::string, Progress>> it
   d_->progress = std::move(m);
 }
 
-void RemoteServer::set_tokens(std::vector<std::string> tokens) {
+void RemoteServer::set_credentials(std::vector<std::string> credentials) {
   std::lock_guard<std::mutex> l(d_->mu);
-  d_->tokens.clear();
-  for (const auto& t : tokens) if (remote::valid_token(t) && d_->tokens.size() < remote::kMaxTokens) d_->tokens.insert(t);
+  d_->credentials.clear();
+  // The credential itself, not a hash of it: the phone presents it, the
+  // connection proves it against the challenge. The state file holds it
+  // encrypted, so a file that is read is not a set of keys.
+  for (const auto& c : credentials)
+    if (remote::valid_token(c) && d_->credentials.size() < remote::kMaxTokens)
+      d_->credentials[remote::credential_kid(c)] = c;
   ++*d_->generation;
   d_->gate->wake_all();
 }
