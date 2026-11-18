@@ -3,15 +3,23 @@
 #include "../src/core/oom_guard.h"
 #include <cassert>
 #include <cstdio>
+#include <new>
 #include <stdexcept>
-#include <vector>
 
 // (under AddressSanitizer, tools/sanitize.sh, a huge allocation stops the test with ASan's own
 // report instead of throwing: there the failure is thrown by hand; tools/test.sh asks for the memory)
 #if defined(__SANITIZE_ADDRESS__)
 static long huge() { throw std::bad_alloc(); }
 #else
-static long huge() { std::vector<char> v((size_t)1 << 62); return (long)v.size(); }
+// The pointer escapes to a volatile sink so an optimiser cannot elide the allocation: -O2
+// otherwise removes an unused vector's allocation and the test never reaches the allocator.
+static char* volatile g_sink;
+static long huge() {
+  char* p = new char[(size_t)1 << 62];
+  g_sink = p;
+  delete[] p;
+  return -1;
+}
 #endif
 
 int main() {

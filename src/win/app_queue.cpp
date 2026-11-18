@@ -48,9 +48,10 @@ void App::queue_play_now(uint32_t id) {
     if(!there) {
       const ULONGLONG spent=GetTickCount64()-asked_from;
       std::vector<DWORD> attrs;
-      // (a few askers still waiting on a disk: no more of them, the engine answers)
+      // (a few askers still waiting on a disk: no more of them, the engine answers; no answer at
+      // all, e.g. no thread could start: try the file, never call it missing)
       there=spent>=500||attribute_askers_busy()||!ask_attributes({widen(path)},attrs,nullptr,(DWORD)std::min<ULONGLONG>(150,500-spent))||
-            (!attrs.empty()&&attrs[0]!=INVALID_FILE_ATTRIBUTES);
+            attrs.empty()||attrs[0]!=INVALID_FILE_ATTRIBUTES;
     }
     if(there) {
       queue_.select(id); open(path); queue_refresh(); return;

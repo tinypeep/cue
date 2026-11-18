@@ -7,6 +7,15 @@
 int main() {
   assert(update_temp_directory_name(L"Cue-update-0123456789abcdef0123456789abcdef"));
   for(auto bad:{L"Cue-update-",L"Cue-update-../",L"Other-update-0123456789abcdef0123456789abcdef",L"Cue-update-0123456789abcdef0123456789abcdeg"})assert(!update_temp_directory_name(bad));
+  {
+    // the installer's "MZ" is read even when the first HTTP read stops after one byte
+    ExeHeader split;
+    assert(!split.feed("M", 1) && !split.ok());
+    assert(split.feed("Z", 1) && split.ok());
+    assert(split.feed("xx", 2) && split.ok());  // later reads cannot change it
+    ExeHeader wrong; assert(wrong.feed("Mz", 2) && !wrong.ok());
+    ExeHeader one; assert(!one.feed("M", 1) && !one.ok());
+  }
   assert(kUpdateEvery==3*24*3600);
   assert(!update_due(1000000+3*24*3600-1,1000000));
   assert(update_due(1000000+3*24*3600,1000000));

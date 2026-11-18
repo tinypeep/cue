@@ -138,6 +138,10 @@ static void json_checks() {
   assert(json_parse(state_json(s), j));
   assert(j["t"].str() == "state" && j["view"].str() == "play" && j["file"].str() == "Fala \"aí\".mkv");
   assert(j["pos"].num() == 12.5 && j["sub"]["posDefault"].num() == 93 && j["next"].str() == "S01E04");
+  // (a broken container's huge length stays bounded and valid for the page)
+  s.pos = 1e300; s.dur = 1e300;
+  assert(json_parse(state_json(s), j) && j["pos"].num() == 1e9 && j["dur"].num() == 1e9);
+  s.pos = 12.5; s.dur = 100;
   // the file before this one in the queue: the phone's back button asks the PC for it ("prev")
   assert(j["prev"].str().empty());
   s.prev = "02 song.mp3";

@@ -216,6 +216,11 @@ bool SettingsStore::load(const std::filesystem::path& path) {
   std::error_code ec;
   std::filesystem::path bad = path;
   bad += ".corrupt";
+  // (a second corruption must not land on the file the first one kept: find a free name)
+  for (int n = 1; std::filesystem::exists(bad, ec) && n < 100; ++n) {
+    bad = path;
+    bad += ".corrupt-" + std::to_string(n);
+  }
   std::filesystem::rename(path, bad, ec);
   *this = SettingsStore{};
   if (read_state_file(bak, text) && parse(text)) { load_status = "recovered"; return true; }
@@ -289,7 +294,11 @@ bool SettingsStore::save(const std::filesystem::path& path) const {
   o += "  \"media\": [";
   for (size_t i = 0; i < recents.size(); ++i) {
     auto& r = recents[i];
-    std::snprintf(b, sizeof b, "{\"pos\": %.2f, \"dur\": %.2f, \"last\": %lld", r.pos, r.dur, (long long)r.last);
+    // (not only the doors guard these: a non-finite number would be written as a bare nan/inf,
+    // which the JSON reader rejects, taking every setting with it)
+    const double pos = std::isfinite(r.pos) ? std::clamp(r.pos, 0.0, 1e9) : 0.0;
+    const double dur = std::isfinite(r.dur) ? std::clamp(r.dur, 0.0, 1e9) : 0.0;
+    std::snprintf(b, sizeof b, "{\"pos\": %.2f, \"dur\": %.2f, \"last\": %lld", pos, dur, (long long)r.last);
     o += (i ? ",\n    " : "\n    ") + std::string(b) + ", \"path\": " + json_quote(r.path);
     if (r.sid >= 0) o += ", \"sid\": " + std::to_string(r.sid) + ", \"slang\": " + json_quote(r.sid_lang);
     if (r.aid >= 0 || r.aid == -2) o += ", \"aid\": " + std::to_string(r.aid) + ", \"alang\": " + json_quote(r.aid_lang);
@@ -388,7 +397,7 @@ RecentItem& SettingsStore::touch(const std::string& p, double dur, int64_t now) 
   RecentItem item;
   if (it != recents.end()) { item = *it; recents.erase(it); }
   item.path = p;
-  if (dur > 0) item.dur = dur;
+  if (dur > 0 && std::isfinite(dur)) item.dur = dur;  // (a broken length never reaches the file)
   item.last = now;
   recents.insert(recents.begin(), item);
   if (recents.size() > kMaxRecents) recents.resize(kMaxRecents);
@@ -396,9 +405,10 @@ RecentItem& SettingsStore::touch(const std::string& p, double dur, int64_t now) 
 }
 
 bool SettingsStore::set_position(const std::string& p, double pos, double dur) {
+  if (!std::isfinite(pos)) return false;  // a broken engine sample must not reach state.json
   RecentItem* r = find(p);
   if (!r) return false;
-  double next_duration = dur > 0 ? dur : r->dur;
+  double next_duration = dur > 0 && std::isfinite(dur) ? dur : r->dur;
   if (r->pos == pos && r->dur == next_duration) return false;
   r->dur = next_duration;
   r->pos = pos;

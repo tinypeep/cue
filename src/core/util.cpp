@@ -20,6 +20,7 @@ std::string fmt_time(double sec, bool force_hours) {
 }
 
 std::string fmt_delay(double sec) {
+  if (!std::isfinite(sec)) sec = 0;  // a broken property must not print "nan s"
   double r = std::round(sec * 10) / 10;
   char buf[32];
   if (std::fabs(r) < 0.05) r = 0;

@@ -9,6 +9,7 @@
 
 // Made-up music: notes of a few partials with their own envelope, chosen by a seed. Two episodes
 // share the opening and the ending song (the same seed) and differ everywhere else.
+static constexpr double kPi = 3.14159265358979323846;
 static void music(std::vector<float>& out, double seconds, uint32_t seed) {
   std::mt19937 rng(seed);
   std::uniform_real_distribution<double> pitch(110, 880), len(0.12, 0.5), u(0, 1);
@@ -22,7 +23,7 @@ static void music(std::vector<float>& out, double seconds, uint32_t seed) {
     for (size_t i = s0; i < s1; ++i) {
       const double x = (double)(i - s0) / intro::kRate;
       const double env = std::exp(-x * 4) * std::min(1.0, x * 200);
-      out[i] += (float)(amp * env * (std::sin(2 * M_PI * f * x) + 0.5 * std::sin(4 * M_PI * f * x) + 0.25 * std::sin(6 * M_PI * f * x)));
+      out[i] += (float)(amp * env * (std::sin(2 * kPi * f * x) + 0.5 * std::sin(4 * kPi * f * x) + 0.25 * std::sin(6 * kPi * f * x)));
     }
     t += d;
   }

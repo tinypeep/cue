@@ -2,6 +2,7 @@
 #include <cassert>
 #include <cstdio>
 #include <chrono>
+#include <limits>
 #include "../src/core/file_io.h"
 #include <fstream>
 #include <iterator>
@@ -58,6 +59,35 @@ int main() {
   assert(!store.save(path));  // must not rename without a backup
   assert(bytes(path)==before_backup_fail);  // good file untouched
   assert(!std::filesystem::exists(dir/"state.json.tmp"));  // failed save leaves no stale .tmp
+  {
+    // A non-finite engine sample never reaches the file (a bare nan/inf would make the next
+    // start read the whole state as corrupt and reset every setting).
+    auto guard = dir/"bad-state.json";
+    Store bad;
+    bad.touch("C:\\bad.mp4", std::numeric_limits<double>::infinity(), 9);
+    assert(bad.find("C:\\bad.mp4") && bad.find("C:\\bad.mp4")->dur == 0);
+    assert(bad.set_position("C:\\bad.mp4", 12, 100));
+    assert(!bad.set_position("C:\\bad.mp4", std::numeric_limits<double>::quiet_NaN(), 100));
+    assert(bad.find("C:\\bad.mp4")->pos == 12 && bad.find("C:\\bad.mp4")->dur == 100);
+    assert(bad.save(guard));
+    const std::string text = bytes(guard);
+    assert(text.find("nan") == std::string::npos && text.find("inf") == std::string::npos);
+    Store back;
+    assert(back.load(guard) && back.find("C:\\bad.mp4") && back.find("C:\\bad.mp4")->pos == 12);
+  }
+  {
+    // A second corrupt state is kept beside the first, and the only copy is never overwritten.
+    auto cdir = dir/"corrupt";
+    std::filesystem::create_directories(cdir);
+    auto file = cdir/"state.json";
+    { std::ofstream f(file); f << "not json"; }
+    { std::ofstream f(cdir/"state.json.corrupt"); f << "first"; }
+    Store corrupt;
+    assert(!corrupt.load(file));
+    assert(!std::filesystem::exists(file));
+    assert(bytes(cdir/"state.json.corrupt") == "first");
+    assert(bytes(cdir/"state.json.corrupt-1") == "not json");
+  }
   std::filesystem::remove_all(dir);
   std::puts("Settings I/O: after recovery-copy warm-up, 1100 unchanged saves skip file writes/backup rotation; changed settings remain atomic, recoverable and loadable");
 }

@@ -201,10 +201,10 @@ DWORD WINAPI download_main(void* p) {
   Sha256 sha;
   int64_t total = rel.size, got = 0;
   int last_pct = -1;
-  bool mz = false;
+  ExeHeader header;
   std::string err;
   bool ok = http_get(widen(rel.asset_url), L"application/octet-stream", [&](const char* d, DWORD n) {
-    if (got == 0 && n >= 2) mz = d[0] == 'M' && d[1] == 'Z';
+    header.feed(d, n);  // ("MZ" may arrive split across reads)
     DWORD wrote = 0;
     if (!WriteFile(f, d, n, &wrote, nullptr) || wrote != n) return false;
     sha.add(d, n);
@@ -224,7 +224,7 @@ DWORD WINAPI download_main(void* p) {
   CloseHandle(f);
   std::string digest = sha.hex();
   if (!ok) { DeleteFileW(part.c_str()); fail(err); delete job; return 0; }
-  if (!mz) { DeleteFileW(part.c_str()); fail("not an executable"); delete job; return 0; }
+  if (!header.ok()) { DeleteFileW(part.c_str()); fail("not an executable"); delete job; return 0; }
   if (rel.size > 0 && got != rel.size) { DeleteFileW(part.c_str()); fail("size mismatch"); delete job; return 0; }
   if (digest != rel.sha256) { DeleteFileW(part.c_str()); fail("sha256 mismatch"); delete job; return 0; }
   DeleteFileW(final_path.c_str());

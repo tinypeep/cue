@@ -80,6 +80,10 @@ g++ -std=c++20 -O1 -DWITH_PLAY -o preview tools/preview.cpp tools/preview_play.c
 ./preview out 2
 ```
 
+`tools/test.sh` runs on Linux and, from an MSYS2/MinGW shell, natively on Windows (it links the
+system's CNG and DPAPI libraries there; `tools/native-tests.bat` starts it from a normal prompt).
+`.github/workflows/tests.yml` runs it on every push to `main` and every pull request.
+
 Asset generators: `gen_assets.py`, `gen_action_icons.py`, `build_fonts.py`, and `gen_fallback_glyphs.py`. `brand_images.cpp` renders the cover, banner, icon, and layers; `brand_psd.py` assembles PSDs. Regenerate branding from the repository root and place outputs in `docs/`.
 
 [Languages](LANGUAGES.md) · [Performance and evidence](PERFORMANCE.md) · [Release process](UPDATES.md)

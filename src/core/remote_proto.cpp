@@ -35,6 +35,9 @@ std::string ext_of(std::string_view name) {
 }
 std::string num(double v, int places) {
   if (!std::isfinite(v)) v = 0;
+  // (nothing the page shows is beyond this: a broken container's 1e300 duration must not become
+  // a valid but truncated 47-digit number, and it fits the buffer below)
+  v = std::clamp(v, -1e9, 1e9);
   char b[48];
   std::snprintf(b, sizeof b, "%.*f", places, v);
   return b;

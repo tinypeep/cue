@@ -64,7 +64,7 @@ More controls and settings: [User guide](docs/GUIDE.md).
 Use `build.bat` in an MSVC x64 developer prompt, `make CROSS=` with MinGW-w64, or `make` on Linux with `g++-mingw-w64-x86-64`.
 Place the release's `libmpv-2.dll` in `build/Cue/`. Run `make setup` to build the installer.
 
-Portable tests: `bash tools/test.sh`. Playback and native interactions require Windows validation.
+Portable tests: `bash tools/test.sh` (or `tools\native-tests.bat` on Windows with MSYS2). Playback and native interactions require Windows validation.
 
 [Architecture](docs/ARCHITECTURE.md) · [Languages](docs/LANGUAGES.md) · [Releases](docs/UPDATES.md) · [Performance](docs/PERFORMANCE.md) · [Release checks](docs/RELEASE-CHECKLIST.md)
 

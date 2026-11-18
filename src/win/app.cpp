@@ -4091,7 +4091,7 @@ void App::open(std::string path, std::vector<std::string> subs) {
 // a song skipped to on an external disk asleep, as long as the disk took to wake). The answer
 // within `wait_ms` (150: any disk awake): at once, as before. Later: false, and `late` (if any)
 // runs on the window's thread with the answer when it comes; the window stays free meanwhile.
-// (No lookups made by the caller's thread at all. No thread could start: no attributes, true.)
+// (No lookups made by the caller's thread at all. No thread could start: no answer, true.)
 static std::atomic<int> g_attribute_askers{0};
 bool App::attribute_askers_busy() { return g_attribute_askers.load() >= 4; }
 bool App::ask_attributes(const std::vector<std::wstring>& paths, std::vector<DWORD>& attrs,
@@ -4131,7 +4131,7 @@ bool App::ask_attributes(const std::vector<std::wstring>& paths, std::vector<DWO
     }).detach();
   } catch (...) {
     --g_attribute_askers;
-    attrs.assign(paths.size(), INVALID_FILE_ATTRIBUTES);  // (no thread: as missing files)
+    attrs.clear();  // (no thread: no answer at all, never "the file is missing")
     return true;
   }
   if (job->ready) WaitForSingleObject(job->ready, wait_ms);

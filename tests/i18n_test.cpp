@@ -2,6 +2,7 @@
 // persistence, the five catalogs (complete, same placeholders, plural forms) and that every
 // character the interface can show has a pixel glyph (nothing turns into a box or vanishes).
 #include <cassert>
+#include <cmath>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -133,6 +134,7 @@ int main() {
   // numbers follow the language's decimal mark
   i18n::set_language(Lang::PtBR); CHECK(fmt_delay(0.3) == "+0,3 s" && i18n::decimal(23.976, 2) == "23,98");
   i18n::set_language(Lang::En);   CHECK(fmt_delay(-1.2) == "-1.2 s" && fmt_delay(0) == "0.0 s" && i18n::decimal(1.5, 2) == "1.5");
+  CHECK(fmt_delay(std::nan("")) == "0.0 s" && fmt_delay(INFINITY) == "0.0 s");
   i18n::set_language(Lang::Fr);   CHECK(fmt_delay(0.3) == "+0,3 s");
   i18n::set_language(Lang::ZhHans); CHECK(fmt_delay(0.3) == "+0.3 s");
   // track names: endonyms stay, other languages are named in the interface language
